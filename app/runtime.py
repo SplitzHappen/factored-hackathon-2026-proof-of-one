@@ -58,6 +58,14 @@ class _TicketSnapshot:
     verified_at: datetime | None
 
 
+@dataclass(frozen=True, slots=True)
+class VerifiedEscalationContext:
+    """Internal verified ticket chain for analyst-side application services."""
+
+    ticket_id: UUID
+    session: AuthenticatedSession
+    transaction_id: str
+
 class OperationalStore:
     """Separate writable SQLite state; never stores authoritative banking records."""
 
@@ -393,6 +401,35 @@ class OperationalStore:
             created_at=snapshot.created_at,
             persisted=True,
             verified=snapshot.verified_at is not None,
+        )
+
+    def resolve_verified_escalation_context(
+        self,
+        ticket_id: UUID,
+    ) -> VerifiedEscalationContext | None:
+        """Resolve only a verified ticket through its persisted customer session.
+
+        This deliberately accepts a ticket ID only. It does not provide arbitrary
+        customer or transaction lookup and is intended for the later analyst role
+        boundary, which remains separate from this storage layer.
+        """
+
+        snapshot = self._read_ticket_snapshot(ticket_id)
+        if (
+            snapshot is None
+            or snapshot.verified_at is None
+            or snapshot.transaction_id is None
+        ):
+            return None
+
+        session = self.get_authenticated_session(snapshot.session_id)
+        if session is None:
+            return None
+
+        return VerifiedEscalationContext(
+            ticket_id=snapshot.ticket_id,
+            session=session,
+            transaction_id=snapshot.transaction_id,
         )
 
     def _verify_persisted_session(self, session: AuthenticatedSession) -> None:
