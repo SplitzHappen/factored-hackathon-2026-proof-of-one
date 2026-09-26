@@ -86,6 +86,16 @@ class TransactionQuery(ContractModel):
     limit: int = Field(default=10, ge=1, le=50)
 
 
+class InterpretedTransactionQuery(ContractModel):
+    """Model-extracted filters with no model-controlled result limit or identity."""
+
+    date_from: date | None = None
+    date_to: date | None = None
+    amount: Decimal | None = Field(default=None, ge=0)
+    transaction_type: str | None = Field(default=None, max_length=80)
+    status: str | None = Field(default=None, max_length=80)
+
+
 class InterpretationStatus(StrEnum):
     VERIFIED = "verified"
     SAFE_FALLBACK = "safe_fallback"
@@ -118,7 +128,7 @@ class ModelInterpretation(ContractModel):
     intent: PolicyIntent
     unauthorized_activity_asserted: bool
     transaction_id: str | None = Field(default=None, min_length=1, max_length=128)
-    transaction_query: TransactionQuery | None = None
+    transaction_query: InterpretedTransactionQuery | None = None
 
 
 class VerifiedInterpretation(ContractModel):
@@ -129,7 +139,7 @@ class VerifiedInterpretation(ContractModel):
     intent: PolicyIntent
     unauthorized_activity_asserted: bool
     transaction_id: str | None = Field(default=None, min_length=1, max_length=128)
-    transaction_query: TransactionQuery | None = None
+    transaction_query: InterpretedTransactionQuery | None = None
     transaction_reference_status: TransactionReferenceStatus
     candidate_transaction_ids: list[
         Annotated[str, Field(min_length=1, max_length=128)]
