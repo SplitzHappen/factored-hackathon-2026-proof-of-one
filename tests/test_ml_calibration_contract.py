@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from ml.calibration_contract import (
     CALIBRATION_CONTRACT_VERSION,
+    C_B_IMPLEMENTATION_COMMIT,
+    C_B_RESULT_SHA256,
     LOGISTIC_CONVERGENCE_POLICY,
     SELECTED_GBDT_ID,
     best_non_gbdt_pr_auc,
@@ -96,3 +98,13 @@ def test_calibration_contract_hash_is_stable() -> None:
     assert first == second
     assert len(first) == 64
     assert set(first) <= set("0123456789abcdef")
+
+
+
+def test_c_c_contract_is_bound_to_canonical_c_b_result() -> None:
+    upstream = calibration_gate_contract_dict()["upstream"]
+
+    assert upstream["c_b_implementation_commit"] == C_B_IMPLEMENTATION_COMMIT
+    assert upstream["c_b_result_sha256"] == C_B_RESULT_SHA256
+    assert C_B_IMPLEMENTATION_COMMIT == "9d14bc4df27ed5a4719a98e63d7645ddf380684d"
+    assert C_B_RESULT_SHA256 == "31825d493fa6bdb7658a0e2f9e44d2ac2d0065c1e33c72690e7a55ca06dfaefe"
