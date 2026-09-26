@@ -128,7 +128,10 @@ Among eligible candidates:
 2. if candidates are within **1.0 percentage point**, prefer the lower combined
    provider-failure + invalid-structured-output rate;
 3. if still tied within **0.5 percentage points**, prefer lower p95 latency;
-4. cost is the final tie-breaker after quality/reliability/latency.
+4. cost is the final tie-breaker after quality/reliability/latency. Because Qwen's
+   published international price is in CNY while OpenAI/DeepSeek publish USD prices,
+   native-currency estimates are **not compared directly**. If the cost tie-break is
+   reached, freeze and record a contemporaneous CNY/USD conversion before deciding.
 
 No result from the frozen held-out suite may be used to reverse the development-pool
 provider choice.
