@@ -12,10 +12,8 @@ from typing import Any
 
 import duckdb
 import numpy as np
-from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
 
 
@@ -347,53 +345,51 @@ def _model_rows(
     return con.execute(query, params).fetchnumpy()
 
 
-def _to_matrix(rows: dict[str, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
-    columns: list[np.ndarray] = []
-    for name in NUMERIC_FEATURES:
-        values = np.asarray(rows[name], dtype=np.float64)
-        columns.append(values.reshape(-1, 1))
-    for name in CATEGORICAL_FEATURES:
-        values = np.asarray(rows[name], dtype=object)
-        columns.append(values.reshape(-1, 1))
-    x = np.concatenate(columns, axis=1)
-    y = np.asarray(rows["target"], dtype=np.int8)
-    return x, y
+def _feature_blocks(
+    rows: dict[str, np.ndarray],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    numeric = np.column_stack(
+        [
+            np.asarray(rows[name], dtype=np.float64)
+            for name in NUMERIC_FEATURES
+        ]
+    )
+    categorical = np.column_stack(
+        [
+            np.asarray(rows[name], dtype=object)
+            for name in CATEGORICAL_FEATURES
+        ]
+    )
+    target = np.asarray(rows["target"], dtype=np.int8)
+    return numeric, categorical, target
 
 
 def _fit_quick_gbdt(
     train_rows: dict[str, np.ndarray],
     holdout_rows: dict[str, np.ndarray],
 ) -> dict[str, Any]:
-    x_train, y_train = _to_matrix(train_rows)
-    x_holdout, y_holdout = _to_matrix(holdout_rows)
+    numeric_train, categorical_train, y_train = _feature_blocks(train_rows)
+    numeric_holdout, categorical_holdout, y_holdout = _feature_blocks(holdout_rows)
 
     if y_train.sum() == 0 or y_holdout.sum() == 0:
         raise SignalProbeError("Probe sample contains no positive fraud labels.")
 
-    numeric_count = len(NUMERIC_FEATURES)
-    categorical_indices = list(
-        range(numeric_count, numeric_count + len(CATEGORICAL_FEATURES))
+    encoder = OrdinalEncoder(
+        handle_unknown="use_encoded_value",
+        unknown_value=np.nan,
+        encoded_missing_value=np.nan,
+        max_categories=255,
+        min_frequency=20,
     )
+    encoded_train = encoder.fit_transform(categorical_train)
+    encoded_holdout = encoder.transform(categorical_holdout)
+    x_train = np.concatenate([numeric_train, encoded_train], axis=1)
+    x_holdout = np.concatenate([numeric_holdout, encoded_holdout], axis=1)
 
-    transformer = ColumnTransformer(
-        transformers=[
-            ("numeric", "passthrough", list(range(numeric_count))),
-            (
-                "categorical",
-                OrdinalEncoder(
-                    handle_unknown="use_encoded_value",
-                    unknown_value=np.nan,
-                    encoded_missing_value=np.nan,
-                    max_categories=255,
-                    min_frequency=20,
-                ),
-                categorical_indices,
-            ),
-        ],
-        remainder="drop",
-        verbose_feature_names_out=False,
+    categorical_mask = (
+        [False] * len(NUMERIC_FEATURES)
+        + [True] * len(CATEGORICAL_FEATURES)
     )
-    categorical_mask = [False] * numeric_count + [True] * len(CATEGORICAL_FEATURES)
     model = HistGradientBoostingClassifier(
         learning_rate=0.08,
         max_iter=120,
@@ -403,14 +399,8 @@ def _fit_quick_gbdt(
         class_weight="balanced",
         random_state=20260926,
     )
-    pipeline = Pipeline(
-        steps=[
-            ("transform", transformer),
-            ("model", model),
-        ]
-    )
-    pipeline.fit(x_train, y_train)
-    scores = pipeline.predict_proba(x_holdout)[:, 1]
+    model.fit(x_train, y_train)
+    scores = model.predict_proba(x_holdout)[:, 1]
 
     prevalence = float(y_holdout.mean())
     pr_auc = float(average_precision_score(y_holdout, scores))
