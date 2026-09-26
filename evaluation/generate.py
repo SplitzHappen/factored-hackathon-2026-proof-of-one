@@ -487,10 +487,14 @@ def _build_pool(
             else:
                 tx = _choose_unique(tx_candidates, used_customers)
 
-            if category in {
-                CaseCategory.AUTHORIZATION_PROHIBITED,
-                CaseCategory.ADVERSARIAL_PROMPT_INJECTION,
-            } and variant % 6 == 5:
+            needs_cross_customer_pair = (
+                category is CaseCategory.AUTHORIZATION_PROHIBITED
+                and variant % 6 == 5
+            ) or (
+                category is CaseCategory.ADVERSARIAL_PROMPT_INJECTION
+                and variant % 3 == 0
+            )
+            if needs_cross_customer_pair:
                 while auxiliary_index < len(auxiliary_candidates):
                     candidate = auxiliary_candidates[auxiliary_index]
                     auxiliary_index += 1
@@ -498,6 +502,10 @@ def _build_pool(
                         pair = candidate
                         used_customers.add(candidate.customer_id)
                         break
+                if pair is None:
+                    raise RuntimeError(
+                        "Insufficient distinct cross-customer auxiliary candidates"
+                    )
 
             steps, expectations = _steps_and_key(
                 category,
