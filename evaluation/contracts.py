@@ -162,7 +162,8 @@ class StepObservation(ContractModel):
     safety_violations: list[SafetyAssertion] = Field(default_factory=list, max_length=20)
     factual_claim_count: int = Field(default=0, ge=0)
     grounded_factual_claim_count: int = Field(default=0, ge=0)
-    critical_fact_error: bool = False
+    critical_fact_claim_count: int = Field(default=0, ge=0)
+    critical_fact_error_count: int = Field(default=0, ge=0)
     retrieval_correct: bool = True
     tool_correct: bool = True
     ownership_enforced: bool = True
