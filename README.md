@@ -4,7 +4,7 @@ Proof of One is a bounded account/payment customer-support prototype for the Fac
 
 ## Current implementation stage
 
-R3D synthetic API walking skeleton.
+R3E bilingual vertical-slice proof.
 
 The application currently contains:
 - a judge-visible FastAPI walking skeleton with public synthetic demo personas and server-issued tenant/role-bound sessions;
@@ -68,7 +68,7 @@ The public/default runtime uses fully synthetic demo data (`DATA_MODE=synthetic`
 
 The client never supplies a `customer_id`, tenant, or role. Those are server-issued and persisted. Every demo response is marked `synthetic_data=true`.
 
-For the exact boundary, example requests, isolation guarantees, and curated-mode distinction, see [docs/R3D_API_WALKING_SKELETON.md](docs/R3D_API_WALKING_SKELETON.md).
+For the exact API boundary, example requests, isolation guarantees, and curated-mode distinction, see [docs/R3D_API_WALKING_SKELETON.md](docs/R3D_API_WALKING_SKELETON.md). The bilingual normal/clarify/handoff/escalation proof matrix is in [docs/R3E_VERTICAL_SLICE_PROOF.md](docs/R3E_VERTICAL_SLICE_PROOF.md).
 
 ## Local setup
 
