@@ -867,7 +867,7 @@ def run_candidate(
             == realistic_case.unauthorized_activity_asserted
         )
         if realistic_case.score_intent:
-            correct = correct and parsed.intent.value in realistic_case.accepted_intents
+            correct = correct and parsed.intent in realistic_case.accepted_intents
         if realistic_case.expected_transaction_id is not None:
             correct = (
                 correct
