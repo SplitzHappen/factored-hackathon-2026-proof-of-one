@@ -45,22 +45,31 @@ def test_authenticated_session_requires_server_context_shape() -> None:
 
 
 def test_policy_input_has_no_fraud_label_or_score_surface() -> None:
-    policy_input = PolicyInput(intent=PolicyIntent.TRANSACTION_STATUS)
+    policy_values = {
+        "intent": PolicyIntent.TRANSACTION_STATUS,
+        "unauthorized_activity_asserted": False,
+        "ownership_verified": True,
+        "trusted_record_found": True,
+        "trusted_data_conflict": False,
+        "excluded_relationship_required": False,
+        "ambiguous_transaction_match": False,
+        "required_parameters_missing": False,
+    }
+    policy_input = PolicyInput(**policy_values)
 
     assert "is_fraud" not in policy_input.model_dump()
     assert "fraud_score" not in policy_input.model_dump()
 
     with pytest.raises(ValidationError):
-        PolicyInput(
-            intent=PolicyIntent.TRANSACTION_STATUS,
-            is_fraud=True,
-        )
+        PolicyInput(**policy_values, is_fraud=True)
 
     with pytest.raises(ValidationError):
-        PolicyInput(
-            intent=PolicyIntent.TRANSACTION_STATUS,
-            fraud_score=Decimal("99.00"),
-        )
+        PolicyInput(**policy_values, fraud_score=Decimal("99.00"))
+
+    incomplete = policy_values.copy()
+    incomplete.pop("ownership_verified")
+    with pytest.raises(ValidationError):
+        PolicyInput(**incomplete)
 
 
 def test_operational_transaction_contract_rejects_retrospective_fraud_fields() -> None:
