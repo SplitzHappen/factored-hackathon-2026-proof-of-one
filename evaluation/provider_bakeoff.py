@@ -437,7 +437,7 @@ def run_candidate(
 
     candidate = CANDIDATES[candidate_id]
     summary: dict[str, object] = {
-        "benchmark_version": "r3c-provider-bakeoff-v1",
+        "benchmark_version": "r3c-provider-bakeoff-v2",
         "development_combined_sha256": development_sha,
         "candidate_id": candidate_id,
         "provider": candidate.provider,
