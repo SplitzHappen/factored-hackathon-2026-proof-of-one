@@ -200,6 +200,7 @@ def test_history_is_strictly_earlier_and_same_timestamp_peers_never_count(
 
     assert facts is not None
     assert facts.prior_tx_count_lifetime == 5
+    assert facts.product_tenure_days == 532.0
     assert facts.prior_24h_tx_count == 2
     assert facts.prior_30d_tx_count == 5
     assert facts.amount_to_prior_currency_mean_ratio == pytest.approx(4.0)
