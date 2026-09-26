@@ -122,7 +122,9 @@ def test_customer_summary_is_scoped(bank: BankRepository) -> None:
     missing = bank.get_customer_summary("C999")
 
     assert own is not None
-    assert own.country == "Colombia"
+    assert own.customer_status == "Active"
+    assert "country" not in own.model_dump()
+    assert "detected_accent" not in own.model_dump()
     assert missing is None
 
 
