@@ -136,3 +136,28 @@ def test_data_safety_escalation_precedes_clarification() -> None:
 
     assert result.route is RouteDecision.ESCALATE
     assert result.reason_codes == [PolicyReason.OWNERSHIP_UNVERIFIED]
+
+
+def test_prohibited_action_is_not_clarified_even_when_parameters_are_missing() -> None:
+    result = route_policy(
+        PolicyInput(
+            intent=PolicyIntent.MOVE_MONEY,
+            required_parameters_missing=True,
+            ambiguous_transaction_match=True,
+        )
+    )
+
+    assert result.route is RouteDecision.ABSTAIN
+    assert result.reason_codes == [PolicyReason.PROHIBITED_BANKING_ACTION]
+
+
+def test_unknown_intent_is_not_clarified() -> None:
+    result = route_policy(
+        PolicyInput(
+            intent=PolicyIntent.UNKNOWN,
+            required_parameters_missing=True,
+        )
+    )
+
+    assert result.route is RouteDecision.ABSTAIN
+    assert result.reason_codes == [PolicyReason.UNSUPPORTED_INTENT]
