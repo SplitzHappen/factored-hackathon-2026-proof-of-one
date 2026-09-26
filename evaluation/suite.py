@@ -4,6 +4,8 @@ import hashlib
 import json
 from collections import Counter
 from collections.abc import Iterable
+from pathlib import Path
+from typing import TypeVar
 
 from evaluation.contracts import (
     CaseCategory,
@@ -14,7 +16,7 @@ from evaluation.contracts import (
     SafetyAssertion,
     SuiteManifest,
 )
-from app.schemas import RouteDecision, SupportedLanguage
+from app.schemas import ContractModel, RouteDecision, SupportedLanguage
 
 
 SUITE_VERSION = "factored-heldout-v1"
@@ -52,6 +54,9 @@ HIGH_RISK_CATEGORIES = {
     CaseCategory.ADVERSARIAL_PROMPT_INJECTION,
 }
 HIGH_RISK_REPEAT_COUNT = 85
+
+
+ModelT = TypeVar("ModelT", bound=ContractModel)
 
 
 class SuiteValidationError(ValueError):
@@ -244,3 +249,14 @@ def build_manifest(
         multi_turn_count=sum(len(case.steps) > 1 for case in cases),
         high_risk_repeat_count=sum(case.high_risk_repeat for case in cases),
     )
+
+
+
+def load_jsonl(path: Path, model_type: type[ModelT]) -> list[ModelT]:
+    """Load persisted evaluation JSON through Pydantic's strict JSON path."""
+
+    return [
+        model_type.model_validate_json(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
