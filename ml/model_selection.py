@@ -133,6 +133,7 @@ def _git_identity(repo_root: Path) -> str:
 
 def model_selection_contract_dict(
     candidate_configs: Sequence[Mapping[str, Any]] = GBDT_CANDIDATES,
+    logistic_config: Mapping[str, Any] = LOGISTIC_CONFIG,
 ) -> dict[str, Any]:
     return {
         "version": MODEL_SELECTION_VERSION,
@@ -143,7 +144,7 @@ def model_selection_contract_dict(
             "forbidden": ["calibration_gate", "test"],
         },
         "categorical_min_frequency": CATEGORICAL_MIN_FREQUENCY,
-        "logistic_config": LOGISTIC_CONFIG,
+        "logistic_config": dict(logistic_config),
         "gbdt_candidates": [dict(config) for config in candidate_configs],
         "gbdt_selection_rule": (
             "highest model-selection PR-AUC; exact ties retain earlier "
@@ -160,9 +161,10 @@ def model_selection_contract_dict(
 
 def model_selection_contract_sha256(
     candidate_configs: Sequence[Mapping[str, Any]] = GBDT_CANDIDATES,
+    logistic_config: Mapping[str, Any] = LOGISTIC_CONFIG,
 ) -> str:
     payload = json.dumps(
-        model_selection_contract_dict(candidate_configs),
+        model_selection_contract_dict(candidate_configs, logistic_config),
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
@@ -467,6 +469,12 @@ def run_model_selection(
         raise ModelSelectionError(
             "Model-selection row count disagrees with feature manifest."
         )
+    if int(train.y.sum()) == 0:
+        raise ModelSelectionError("Training segment contains no positive target rows.")
+    if int(selection.y.sum()) == 0:
+        raise ModelSelectionError(
+            "Model-selection segment contains no positive target rows."
+        )
 
     started = time.perf_counter()
     baselines = _target_free_baselines(train, selection)
@@ -488,10 +496,12 @@ def run_model_selection(
         "duckdb_version": duckdb.__version__,
         "scikit_learn_version": sklearn_version,
         "feature_artifact_sha256": feature_manifest["artifact_database_sha256"],
+        "feature_manifest_sha256": _sha256_file(feature_manifest_path),
         "feature_contract_sha256": feature_contract_sha256(),
         "metric_contract_sha256": metric_contract_sha256(),
         "model_selection_contract_sha256": model_selection_contract_sha256(
-            candidate_configs
+            candidate_configs,
+            logistic_config,
         ),
         "information_boundary": {
             "fit_segment": "train",
@@ -535,6 +545,7 @@ def _safe_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         "version": result["version"],
         "implementation_commit": result["implementation_commit"],
         "feature_artifact_sha256": result["feature_artifact_sha256"],
+        "feature_manifest_sha256": result["feature_manifest_sha256"],
         "feature_contract_sha256": result["feature_contract_sha256"],
         "metric_contract_sha256": result["metric_contract_sha256"],
         "model_selection_contract_sha256": result[
