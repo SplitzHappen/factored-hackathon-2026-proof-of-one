@@ -12,6 +12,7 @@ from ml.full_data_contract import (
     TARGET_COLUMN,
     derive_official_split_plan,
     feature_contract_dict,
+    feature_contract_sha256,
     segment_case_sql,
 )
 
@@ -148,4 +149,13 @@ def test_split_fractions_are_frozen() -> None:
         "calibration_gate": 0.075,
         "test": 0.15,
     }
-    assert sum(fractions.values()) == 1.0
+    assert abs(sum(fractions.values()) - 1.0) < 1e-12
+
+
+def test_contract_hash_is_stable_and_sha256_shaped() -> None:
+    first = feature_contract_sha256()
+    second = feature_contract_sha256()
+
+    assert first == second
+    assert len(first) == 64
+    assert set(first) <= set("0123456789abcdef")
