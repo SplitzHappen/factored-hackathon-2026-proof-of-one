@@ -465,6 +465,15 @@ def _build_pool(
     pt_counter = 0
     auxiliary_index = 0
     spanish_by_category: dict[CaseCategory, list[HeldoutCase | DevelopmentCase]] = {}
+    tx_lookup = {
+        candidate.transaction_id: candidate
+        for candidate in (
+            tx_candidates
+            + declined_candidates
+            + auxiliary_candidates
+            + [item for pair in ambiguity_candidates for item in pair]
+        )
+    }
 
     for category in CaseCategory:
         spanish_by_category[category] = []
@@ -487,6 +496,7 @@ def _build_pool(
                     auxiliary_index += 1
                     if candidate.customer_id not in used_customers:
                         pair = candidate
+                        used_customers.add(candidate.customer_id)
                         break
 
             steps, expectations = _steps_and_key(
@@ -531,22 +541,11 @@ def _build_pool(
             pt_counter += 1
             source = spanish_by_category[category][variant]
             source_tx_id = source.locator.transaction_ids[0]
-            source_tx = next(
-                candidate for candidate in tx_candidates + declined_candidates
-                if candidate.transaction_id == source_tx_id
-            )
+            source_tx = tx_lookup[source_tx_id]
             pair_tx = None
             if len(source.locator.transaction_ids) > 1:
                 second_id = source.locator.transaction_ids[1]
-                for candidate in (
-                    tx_candidates
-                    + declined_candidates
-                    + auxiliary_candidates
-                    + [item for pair in ambiguity_candidates for item in pair]
-                ):
-                    if candidate.transaction_id == second_id:
-                        pair_tx = candidate
-                        break
+                pair_tx = tx_lookup.get(second_id)
             steps, expectations = _steps_and_key(
                 category,
                 source_tx,
@@ -637,14 +636,10 @@ def generate(
         used_customers=used_customers,
     )
 
-    dev_customers = {
-        case.locator.customer_id
-        for case in dev_cases
-        if case.language is SupportedLanguage.ES
-    }
+    dev_customers = set(used_customers) - heldout_customers
     overlap = heldout_customers & dev_customers
     if overlap:
-        raise RuntimeError("Development and held-out primary customers overlap")
+        raise RuntimeError("Development and held-out organizer customers overlap")
 
     private_dir = output_dir / "private"
     _write_jsonl(private_dir / "heldout_cases.jsonl", heldout_cases)
