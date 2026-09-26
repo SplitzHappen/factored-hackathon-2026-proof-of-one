@@ -18,6 +18,8 @@ from ml.model_selection import (
 
 
 CALIBRATION_CONTRACT_VERSION = "factored-r4b-c-calibration-gate-v1"
+C_B_IMPLEMENTATION_COMMIT = "9d14bc4df27ed5a4719a98e63d7645ddf380684d"
+C_B_RESULT_SHA256 = "31825d493fa6bdb7658a0e2f9e44d2ac2d0065c1e33c72690e7a55ca06dfaefe"
 SELECTED_GBDT_ID = "gbdt-small"
 
 PLATT_CALIBRATION_CONFIG: dict[str, Any] = {
@@ -62,6 +64,8 @@ def calibration_gate_contract_dict() -> dict[str, Any]:
         "version": CALIBRATION_CONTRACT_VERSION,
         "upstream": {
             "model_selection_version": MODEL_SELECTION_VERSION,
+            "c_b_implementation_commit": C_B_IMPLEMENTATION_COMMIT,
+            "c_b_result_sha256": C_B_RESULT_SHA256,
             "metric_contract_version": METRIC_CONTRACT_VERSION,
             "feature_contract_sha256": feature_contract_sha256(),
             "metric_contract_sha256": metric_contract_sha256(),
