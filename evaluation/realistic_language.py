@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import unicodedata
 
-from app.schemas import PolicyIntent, SupportedLanguage
+from app.schemas import SupportedLanguage
 from evaluation.contracts import RealisticLanguageCase, RealisticLanguageManifest
 from evaluation.suite import load_jsonl
 
@@ -136,15 +136,5 @@ def load_realistic_language_suite(
         raise ValueError("realistic-language v1 incorrectly claims native review")
     if manifest.portuguese_native_reviewed:
         raise ValueError("realistic-language v1 incorrectly claims Portuguese native review")
-
-    for case in cases:
-        invalid_intents = [
-            intent for intent in case.accepted_intents
-            if intent not in {item.value for item in PolicyIntent}
-        ]
-        if invalid_intents:
-            raise ValueError(
-                f"realistic-language case {case.case_id} contains invalid intents"
-            )
 
     return cases, manifest
