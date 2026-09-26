@@ -141,13 +141,13 @@ class PolicyInput(ContractModel):
     """
 
     intent: PolicyIntent
-    unauthorized_activity_asserted: bool = False
-    ownership_verified: bool = True
-    trusted_record_found: bool = True
-    trusted_data_conflict: bool = False
-    excluded_relationship_required: bool = False
-    ambiguous_transaction_match: bool = False
-    required_parameters_missing: bool = False
+    unauthorized_activity_asserted: bool
+    ownership_verified: bool
+    trusted_record_found: bool
+    trusted_data_conflict: bool
+    excluded_relationship_required: bool
+    ambiguous_transaction_match: bool
+    required_parameters_missing: bool
 
 
 class PolicyResult(ContractModel):
