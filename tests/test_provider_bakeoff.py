@@ -197,6 +197,7 @@ def test_qwen_adapter_uses_strict_json_schema(monkeypatch) -> None:
     assert response_format["type"] == "json_schema"
     assert response_format["json_schema"]["strict"] is True
     assert captured["payload"]["model"] == "qwen3.7-flash"
+    assert captured["payload"]["enable_thinking"] is False
     assert adapter.last_telemetry is not None
     assert adapter.last_telemetry.cost_currency == "CNY"
 
@@ -238,6 +239,7 @@ def test_deepseek_adapter_preserves_json_object_disadvantage(monkeypatch) -> Non
 
     assert captured["payload"]["model"] == "deepseek-flash"
     assert captured["payload"]["response_format"] == {"type": "json_object"}
+    assert captured["payload"]["thinking"] == {"type": "disabled"}
     assert adapter.last_telemetry is not None
     assert adapter.last_telemetry.estimated_cost_min == pytest.approx(0.000021)
     assert adapter.last_telemetry.estimated_cost_max == pytest.approx(0.000042)
