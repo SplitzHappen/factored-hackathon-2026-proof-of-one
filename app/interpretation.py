@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import unicodedata
+from datetime import date
 from typing import Protocol
 
 from pydantic import ValidationError
@@ -27,6 +30,7 @@ INTERPRETATION_SYSTEM_PROMPT = """You are a multilingual banking-support interpr
 Return only one JSON object conforming exactly to the supplied response schema.
 
 Interpret the customer's message in the expected Spanish or Portuguese session language.
+Use only the supplied reference_date when resolving relative dates such as "ayer" or "ontem".
 Map the explicit request to the provided intent enum. Do not invent transaction IDs, dates,
 amounts, transaction types, or statuses. Extract transaction filters only when the customer
 actually supplied them. Set unauthorized_activity_asserted=true only when the customer
@@ -61,6 +65,23 @@ _PT_UNAUTHORIZED_PATTERNS = (
     re.compile(r"\bnao autorizei\b"),
     re.compile(r"\bessa compra nao e minha\b"),
 )
+
+
+def interpretation_contract_sha256() -> str:
+    """Stable prompt/schema identity for later evaluation provenance."""
+
+    payload = {
+        "version": INTERPRETATION_CONTRACT_VERSION,
+        "system_prompt": INTERPRETATION_SYSTEM_PROMPT,
+        "response_schema": ModelInterpretation.model_json_schema(),
+    }
+    canonical = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 class InterpretationProviderError(RuntimeError):
@@ -112,6 +133,7 @@ class InterpretationService:
         *,
         session: AuthenticatedSession,
         message: str,
+        reference_date: date,
         previous_intent: PolicyIntent | None = None,
     ) -> VerifiedInterpretation:
         """Interpret one customer turn without granting the model authority.
@@ -125,6 +147,7 @@ class InterpretationService:
         request = ModelInterpretationRequest(
             language=session.language,
             message=message,
+            reference_date=reference_date,
             previous_intent=previous_intent,
         )
 
@@ -147,6 +170,14 @@ class InterpretationService:
             try:
                 extraction = ModelInterpretation.model_validate_json(raw)
             except (ValidationError, ValueError, TypeError):
+                last_failure = InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
+                continue
+
+            if (
+                extraction.transaction_id is not None
+                and extraction.transaction_id.casefold()
+                not in request.message.casefold()
+            ):
                 last_failure = InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
                 continue
 
