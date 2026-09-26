@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import duckdb
@@ -11,7 +10,7 @@ from evaluation.contracts import (
     HeldoutCase,
 )
 from evaluation.generate import generate
-from evaluation.suite import validate_suite
+from evaluation.suite import load_jsonl, validate_suite
 
 
 def _build_fixture_database(path: Path) -> None:
@@ -111,14 +110,6 @@ def _build_fixture_database(path: Path) -> None:
         con.close()
 
 
-def _load_models(path: Path, model_type):
-    return [
-        model_type.model_validate(json.loads(line))
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-
-
 def test_generator_creates_full_disjoint_reproducible_pools(tmp_path: Path) -> None:
     db_path = tmp_path / "bank.duckdb"
     _build_fixture_database(db_path)
@@ -147,7 +138,7 @@ def test_generator_creates_full_disjoint_reproducible_pools(tmp_path: Path) -> N
             second_private / filename
         ).read_bytes()
 
-    heldout_cases = _load_models(
+    heldout_cases = load_jsonl(
         first_private / "heldout_cases.jsonl",
         HeldoutCase,
     )
