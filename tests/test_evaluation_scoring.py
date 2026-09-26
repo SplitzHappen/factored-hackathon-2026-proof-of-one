@@ -34,6 +34,7 @@ from evaluation.suite import CATEGORY_LANGUAGE_QUOTAS, HIGH_RISK_CATEGORIES, SUI
 
 
 CRITICAL_FIELDS = {"amount", "currency", "status"}
+SUITE_HASH = "a" * 64
 
 
 def _suite() -> tuple[list[HeldoutCase], list[HeldoutAnswerKey]]:
@@ -166,6 +167,9 @@ def _observation(expectation: StepExpectation) -> StepObservation:
     return StepObservation(
         route=expectation.expected_route,
         observed_facts=facts,
+        claim_codes=[],
+        action_codes=[],
+        safety_violations=[],
         factual_claim_count=len(facts),
         grounded_factual_claim_count=len(facts),
         critical_fact_claim_count=critical_count,
@@ -192,6 +196,7 @@ def _executions(
             result.append(
                 CaseExecution(
                     suite_version=SUITE_VERSION,
+                    suite_combined_sha256=SUITE_HASH,
                     system=system,
                     system_version=system_version,
                     case_id=case.case_id,
@@ -202,6 +207,27 @@ def _executions(
                     ],
                     latency_ms=1000,
                     estimated_cost_usd=Decimal("0.01"),
+                    model_provider=(
+                        None
+                        if system is EvaluationSystem.DETERMINISTIC_BASELINE
+                        else "test-provider"
+                    ),
+                    model_name=(
+                        None
+                        if system is EvaluationSystem.DETERMINISTIC_BASELINE
+                        else "test-model"
+                    ),
+                    model_config_id=(
+                        None
+                        if system is EvaluationSystem.DETERMINISTIC_BASELINE
+                        else "test-config"
+                    ),
+                    prompt_version=(
+                        None
+                        if system is EvaluationSystem.DETERMINISTIC_BASELINE
+                        else "test-prompt"
+                    ),
+                    deployment_version="test-deployment",
                 )
             )
     return result
@@ -333,6 +359,7 @@ def test_required_fact_and_forbidden_action_fail_case_correctness() -> None:
     normal_key = next(key for key in keys if key.case_id == normal.case_id)
     normal_execution = CaseExecution(
         suite_version=SUITE_VERSION,
+        suite_combined_sha256=SUITE_HASH,
         system=EvaluationSystem.PROPOSED,
         system_version="test",
         case_id=normal.case_id,
@@ -341,14 +368,25 @@ def test_required_fact_and_forbidden_action_fail_case_correctness() -> None:
             StepObservation(
                 route=RouteDecision.ANSWER,
                 observed_facts=[],
+                claim_codes=[],
+                action_codes=[],
+                safety_violations=[],
                 factual_claim_count=0,
                 grounded_factual_claim_count=0,
                 critical_fact_claim_count=0,
                 critical_fact_error_count=0,
+                retrieval_correct=True,
+                tool_correct=True,
+                ownership_enforced=True,
             )
         ],
         latency_ms=100,
         estimated_cost_usd=Decimal("0"),
+        model_provider="test-provider",
+        model_name="test-model",
+        model_config_id="test-config",
+        prompt_version="test-prompt",
+        deployment_version="test-deployment",
     )
     normal_score = score_execution(normal, normal_key, normal_execution)
     assert normal_score.correct is False
@@ -359,6 +397,7 @@ def test_required_fact_and_forbidden_action_fail_case_correctness() -> None:
     prohibited_key = next(key for key in keys if key.case_id == prohibited.case_id)
     prohibited_execution = CaseExecution(
         suite_version=SUITE_VERSION,
+        suite_combined_sha256=SUITE_HASH,
         system=EvaluationSystem.PROPOSED,
         system_version="test",
         case_id=prohibited.case_id,
@@ -366,15 +405,26 @@ def test_required_fact_and_forbidden_action_fail_case_correctness() -> None:
         observations=[
             StepObservation(
                 route=RouteDecision.ABSTAIN,
+                observed_facts=[],
+                claim_codes=[],
                 action_codes=["banking_mutation"],
+                safety_violations=[],
                 factual_claim_count=0,
                 grounded_factual_claim_count=0,
                 critical_fact_claim_count=0,
                 critical_fact_error_count=0,
+                retrieval_correct=True,
+                tool_correct=True,
+                ownership_enforced=True,
             )
         ],
         latency_ms=100,
         estimated_cost_usd=Decimal("0"),
+        model_provider="test-provider",
+        model_name="test-model",
+        model_config_id="test-config",
+        prompt_version="test-prompt",
+        deployment_version="test-deployment",
     )
     prohibited_score = score_execution(
         prohibited,
@@ -392,6 +442,7 @@ def test_grounded_claims_and_critical_errors_cannot_exceed_totals() -> None:
 
     execution = CaseExecution(
         suite_version=SUITE_VERSION,
+        suite_combined_sha256=SUITE_HASH,
         system=EvaluationSystem.PROPOSED,
         system_version="test",
         case_id=case.case_id,
@@ -399,14 +450,26 @@ def test_grounded_claims_and_critical_errors_cannot_exceed_totals() -> None:
         observations=[
             StepObservation(
                 route=RouteDecision.ANSWER,
+                observed_facts=[],
+                claim_codes=[],
+                action_codes=[],
+                safety_violations=[],
                 factual_claim_count=1,
                 grounded_factual_claim_count=2,
                 critical_fact_claim_count=1,
                 critical_fact_error_count=0,
+                retrieval_correct=True,
+                tool_correct=True,
+                ownership_enforced=True,
             )
         ],
         latency_ms=100,
         estimated_cost_usd=Decimal("0"),
+        model_provider="test-provider",
+        model_name="test-model",
+        model_config_id="test-config",
+        prompt_version="test-prompt",
+        deployment_version="test-deployment",
     )
     with pytest.raises(ExecutionValidationError, match="grounded factual claims"):
         score_execution(case, key, execution)
