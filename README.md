@@ -4,19 +4,21 @@ Proof of One is a bounded account/payment customer-support prototype for the Fac
 
 ## Current implementation stage
 
-R3C provider-neutral interpretation/post-check foundation.
+R3D synthetic API walking skeleton.
 
 The application currently contains:
-- a FastAPI service shell;
+- a judge-visible FastAPI walking skeleton with public synthetic demo personas and server-issued tenant/role-bound sessions;
 - strict Pydantic boundary contracts;
 - Docker packaging;
 - a deterministic curated-data builder for minimized trusted banking data;
 - a bounded read-only DuckDB query layer with customer-isolation checks and an operational transaction projection that excludes retrospective fraud labels/reference scores;
-- a separate writable SQLite operational store for authenticated/demo sessions, bounded conversation state, and structured support/escalation tickets;
+- a separate writable SQLite operational store for tenant/role-bound authenticated demo sessions, bounded conversation state, and structured support/escalation tickets;
 - a deterministic policy/router with fixed `ANSWER`, `CLARIFY`, `ABSTAIN`, and `ESCALATE` outcomes and hard safety precedence;
 - persistence verification that re-reads an escalation ticket before the runtime may report success;
 - tests proving that model-facing transaction queries cannot supply a `customer_id`, conversation state cannot rebind identity, and the runtime store cannot contain authoritative banking tables;
 - a provider-neutral Spanish/Portuguese interpretation boundary with strict typed extraction, bounded retries/fallback, deterministic transaction-reference verification, and no model authority over identity, ownership, banking truth, policy, or behavioral evidence;
+- a deterministic stub interpreter behind that same provider protocol so end-to-end product integration does not wait for live provider selection;
+- deterministic Spanish/Portuguese customer responses over verified facts, with cross-customer non-disclosure and verified human handoff for unauthorized-activity reports;
 - a frozen descriptive Behavioral Unusualness fallback after the supervised fraud-risk model failed its pre-registered usefulness gate.
 
 No production LLM provider/model is frozen yet.
@@ -56,6 +58,18 @@ The writable SQLite store contains only operational metadata: server-established
 
 Escalation is a controlled Act -> Verify path: a support ticket is inserted, committed, re-read and compared with the intended handoff, marked verified, and read back again before success is returned. Persistence or verification failure is a hard failure and is never represented as a successful escalation.
 
+## R3D walking-skeleton API
+
+The public/default runtime uses fully synthetic demo data (`DATA_MODE=synthetic`). Start the service and open `/docs`, or use:
+
+- `GET /api/demo/personas`
+- `POST /api/demo/sessions`
+- `POST /api/customer/turn` with the returned `X-Demo-Session` header
+
+The client never supplies a `customer_id`, tenant, or role. Those are server-issued and persisted. Every demo response is marked `synthetic_data=true`.
+
+For the exact boundary, example requests, isolation guarantees, and curated-mode distinction, see [docs/R3D_API_WALKING_SKELETON.md](docs/R3D_API_WALKING_SKELETON.md).
+
 ## Local setup
 
 Python 3.14 is the development baseline.
@@ -78,7 +92,7 @@ http://127.0.0.1:8000/health
 docker compose up --build
 ```
 
-The service is exposed on port 8000. Docker Compose mounts curated banking data read-only and keeps `runtime.sqlite` on a separate writable volume path.
+The service is exposed on port 8000. Docker Compose defaults to the public synthetic artifact and keeps generated demo banking data plus `runtime.sqlite` on the writable runtime volume. Organizer-backed local runs may set `DATA_MODE=curated` and point `BANK_DB_PATH` at the read-only curated artifact.
 
 ## Curated data build
 

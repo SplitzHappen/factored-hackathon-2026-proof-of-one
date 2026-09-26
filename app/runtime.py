@@ -14,11 +14,12 @@ from app.schemas import (
     ConversationState,
     EscalationRecord,
     EscalationRequest,
+    SessionRole,
     SupportedLanguage,
     TransactionQuery,
 )
 
-RUNTIME_SCHEMA_VERSION = 1
+RUNTIME_SCHEMA_VERSION = 2
 RUNTIME_TABLES = {
     "runtime_metadata",
     "sessions",
@@ -116,6 +117,9 @@ class OperationalStore:
 
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL
+                        CHECK(length(tenant_id) BETWEEN 1 AND 128),
+                    role TEXT NOT NULL CHECK(role IN ('customer', 'analyst')),
                     demo_persona_id TEXT NOT NULL
                         CHECK(length(demo_persona_id) BETWEEN 1 AND 128),
                     customer_id TEXT NOT NULL
@@ -169,7 +173,7 @@ class OperationalStore:
             connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 """
-                SELECT demo_persona_id, customer_id, language
+                SELECT tenant_id, role, demo_persona_id, customer_id, language
                 FROM sessions
                 WHERE session_id = ?
                 """,
@@ -179,12 +183,14 @@ class OperationalStore:
                 connection.execute(
                     """
                     INSERT INTO sessions(
-                        session_id, demo_persona_id, customer_id, language,
-                        created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                        session_id, tenant_id, role, demo_persona_id, customer_id,
+                        language, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(session.session_id),
+                        session.tenant_id,
+                        session.role.value,
                         session.demo_persona_id,
                         session.customer_id,
                         session.language.value,
@@ -195,7 +201,9 @@ class OperationalStore:
                 return
 
             if (
-                existing["demo_persona_id"] != session.demo_persona_id
+                existing["tenant_id"] != session.tenant_id
+                or existing["role"] != session.role.value
+                or existing["demo_persona_id"] != session.demo_persona_id
                 or existing["customer_id"] != session.customer_id
                 or existing["language"] != session.language.value
             ):
@@ -207,7 +215,7 @@ class OperationalStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT session_id, demo_persona_id, customer_id, language
+                SELECT session_id, tenant_id, role, demo_persona_id, customer_id, language
                 FROM sessions
                 WHERE session_id = ?
                 """,
@@ -217,6 +225,8 @@ class OperationalStore:
             return None
         return AuthenticatedSession(
             session_id=UUID(row["session_id"]),
+            tenant_id=row["tenant_id"],
+            role=SessionRole(row["role"]),
             demo_persona_id=row["demo_persona_id"],
             customer_id=row["customer_id"],
             language=SupportedLanguage(row["language"]),

@@ -20,6 +20,11 @@ class SupportedLanguage(StrEnum):
     PT = "pt"
 
 
+class SessionRole(StrEnum):
+    CUSTOMER = "customer"
+    ANALYST = "analyst"
+
+
 class RouteDecision(StrEnum):
     ANSWER = "ANSWER"
     CLARIFY = "CLARIFY"
@@ -90,6 +95,8 @@ class AuthenticatedSession(ContractModel):
     """Server-controlled authenticated context; never model-controlled."""
 
     session_id: UUID
+    tenant_id: str = Field(default="proof-of-one-demo", min_length=1, max_length=128)
+    role: SessionRole = SessionRole.CUSTOMER
     demo_persona_id: str = Field(min_length=1, max_length=128)
     customer_id: str = Field(min_length=1, max_length=128)
     language: SupportedLanguage
@@ -261,6 +268,44 @@ class EscalationRecord(ContractModel):
     created_at: datetime
     persisted: bool
     verified: bool
+
+
+class DemoPersonaSummary(ContractModel):
+    persona_id: str = Field(min_length=1, max_length=128)
+    display_name: str = Field(min_length=1, max_length=120)
+    default_language: SupportedLanguage
+    synthetic_data: bool = True
+
+
+class DemoSessionCreateRequest(ContractModel):
+    persona_id: str = Field(min_length=1, max_length=128)
+    language: str | None = Field(default=None, pattern=r"^(es|pt)$")
+
+
+class DemoSessionResponse(ContractModel):
+    session_id: UUID
+    tenant_id: str = Field(min_length=1, max_length=128)
+    role: SessionRole
+    persona_id: str = Field(min_length=1, max_length=128)
+    display_name: str = Field(min_length=1, max_length=120)
+    language: SupportedLanguage
+    synthetic_data: bool = True
+
+
+class CustomerTurnRequest(ContractModel):
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class CustomerTurnResponse(ContractModel):
+    session_id: UUID
+    route: RouteDecision
+    intent: PolicyIntent
+    response_text: str = Field(min_length=1, max_length=2000)
+    reason_codes: list[PolicyReason] = Field(default_factory=list, max_length=20)
+    transactions: list[TransactionRecord] = Field(default_factory=list, max_length=10)
+    escalation_ticket_id: UUID | None = None
+    handoff_available: bool = False
+    synthetic_data: bool = True
 
 
 class EvaluationRecord(ContractModel):
