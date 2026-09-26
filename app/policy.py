@@ -47,10 +47,6 @@ def route_policy(policy_input: PolicyInput) -> PolicyResult:
         )
 
     escalation_reasons: list[PolicyReason] = []
-    if not policy_input.ownership_verified:
-        escalation_reasons.append(PolicyReason.OWNERSHIP_UNVERIFIED)
-    if not policy_input.trusted_record_found:
-        escalation_reasons.append(PolicyReason.TRUSTED_RECORD_MISSING)
     if policy_input.trusted_data_conflict:
         escalation_reasons.append(PolicyReason.TRUSTED_DATA_CONFLICT)
     if policy_input.excluded_relationship_required:
@@ -61,7 +57,7 @@ def route_policy(policy_input: PolicyInput) -> PolicyResult:
             route=RouteDecision.ESCALATE,
             reason_codes=escalation_reasons,
             safe_to_answer=False,
-            mandatory_escalation=True,
+            mandatory_escalation=False,
         )
 
     if policy_input.intent is PolicyIntent.DECLINE_CAUSE:
@@ -89,6 +85,10 @@ def route_policy(policy_input: PolicyInput) -> PolicyResult:
         )
 
     clarification_reasons: list[PolicyReason] = []
+    if not policy_input.ownership_verified:
+        clarification_reasons.append(PolicyReason.OWNERSHIP_UNVERIFIED)
+    if not policy_input.trusted_record_found:
+        clarification_reasons.append(PolicyReason.TRUSTED_RECORD_MISSING)
     if policy_input.ambiguous_transaction_match:
         clarification_reasons.append(PolicyReason.AMBIGUOUS_TRANSACTION_MATCH)
     if policy_input.required_parameters_missing:
