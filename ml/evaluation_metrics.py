@@ -90,6 +90,13 @@ class PairedBootstrapComparison:
     seed: int
 
 
+@dataclass(frozen=True, slots=True)
+class _PreparedScoreOrder:
+    score_order: np.ndarray
+    group_starts: np.ndarray
+    budget_order: np.ndarray
+
+
 def _as_binary(y_true: Iterable[int | bool]) -> np.ndarray:
     y = np.asarray(list(y_true), dtype=np.int8)
     if y.ndim != 1:
@@ -361,12 +368,29 @@ def poisson_bootstrap_pr_auc_interval(
 
 
 
+def _prepare_score_order(
+    scores: np.ndarray,
+    tie_breaker: np.ndarray,
+) -> _PreparedScoreOrder:
+    score_order = np.argsort(-scores, kind="stable")
+    sorted_scores = scores[score_order]
+    group_starts = np.r_[
+        0,
+        1 + np.flatnonzero(sorted_scores[1:] != sorted_scores[:-1]),
+    ]
+    budget_order = np.lexsort((tie_breaker, -scores))
+    return _PreparedScoreOrder(
+        score_order=score_order,
+        group_starts=group_starts,
+        budget_order=budget_order,
+    )
+
+
 def _weighted_model_metrics(
     *,
     y: np.ndarray,
-    scores: np.ndarray,
-    tie_breaker: np.ndarray,
     weights: np.ndarray,
+    prepared: _PreparedScoreOrder,
 ) -> tuple[float, float, float]:
     """Weighted PR-AUC, top-0.5% recall, and precision for Poisson replicates."""
 
@@ -375,18 +399,14 @@ def _weighted_model_metrics(
     if total_weight <= 0 or total_positive_weight <= 0:
         return math.nan, math.nan, math.nan
 
-    # PR-AUC uses score-threshold groups, matching average-precision tie semantics.
-    score_order = np.argsort(-scores, kind="stable")
-    sorted_scores = scores[score_order]
-    sorted_y = y[score_order]
-    sorted_w = weights[score_order]
-
-    group_starts = np.r_[
-        0,
-        1 + np.flatnonzero(sorted_scores[1:] != sorted_scores[:-1]),
-    ]
-    group_pos = np.add.reduceat(sorted_w * sorted_y, group_starts)
-    group_all = np.add.reduceat(sorted_w, group_starts)
+    # Score and budget orders are frozen once per model, not recomputed per replicate.
+    sorted_y = y[prepared.score_order]
+    sorted_w = weights[prepared.score_order]
+    group_pos = np.add.reduceat(
+        sorted_w * sorted_y,
+        prepared.group_starts,
+    )
+    group_all = np.add.reduceat(sorted_w, prepared.group_starts)
     cumulative_pos = np.cumsum(group_pos, dtype=np.float64)
     cumulative_all = np.cumsum(group_all, dtype=np.float64)
     precision_by_group = np.divide(
@@ -399,16 +419,13 @@ def _weighted_model_metrics(
         np.sum((group_pos / total_positive_weight) * precision_by_group)
     )
 
-    # Fixed-budget metrics use the target-blind tie breaker to choose exact rows.
     review_target = max(1, math.ceil(total_weight * PRIMARY_REVIEW_BUDGET))
-    budget_order = np.lexsort((tie_breaker, -scores))
-    budget_w = weights[budget_order]
-    budget_y = y[budget_order]
+    budget_w = weights[prepared.budget_order]
+    budget_y = y[prepared.budget_order]
     cumulative_weight = np.cumsum(budget_w, dtype=np.int64)
     crossing = int(np.searchsorted(cumulative_weight, review_target, side="left"))
-
-    if crossing >= len(budget_order):
-        crossing = len(budget_order) - 1
+    if crossing >= len(prepared.budget_order):
+        crossing = len(prepared.budget_order) - 1
 
     prior_weight = int(cumulative_weight[crossing - 1]) if crossing > 0 else 0
     partial = review_target - prior_weight
@@ -457,6 +474,9 @@ def paired_poisson_bootstrap_comparison(
         dtype=np.float64,
     )
 
+    proposed_prepared = _prepare_score_order(proposed, tie)
+    baseline_prepared = _prepare_score_order(baseline, tie)
+
     rng = np.random.default_rng(seed)
     differences = np.empty((iterations, 3), dtype=np.float64)
 
@@ -464,15 +484,13 @@ def paired_poisson_bootstrap_comparison(
         weights = rng.poisson(1.0, size=len(y)).astype(np.int32, copy=False)
         proposed_rep = _weighted_model_metrics(
             y=y,
-            scores=proposed,
-            tie_breaker=tie,
             weights=weights,
+            prepared=proposed_prepared,
         )
         baseline_rep = _weighted_model_metrics(
             y=y,
-            scores=baseline,
-            tie_breaker=tie,
             weights=weights,
+            prepared=baseline_prepared,
         )
         differences[index] = np.asarray(proposed_rep) - np.asarray(baseline_rep)
 
