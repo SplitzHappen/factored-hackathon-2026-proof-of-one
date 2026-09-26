@@ -330,14 +330,17 @@ def poisson_bootstrap_pr_auc_interval(
     neg_counts = group_sizes - pos_counts
 
     rng = np.random.default_rng(seed)
-    bootstrap_values = np.empty(iterations, dtype=np.float64)
+    valid_values: list[float] = []
+    attempts = 0
+    max_attempts = iterations * 10
 
-    for index in range(iterations):
+    while len(valid_values) < iterations and attempts < max_attempts:
+        attempts += 1
         pos_w = rng.poisson(pos_counts)
         neg_w = rng.poisson(neg_counts)
         total_pos = int(pos_w.sum())
-        if total_pos == 0:
-            bootstrap_values[index] = np.nan
+        total_rows = int((pos_w + neg_w).sum())
+        if total_pos == 0 or total_rows == 0:
             continue
 
         cumulative_pos = np.cumsum(pos_w, dtype=np.float64)
@@ -348,14 +351,16 @@ def poisson_bootstrap_pr_auc_interval(
             out=np.zeros_like(cumulative_pos),
             where=cumulative_all > 0,
         )
-        bootstrap_values[index] = float(
-            np.sum((pos_w / total_pos) * precision)
+        valid_values.append(
+            float(np.sum((pos_w / total_pos) * precision))
         )
 
-    valid = bootstrap_values[np.isfinite(bootstrap_values)]
-    if len(valid) < max(100, int(iterations * 0.95)):
-        raise RuntimeError("too many degenerate bootstrap replicates")
+    if len(valid_values) != iterations:
+        raise RuntimeError(
+            "could not obtain the requested number of nondegenerate bootstrap replicates"
+        )
 
+    valid = np.asarray(valid_values, dtype=np.float64)
     lower, upper = np.quantile(valid, [0.025, 0.975])
     return BootstrapInterval(
         point_estimate=float(average_precision_score(y, s)),
@@ -478,9 +483,12 @@ def paired_poisson_bootstrap_comparison(
     baseline_prepared = _prepare_score_order(baseline, tie)
 
     rng = np.random.default_rng(seed)
-    differences = np.empty((iterations, 3), dtype=np.float64)
+    valid_differences: list[np.ndarray] = []
+    attempts = 0
+    max_attempts = iterations * 10
 
-    for index in range(iterations):
+    while len(valid_differences) < iterations and attempts < max_attempts:
+        attempts += 1
         weights = rng.poisson(1.0, size=len(y)).astype(np.int32, copy=False)
         proposed_rep = _weighted_model_metrics(
             y=y,
@@ -492,12 +500,16 @@ def paired_poisson_bootstrap_comparison(
             weights=weights,
             prepared=baseline_prepared,
         )
-        differences[index] = np.asarray(proposed_rep) - np.asarray(baseline_rep)
+        difference = np.asarray(proposed_rep) - np.asarray(baseline_rep)
+        if np.all(np.isfinite(difference)):
+            valid_differences.append(difference)
 
-    valid = differences[np.all(np.isfinite(differences), axis=1)]
-    if len(valid) < max(100, int(iterations * 0.95)):
-        raise RuntimeError("too many degenerate paired bootstrap replicates")
+    if len(valid_differences) != iterations:
+        raise RuntimeError(
+            "could not obtain the requested number of nondegenerate paired replicates"
+        )
 
+    valid = np.vstack(valid_differences)
     lower = np.quantile(valid, 0.025, axis=0)
     upper = np.quantile(valid, 0.975, axis=0)
     names = ("pr_auc", "top_0_5_recall", "top_0_5_precision")
@@ -559,7 +571,7 @@ def validation_gate_decision(
     )
 
 
-def test_survival_decision(
+def evaluate_test_survival(
     *,
     test_gbdt_metrics: RankingMetrics,
     gate_gbdt_pr_auc: float,
