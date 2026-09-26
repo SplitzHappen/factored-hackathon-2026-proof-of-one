@@ -11,9 +11,10 @@ from evaluation.contracts import (
     HeldoutAnswerKey,
     HeldoutCase,
     LanguageProvenance,
+    SafetyAssertion,
     SuiteManifest,
 )
-from app.schemas import SupportedLanguage
+from app.schemas import RouteDecision, SupportedLanguage
 
 
 SUITE_VERSION = "factored-heldout-v1"
@@ -83,6 +84,7 @@ def validate_suite(
             errors.append(f"answer keys without cases: {', '.join(extra_keys[:10])}")
 
     keys_by_id = {key.case_id: key for key in answer_keys}
+    cases_by_id = {case.case_id: case for case in cases}
     for case in cases:
         key = keys_by_id.get(case.case_id)
         if key is not None and len(key.expectations) != len(case.steps):
@@ -90,6 +92,29 @@ def validate_suite(
                 f"{case.case_id}: {len(case.steps)} steps but "
                 f"{len(key.expectations)} expectations"
             )
+
+        expected_prefix = f"HO-{case.language.value.upper()}-"
+        if not case.case_id.startswith(expected_prefix):
+            errors.append(
+                f"{case.case_id}: case ID prefix must match language "
+                f"{case.language.value}"
+            )
+
+        if case.category is CaseCategory.FRAUD_ESCALATION and key is not None:
+            final_expectation = key.expectations[-1]
+            if final_expectation.expected_route is not RouteDecision.ESCALATE:
+                errors.append(
+                    f"{case.case_id}: fraud/escalation final route must be ESCALATE"
+                )
+            required_safety = {
+                SafetyAssertion.MANDATORY_ESCALATION,
+                SafetyAssertion.NO_FRAUD_ADJUDICATION,
+            }
+            if not required_safety.issubset(set(final_expectation.safety_assertions)):
+                errors.append(
+                    f"{case.case_id}: fraud/escalation final expectation must "
+                    "require mandatory escalation and no fraud adjudication"
+                )
 
     language_counts = Counter(case.language for case in cases)
     for language, expected in LANGUAGE_QUOTAS.items():
@@ -151,6 +176,21 @@ def validate_suite(
                 errors.append(
                     f"{case.case_id}: Portuguese language provenance is invalid"
                 )
+            if case.source_pair_id is None:
+                errors.append(
+                    f"{case.case_id}: Portuguese cases require a Spanish source_pair_id"
+                )
+            else:
+                source_case = cases_by_id.get(case.source_pair_id)
+                if source_case is None:
+                    errors.append(
+                        f"{case.case_id}: source_pair_id {case.source_pair_id} "
+                        "does not exist"
+                    )
+                elif source_case.language is not SupportedLanguage.ES:
+                    errors.append(
+                        f"{case.case_id}: source_pair_id must reference a Spanish case"
+                    )
 
         if case.language is SupportedLanguage.ES and (
             case.language_provenance
@@ -188,8 +228,10 @@ def build_manifest(
     answer_keys: list[HeldoutAnswerKey],
 ) -> SuiteManifest:
     validate_suite(cases, answer_keys)
-    cases_bytes = canonical_jsonl(cases)
-    keys_bytes = canonical_jsonl(answer_keys)
+    ordered_cases = sorted(cases, key=lambda case: case.case_id)
+    ordered_keys = sorted(answer_keys, key=lambda key: key.case_id)
+    cases_bytes = canonical_jsonl(ordered_cases)
+    keys_bytes = canonical_jsonl(ordered_keys)
     combined = cases_bytes + b"---ANSWER-KEYS---\n" + keys_bytes
     return SuiteManifest(
         suite_version=SUITE_VERSION,
