@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime, time, timedelta
+from datetime import datetime, time
 from pathlib import Path
 from typing import Iterator
 
@@ -73,7 +73,7 @@ class BankRepository:
         with self._connect() as con:
             row = con.execute(
                 """
-                SELECT country, detected_accent, customer_status
+                SELECT customer_status
                 FROM customers
                 WHERE customer_id = ?
                 LIMIT 1
@@ -83,11 +83,7 @@ class BankRepository:
 
         if row is None:
             return None
-        return CustomerSummary(
-            country=row[0],
-            detected_accent=row[1],
-            customer_status=row[2],
-        )
+        return CustomerSummary(customer_status=row[0])
 
     def list_customer_products(
         self,
@@ -186,8 +182,8 @@ class BankRepository:
             params.append(datetime.combine(query.date_from, time.min))
 
         if query.date_to is not None:
-            clauses.append("t.transaction_date < ?")
-            params.append(datetime.combine(query.date_to + timedelta(days=1), time.min))
+            clauses.append("t.transaction_date <= ?")
+            params.append(datetime.combine(query.date_to, time.max))
 
         if query.amount is not None:
             clauses.append("t.amount = ?")
