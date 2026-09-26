@@ -794,10 +794,17 @@ def build_feature_artifact(
         )
         return manifest
     except Exception:
-        if staging_db.exists():
-            staging_db.unlink()
-        if staging_manifest.exists():
-            staging_manifest.unlink()
+        for path in (
+            staging_db,
+            staging_manifest,
+            output_database_path,
+            output_manifest_path,
+        ):
+            if path.exists():
+                path.unlink()
+        wal = Path(str(staging_db) + ".wal")
+        if wal.exists():
+            wal.unlink()
         raise
 
 
