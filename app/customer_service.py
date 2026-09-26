@@ -87,6 +87,13 @@ class CustomerResolutionService:
             safe_to_answer=policy.safe_to_answer,
         )
 
+        clarification_ids = (
+            interpretation.candidate_transaction_ids[:10]
+            if policy.route is RouteDecision.CLARIFY
+            and reference_status is TransactionReferenceStatus.AMBIGUOUS
+            else []
+        )
+
         ticket_id = None
         if policy.route is RouteDecision.ESCALATE:
             escalation = self.store.create_escalation_ticket(
@@ -121,9 +128,11 @@ class CustomerResolutionService:
                 route=policy.route,
                 reason_codes=policy.reason_codes,
                 transactions=transactions,
+                clarification_transaction_ids=clarification_ids,
             ),
             reason_codes=policy.reason_codes,
             transactions=transactions,
+            clarification_transaction_ids=clarification_ids,
             escalation_ticket_id=ticket_id,
             handoff_available=policy.route in {
                 RouteDecision.ABSTAIN,
@@ -200,6 +209,7 @@ class CustomerResolutionService:
         route: RouteDecision,
         reason_codes: list[PolicyReason],
         transactions: list[TransactionRecord],
+        clarification_transaction_ids: list[str],
     ) -> str:
         pt = language is SupportedLanguage.PT
 
@@ -244,18 +254,30 @@ class CustomerResolutionService:
                 for reason in reason_codes
             )
             if pt:
+                if missing_record:
+                    return (
+                        "Não consegui vincular essa referência a um registro verificável da "
+                        "sua conta. Confira a referência ou use o atendimento humano."
+                    )
+                if clarification_transaction_ids:
+                    options = ", ".join(clarification_transaction_ids)
+                    return (
+                        "Encontrei mais de uma possibilidade. Escolha uma destas referências: "
+                        f"{options}."
+                    )
+                return "Preciso de mais detalhes para identificar o lançamento com segurança."
+            if missing_record:
                 return (
-                    "Não consegui vincular essa referência a um registro verificável da "
-                    "sua conta. Confira a referência ou use o atendimento humano."
-                    if missing_record
-                    else "Encontrei mais de uma possibilidade. Qual lançamento você quer revisar?"
+                    "No pude vincular esa referencia a un registro verificable de tu cuenta. "
+                    "Revisa la referencia o utiliza la atención humana."
                 )
-            return (
-                "No pude vincular esa referencia a un registro verificable de tu cuenta. "
-                "Revisa la referencia o utiliza la atención humana."
-                if missing_record
-                else "Encontré más de una posibilidad. ¿Qué movimiento quieres revisar?"
-            )
+            if clarification_transaction_ids:
+                options = ", ".join(clarification_transaction_ids)
+                return (
+                    "Encontré más de una posibilidad. Elige una de estas referencias: "
+                    f"{options}."
+                )
+            return "Necesito más detalles para identificar el movimiento de forma segura."
 
         if route is RouteDecision.ESCALATE:
             return (

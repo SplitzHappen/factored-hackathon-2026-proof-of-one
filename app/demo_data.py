@@ -147,6 +147,11 @@ def build_synthetic_demo_bank(path: Path) -> Path:
              'Payment', 'Utilities', 54000.00, 'COP', 'App',
              'Energia Hogar', 'Utilities', 'Colombia', 'Bogota',
              'Declined', NULL, NULL),
+            ('DEMO-ES-1004', TIMESTAMP '2026-09-19 16:40:00',
+             'DEMO-PROD-ES-001', 'DEMO-CUST-ES-001',
+             'Payment', 'Retail', 54000.00, 'COP', 'Web',
+             'Comercio Norte', 'Retail', 'Colombia', 'Bogota',
+             'Approved', NULL, NULL),
             ('DEMO-PT-2001', TIMESTAMP '2026-09-25 17:15:00',
              'DEMO-PROD-PT-001', 'DEMO-CUST-PT-001',
              'Payment', 'Retail', 219.90, 'BRL', 'App',
@@ -161,7 +166,12 @@ def build_synthetic_demo_bank(path: Path) -> Path:
              'DEMO-PROD-PT-001', 'DEMO-CUST-PT-001',
              'Payment', 'Utilities', 142.75, 'BRL', 'App',
              'Servico Casa', 'Utilities', 'Brazil', 'Sao Paulo',
-             'Declined', NULL, NULL)
+             'Declined', NULL, NULL),
+            ('DEMO-PT-2004', TIMESTAMP '2026-09-18 10:15:00',
+             'DEMO-PROD-PT-001', 'DEMO-CUST-PT-001',
+             'Payment', 'Retail', 142.75, 'BRL', 'Web',
+             'Loja Bairro', 'Retail', 'Brazil', 'Sao Paulo',
+             'Approved', NULL, NULL)
             """
         )
     finally:
