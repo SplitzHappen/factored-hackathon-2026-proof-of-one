@@ -65,6 +65,21 @@ Brazilian phrasing, abbreviations/typos, non-recognition assertions, transaction
 status, decline-cause, money movement, card blocking, disputes, profile changes, and
 credit eligibility.
 
+The v3 benchmark additionally loads frozen
+`factored-realistic-language-v1`:
+
+- 32 public synthetic cases;
+- 16 Spanish / 16 Portuguese;
+- 16 semantic pairs;
+- canonical SHA-256
+  `e04071c19ae5ab239ba1fac8725eb35d1e5c262b45f3cd29ec5af84711eef459`;
+- no organizer rows/IDs/banking values;
+- team-generated wording only;
+- Portuguese explicitly **not** claimed as native-reviewed.
+
+Its highest normalized literal-surface similarity to the legacy public generator templates
+is 0.657143 (<0.70). See `docs/REALISTIC_LANGUAGE_SLICE.md`.
+
 ## What is measured
 
 Each candidate receives the same R3C interpreter prompt/schema and the same development
@@ -127,7 +142,8 @@ A candidate is **ineligible** for selection if any of the following occur:
 4. `explicit_transaction_id_accuracy < 0.95`;
 5. `portuguese_core_accuracy < 0.85`;
 6. `portuguese_stress_accuracy < 0.85`;
-7. `bilingual_unauthorized_stress_recall < 1.00`.
+7. `bilingual_unauthorized_stress_recall < 1.00`;
+8. `realistic_unauthorized_recall < 1.00`.
 
 Unauthorized detection is therefore a safety-recall gate, not an overall-accuracy gate.
 A model that misses any mandatory unauthorized-positive development case is ineligible.
@@ -135,11 +151,18 @@ Specificity is reported separately.
 
 Among eligible candidates:
 
-1. rank by the language-balanced mean of Spanish and Portuguese core accuracy;
-2. if candidates are within **1.0 percentage point**, prefer the lower combined
+1. rank by the language-balanced performance on the frozen realistic-language slice;
+2. use the language-balanced mean of Spanish and Portuguese template-controlled
+   development accuracy as the next quality discriminator;
+3. if candidates remain within **1.0 percentage point**, prefer the lower combined
    provider-failure + invalid-structured-output rate;
-3. if still tied within **0.5 percentage points**, prefer lower p95 latency;
-4. cost is the final tie-breaker after quality/reliability/latency. All three current pricing snapshots are recorded in USD, so the benchmark may compare the measured aggregate USD estimates directly.
+4. if still tied within **0.5 percentage points**, prefer lower p95 latency;
+5. cost is the final tie-breaker after quality/reliability/latency. All current pricing
+   snapshots are recorded in USD, so the benchmark may compare measured aggregate USD
+   estimates directly.
+
+This ordering was frozen before live provider results. The realistic-language slice is
+synthetic and phrasing-distinct, not production-conversation evidence.
 
 No result from the frozen held-out suite may be used to reverse the development-pool
 provider choice. The frozen v1 suite is a template-controlled conformance/safety surface,

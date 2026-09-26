@@ -1,0 +1,11 @@
+{
+  "case_count": 32,
+  "cases_sha256": "e04071c19ae5ab239ba1fac8725eb35d1e5c262b45f3cd29ec5af84711eef459",
+  "max_legacy_surface_similarity": 0.657143,
+  "organizer_data_used": false,
+  "paired_count": 16,
+  "portuguese_count": 16,
+  "portuguese_native_reviewed": false,
+  "spanish_count": 16,
+  "suite_version": "factored-realistic-language-v1"
+}

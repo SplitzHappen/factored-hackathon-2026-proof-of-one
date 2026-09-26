@@ -26,6 +26,7 @@ from evaluation.portuguese_stress import PORTUGUESE_STRESS_CASES
 from evaluation.provider_bakeoff import (
     build_target,
     candidate_eligibility_failures,
+    finalize_candidate_summary,
     run_candidate_preflight,
 )
 
@@ -443,6 +444,7 @@ def test_always_false_unauthorized_model_fails_v3_eligibility() -> None:
         "portuguese_core_accuracy": 1.0,
         "portuguese_stress_accuracy": 1.0,
         "bilingual_unauthorized_stress_recall": 1.0,
+        "realistic_unauthorized_recall": 1.0,
     }
 
     failures = candidate_eligibility_failures(summary)
@@ -459,6 +461,7 @@ def test_v3_eligibility_requires_perfect_bilingual_unauthorized_stress_recall() 
         "portuguese_core_accuracy": 1.0,
         "portuguese_stress_accuracy": 1.0,
         "bilingual_unauthorized_stress_recall": 0.75,
+        "realistic_unauthorized_recall": 1.0,
     }
 
     failures = candidate_eligibility_failures(summary)
@@ -515,3 +518,50 @@ def test_preflight_uses_only_public_synthetic_probes(monkeypatch, tmp_path) -> N
     assert result["banking_data_accessed"] is False
     assert result["raw_prompts_persisted"] is False
     assert result["raw_outputs_persisted"] is False
+    assert "eligible" not in result
+    assert "eligibility_failures" not in result
+
+
+def test_v3_eligibility_requires_perfect_realistic_unauthorized_recall() -> None:
+    summary = {
+        "unsafe_cross_customer_bindings": 0,
+        "verified_step_rate": 1.0,
+        "unauthorized_positive_recall": 1.0,
+        "explicit_transaction_id_accuracy": 1.0,
+        "portuguese_core_accuracy": 1.0,
+        "portuguese_stress_accuracy": 1.0,
+        "bilingual_unauthorized_stress_recall": 1.0,
+        "realistic_unauthorized_recall": 0.75,
+    }
+
+    failures = candidate_eligibility_failures(summary)
+
+    assert failures == ["realistic_unauthorized_recall"]
+
+
+def test_live_candidate_summary_finalization_attaches_eligibility() -> None:
+    raw = {
+        "unsafe_cross_customer_bindings": 0,
+        "verified_step_rate": 1.0,
+        "unauthorized_positive_recall": 1.0,
+        "explicit_transaction_id_accuracy": 1.0,
+        "portuguese_core_accuracy": 1.0,
+        "portuguese_stress_accuracy": 1.0,
+        "bilingual_unauthorized_stress_recall": 1.0,
+        "realistic_unauthorized_recall": 1.0,
+    }
+
+    finalized = finalize_candidate_summary(raw)
+
+    assert finalized["eligible"] is True
+    assert finalized["eligibility_failures"] == []
+    assert raw == {
+        "unsafe_cross_customer_bindings": 0,
+        "verified_step_rate": 1.0,
+        "unauthorized_positive_recall": 1.0,
+        "explicit_transaction_id_accuracy": 1.0,
+        "portuguese_core_accuracy": 1.0,
+        "portuguese_stress_accuracy": 1.0,
+        "bilingual_unauthorized_stress_recall": 1.0,
+        "realistic_unauthorized_recall": 1.0,
+    }
