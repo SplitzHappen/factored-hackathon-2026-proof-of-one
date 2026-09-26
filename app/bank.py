@@ -147,9 +147,7 @@ class BankRepository:
                     t.merchant_category,
                     t.transaction_country,
                     t.transaction_city,
-                    t.transaction_status,
-                    t.is_fraud,
-                    t.fraud_score
+                    t.transaction_status
                 FROM transactions t
                 JOIN products p
                   ON p.product_id = t.product_id
@@ -213,9 +211,7 @@ class BankRepository:
                 t.merchant_category,
                 t.transaction_country,
                 t.transaction_city,
-                t.transaction_status,
-                t.is_fraud,
-                t.fraud_score
+                t.transaction_status
             FROM transactions t
             JOIN products p
               ON p.product_id = t.product_id
@@ -250,9 +246,7 @@ class BankRepository:
                     t.merchant_category,
                     t.transaction_country,
                     t.transaction_city,
-                    t.transaction_status,
-                    t.is_fraud,
-                    t.fraud_score
+                    t.transaction_status
                 FROM transactions t
                 JOIN products p
                   ON p.product_id = t.product_id
@@ -288,6 +282,4 @@ class BankRepository:
             transaction_country=row[10],
             transaction_city=row[11],
             status=row[12],
-            is_fraud=row[13],
-            fraud_score=row[14],
         )
