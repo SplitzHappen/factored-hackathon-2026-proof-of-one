@@ -132,13 +132,15 @@ class ModelInterpretation(ContractModel):
 
 
 class VerifiedInterpretation(ContractModel):
-    """Post-checked language interpretation with deterministic transaction resolution."""
+    """Post-checked interpretation; only owned transaction IDs may be surfaced."""
 
     status: InterpretationStatus
     language: SupportedLanguage
     intent: PolicyIntent
     unauthorized_activity_asserted: bool
-    transaction_id: str | None = Field(default=None, min_length=1, max_length=128)
+    verified_transaction_id: str | None = Field(
+        default=None, min_length=1, max_length=128
+    )
     transaction_query: InterpretedTransactionQuery | None = None
     transaction_reference_status: TransactionReferenceStatus
     candidate_transaction_ids: list[
