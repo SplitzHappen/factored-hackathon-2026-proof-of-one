@@ -171,6 +171,7 @@ class CandidateProviderAdapter:
         self.candidate = candidate
         self.timeout_seconds = timeout_seconds
         self.last_telemetry: ProviderCallTelemetry | None = None
+        self.last_raw_content: str | None = None
 
     @classmethod
     def from_environment(
@@ -277,6 +278,7 @@ class CandidateProviderAdapter:
             input_tokens,
             output_tokens,
         )
+        self.last_raw_content = content
         self.last_telemetry = ProviderCallTelemetry(
             provider=self.candidate.provider,
             model=self.candidate.model,
