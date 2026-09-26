@@ -47,9 +47,11 @@ Selected differences:
 
 Treat documentation row counts as approximate metadata, not authoritative analytical denominators.
 
+The audit itself was designed for efficient whole-estate profiling rather than row-by-row notebook inspection. For example, the 13-table / 260-column missingness pass completed in **11.11 seconds** and the full primary-key integrity pass in **11.32 seconds** using DuckDB 1.5.5 with a conservative 16 GiB memory cap.
+
 ### Consequence
 
-Every later analysis uses reproducibly observed row counts. Public claims distinguish organizer documentation from measured source facts.
+Every later analysis uses reproducibly observed row counts. Public claims distinguish organizer documentation from measured source facts, and the workflow demonstrates that a multi-gigabyte source estate can be profiled with reproducible analytical SQL rather than ad hoc sampling.
 
 ---
 
@@ -795,11 +797,13 @@ Transactions:
 
 ### Decision
 
-Treat fraud as a rare-event modeling problem requiring PR-AUC, review-budget metrics, temporal validation, and a usefulness gate—not accuracy.
+Treat `is_fraud` as a **retrospective offline training/evaluation label only**. Treat organizer `fraud_score` as **reference-only evidence with unknown provenance/as-of semantics**; it is not a Proof of One predictor and may encode generator knowledge unavailable to a real-time system.
+
+Treat the modeling task as a rare-event problem requiring PR-AUC, review-budget metrics, temporal validation, and a usefulness gate—not accuracy.
 
 ### Consequence
 
-The later R4 experiment uses rare-event methodology and ultimately rejects the supervised model when it fails the frozen gate.
+Neither `is_fraud` nor organizer `fraud_score` enters customer-facing runtime policy or model context. The later R4 experiment uses rare-event methodology and ultimately rejects supervised operational fraud scoring when it fails the frozen gate.
 
 ---
 
