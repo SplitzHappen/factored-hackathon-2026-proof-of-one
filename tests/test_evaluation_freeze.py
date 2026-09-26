@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import duckdb
@@ -129,6 +130,33 @@ def _build_fixture_database(path: Path) -> None:
         con.close()
 
 
+def _init_git_repo(path: Path) -> Path:
+    repo = path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "fixture@example.com"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Fixture"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "fixture"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    return repo
+
+
 def _write_curated_manifest(path: Path, db_path: Path) -> None:
     payload = {
         "builder_version": "fixture-builder",
@@ -149,12 +177,13 @@ def test_freeze_is_atomic_verifiable_and_non_overwritable(tmp_path: Path) -> Non
     output_root = tmp_path / "evaluation"
     _build_fixture_database(db_path)
     _write_curated_manifest(curated_manifest_path, db_path)
+    repo_root = _init_git_repo(tmp_path)
 
     manifest = freeze_evaluation(
         database_path=db_path,
         curated_manifest_path=curated_manifest_path,
         output_root=output_root,
-        repo_root=Path("."),
+        repo_root=repo_root,
     )
 
     frozen_dir = output_root / "private" / "frozen" / SUITE_VERSION
@@ -181,7 +210,7 @@ def test_freeze_is_atomic_verifiable_and_non_overwritable(tmp_path: Path) -> Non
             database_path=db_path,
             curated_manifest_path=curated_manifest_path,
             output_root=output_root,
-            repo_root=Path("."),
+            repo_root=repo_root,
         )
 
 
@@ -191,21 +220,23 @@ def test_verify_detects_frozen_artifact_tampering(tmp_path: Path) -> None:
     output_root = tmp_path / "evaluation"
     _build_fixture_database(db_path)
     _write_curated_manifest(curated_manifest_path, db_path)
+    repo_root = _init_git_repo(tmp_path)
 
     freeze_evaluation(
         database_path=db_path,
         curated_manifest_path=curated_manifest_path,
         output_root=output_root,
-        repo_root=Path("."),
+        repo_root=repo_root,
     )
     frozen_dir = output_root / "private" / "frozen" / SUITE_VERSION
     heldout_path = frozen_dir / "heldout_cases.jsonl"
-    heldout_path.write_text(
-        heldout_path.read_text(encoding="utf-8") + "{}\n",
-        encoding="utf-8",
-    )
+    lines = heldout_path.read_text(encoding="utf-8").splitlines()
+    first = json.loads(lines[0])
+    first["steps"][0]["user_utterance"] += " tampered"
+    lines[0] = json.dumps(first, sort_keys=True, ensure_ascii=False)
+    heldout_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    with pytest.raises(Exception):
+    with pytest.raises(FreezeError, match="no longer match"):
         verify_frozen_evaluation(
             frozen_dir=frozen_dir,
             database_path=db_path,
@@ -218,6 +249,7 @@ def test_freeze_rejects_database_manifest_mismatch(tmp_path: Path) -> None:
     curated_manifest_path = tmp_path / "build_manifest.json"
     _build_fixture_database(db_path)
     _write_curated_manifest(curated_manifest_path, db_path)
+    repo_root = _init_git_repo(tmp_path)
 
     payload = json.loads(curated_manifest_path.read_text(encoding="utf-8"))
     payload["database_sha256"] = "0" * 64
@@ -231,5 +263,5 @@ def test_freeze_rejects_database_manifest_mismatch(tmp_path: Path) -> None:
             database_path=db_path,
             curated_manifest_path=curated_manifest_path,
             output_root=tmp_path / "evaluation",
-            repo_root=Path("."),
+            repo_root=repo_root,
         )
