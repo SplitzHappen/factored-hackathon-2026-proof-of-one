@@ -61,6 +61,23 @@ class ConversationState(ContractModel):
     clarification_required: bool = False
 
 
+class CustomerSummary(ContractModel):
+    country: str
+    detected_accent: str | None = None
+    customer_status: str
+
+
+class ProductRecord(ContractModel):
+    product_id: str
+    product_type: str
+    currency: str = Field(min_length=3, max_length=3)
+    current_balance: Decimal
+    opening_date: date
+    expiration_date: date | None = None
+    product_status: str
+    last_transaction_date: datetime | None = None
+
+
 class TransactionRecord(ContractModel):
     transaction_id: str
     product_id: str
@@ -68,7 +85,15 @@ class TransactionRecord(ContractModel):
     amount: Decimal
     currency: str = Field(min_length=3, max_length=3)
     transaction_type: str
+    transaction_category: str | None = None
+    channel: str
+    merchant_name: str | None = None
+    merchant_category: str | None = None
+    transaction_country: str
+    transaction_city: str | None = None
     status: str
+    is_fraud: bool
+    fraud_score: Decimal | None = None
 
 
 class PolicyResult(ContractModel):
