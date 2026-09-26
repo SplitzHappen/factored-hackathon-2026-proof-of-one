@@ -118,3 +118,21 @@ class SuiteManifest(ContractModel):
     portuguese_count: int = Field(ge=0)
     multi_turn_count: int = Field(ge=0)
     high_risk_repeat_count: int = Field(ge=0)
+
+
+
+class DevelopmentCase(ContractModel):
+    case_id: str = Field(pattern=r"^DEV-[A-Z]{2}-\d{3}$")
+    category: CaseCategory
+    language: SupportedLanguage
+    provenance: CaseProvenance
+    language_provenance: LanguageProvenance
+    country_group: CountryGroup | None = None
+    locator: EvaluationLocator
+    steps: list[EvaluationStep] = Field(min_length=1, max_length=6)
+    source_pair_id: str | None = Field(default=None, max_length=64)
+
+
+class DevelopmentAnswerKey(ContractModel):
+    case_id: str = Field(pattern=r"^DEV-[A-Z]{2}-\d{3}$")
+    expectations: list[StepExpectation] = Field(min_length=1, max_length=6)
