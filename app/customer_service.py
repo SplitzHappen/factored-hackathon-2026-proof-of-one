@@ -259,21 +259,25 @@ class CustomerResolutionService:
                         "Não consegui vincular essa referência a um registro verificável da "
                         "sua conta. Confira a referência ou use o atendimento humano."
                     )
-                options = ", ".join(clarification_transaction_ids)
-                return (
-                    "Encontrei mais de uma possibilidade. Escolha uma destas referências: "
-                    f"{options}."
-                )
+                if clarification_transaction_ids:
+                    options = ", ".join(clarification_transaction_ids)
+                    return (
+                        "Encontrei mais de uma possibilidade. Escolha uma destas referências: "
+                        f"{options}."
+                    )
+                return "Preciso de mais detalhes para identificar o lançamento com segurança."
             if missing_record:
                 return (
                     "No pude vincular esa referencia a un registro verificable de tu cuenta. "
                     "Revisa la referencia o utiliza la atención humana."
                 )
-            options = ", ".join(clarification_transaction_ids)
-            return (
-                "Encontré más de una posibilidad. Elige una de estas referencias: "
-                f"{options}."
-            )
+            if clarification_transaction_ids:
+                options = ", ".join(clarification_transaction_ids)
+                return (
+                    "Encontré más de una posibilidad. Elige una de estas referencias: "
+                    f"{options}."
+                )
+            return "Necesito más detalles para identificar el movimiento de forma segura."
 
         if route is RouteDecision.ESCALATE:
             return (
