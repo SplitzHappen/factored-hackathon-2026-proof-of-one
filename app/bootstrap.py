@@ -41,6 +41,7 @@ def build_app_context(settings: Settings = default_settings) -> AppContext:
         bank=bank,
         store=store,
         interpreter=interpreter,
+        synthetic_data=settings.data_mode == "synthetic",
     )
     return AppContext(
         bank=bank,
