@@ -89,6 +89,36 @@ def _load_curated_manifest(path: Path) -> dict[str, object]:
     return payload
 
 
+
+def _validate_curated_metadata(
+    *,
+    database_path: Path,
+    curated_manifest: dict[str, object],
+) -> None:
+    con = duckdb.connect(
+        str(database_path),
+        read_only=True,
+        config={"enable_external_access": "false"},
+    )
+    try:
+        row = con.execute(
+            "SELECT schema_version, builder_version FROM build_metadata LIMIT 1"
+        ).fetchone()
+    finally:
+        con.close()
+
+    if row is None:
+        raise FreezeError("Curated database is missing build metadata.")
+    if int(row[0]) != int(curated_manifest["curated_schema_version"]):
+        raise FreezeError(
+            "Curated database schema version disagrees with build manifest."
+        )
+    if str(row[1]) != str(curated_manifest["builder_version"]):
+        raise FreezeError(
+            "Curated database builder version disagrees with build manifest."
+        )
+
+
 def _validate_development_pool(
     cases: list[DevelopmentCase],
     keys: list[DevelopmentAnswerKey],
@@ -303,6 +333,10 @@ def freeze_evaluation(
         raise FreezeError(
             "Curated database SHA-256 does not match its build manifest."
         )
+    _validate_curated_metadata(
+        database_path=database_path,
+        curated_manifest=curated_manifest,
+    )
 
     build_dir = output_root / "private" / ".freeze-building"
     if build_dir.exists():
@@ -517,6 +551,7 @@ def verify_frozen_evaluation(
 def _safe_summary(manifest: FrozenEvaluationManifest) -> dict[str, object]:
     return {
         "freeze_version": manifest.freeze_version,
+        "generator_seed": manifest.generator_seed,
         "implementation_commit": manifest.implementation_commit,
         "curated_database_sha256": manifest.curated_database_sha256,
         "curated_manifest_sha256": manifest.curated_manifest_sha256,
