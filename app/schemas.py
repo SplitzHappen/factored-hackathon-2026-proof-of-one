@@ -62,8 +62,6 @@ class ConversationState(ContractModel):
 
 
 class CustomerSummary(ContractModel):
-    country: str
-    detected_accent: str | None = None
     customer_status: str
 
 
