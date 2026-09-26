@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from decimal import Decimal, InvalidOperation
 
 from app.interpretation import StructuredInterpretationProvider
 from app.schemas import ModelInterpretationRequest, PolicyIntent
@@ -54,17 +55,40 @@ class DeterministicDemoInterpretationProvider(StructuredInterpretationProvider):
         )
 
         intent = self._intent(message, transaction_id is not None)
+        amount = (
+            self._explicit_amount(message)
+            if transaction_id is None
+            and intent in {
+                PolicyIntent.TRANSACTION_LOOKUP,
+                PolicyIntent.TRANSACTION_STATUS,
+            }
+            else None
+        )
 
         return json.dumps(
             {
                 "intent": intent.value,
                 "unauthorized_activity_asserted": unauthorized,
                 "transaction_id": transaction_id,
-                "transaction_query": None,
+                "transaction_query": (
+                    {"amount": str(amount)}
+                    if amount is not None
+                    else None
+                ),
             },
             ensure_ascii=False,
             sort_keys=True,
         )
+
+    @staticmethod
+    def _explicit_amount(message: str) -> Decimal | None:
+        tokens = re.findall(r"(?<![A-Za-z0-9])\d+(?:[.,]\d{1,2})?(?![A-Za-z0-9])", message)
+        if len(tokens) != 1:
+            return None
+        try:
+            return Decimal(tokens[0].replace(",", "."))
+        except InvalidOperation:
+            return None
 
     @staticmethod
     def _intent(message: str, has_transaction_id: bool) -> PolicyIntent:
