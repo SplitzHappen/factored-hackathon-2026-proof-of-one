@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Iterable, Mapping
 
 import numpy as np
@@ -15,6 +15,8 @@ REVIEW_BUDGETS = (0.001, 0.005, 0.01)
 PRIMARY_REVIEW_BUDGET = 0.005
 POISSON_BOOTSTRAP_ITERATIONS = 2000
 POISSON_BOOTSTRAP_SEED = 20260926
+PAIRED_BOOTSTRAP_ITERATIONS = 500
+PAIRED_BOOTSTRAP_SEED = 20260927
 
 VALIDATION_MIN_TOP_005_RECALL = 0.05
 VALIDATION_MIN_TOP_005_PRECISION_LIFT = 10.0
@@ -66,6 +68,26 @@ class GateDecision:
     passed: bool
     checks: Mapping[str, bool]
     values: Mapping[str, float]
+
+
+@dataclass(frozen=True, slots=True)
+class DifferenceInterval:
+    metric: str
+    point_difference: float
+    lower_95: float
+    upper_95: float
+
+
+@dataclass(frozen=True, slots=True)
+class PairedBootstrapComparison:
+    proposed_name: str
+    baseline_name: str
+    pr_auc_difference: DifferenceInterval
+    top_0_5_recall_difference: DifferenceInterval
+    top_0_5_precision_difference: DifferenceInterval
+    iterations: int
+    method: str
+    seed: int
 
 
 def _as_binary(y_true: Iterable[int | bool]) -> np.ndarray:
@@ -338,6 +360,150 @@ def poisson_bootstrap_pr_auc_interval(
     )
 
 
+
+def _weighted_model_metrics(
+    *,
+    y: np.ndarray,
+    scores: np.ndarray,
+    tie_breaker: np.ndarray,
+    weights: np.ndarray,
+) -> tuple[float, float, float]:
+    """Weighted PR-AUC, top-0.5% recall, and precision for Poisson replicates."""
+
+    total_weight = int(weights.sum())
+    total_positive_weight = int(np.dot(weights, y))
+    if total_weight <= 0 or total_positive_weight <= 0:
+        return math.nan, math.nan, math.nan
+
+    # PR-AUC uses score-threshold groups, matching average-precision tie semantics.
+    score_order = np.argsort(-scores, kind="stable")
+    sorted_scores = scores[score_order]
+    sorted_y = y[score_order]
+    sorted_w = weights[score_order]
+
+    group_starts = np.r_[
+        0,
+        1 + np.flatnonzero(sorted_scores[1:] != sorted_scores[:-1]),
+    ]
+    group_pos = np.add.reduceat(sorted_w * sorted_y, group_starts)
+    group_all = np.add.reduceat(sorted_w, group_starts)
+    cumulative_pos = np.cumsum(group_pos, dtype=np.float64)
+    cumulative_all = np.cumsum(group_all, dtype=np.float64)
+    precision_by_group = np.divide(
+        cumulative_pos,
+        cumulative_all,
+        out=np.zeros_like(cumulative_pos),
+        where=cumulative_all > 0,
+    )
+    pr_auc = float(
+        np.sum((group_pos / total_positive_weight) * precision_by_group)
+    )
+
+    # Fixed-budget metrics use the target-blind tie breaker to choose exact rows.
+    review_target = max(1, math.ceil(total_weight * PRIMARY_REVIEW_BUDGET))
+    budget_order = np.lexsort((tie_breaker, -scores))
+    budget_w = weights[budget_order]
+    budget_y = y[budget_order]
+    cumulative_weight = np.cumsum(budget_w, dtype=np.int64)
+    crossing = int(np.searchsorted(cumulative_weight, review_target, side="left"))
+
+    if crossing >= len(budget_order):
+        crossing = len(budget_order) - 1
+
+    prior_weight = int(cumulative_weight[crossing - 1]) if crossing > 0 else 0
+    partial = review_target - prior_weight
+    fraud_caught = int(
+        np.dot(budget_w[:crossing], budget_y[:crossing])
+        + partial * budget_y[crossing]
+    )
+    recall = fraud_caught / total_positive_weight
+    precision = fraud_caught / review_target
+    return pr_auc, recall, precision
+
+
+def paired_poisson_bootstrap_comparison(
+    y_true: Iterable[int | bool],
+    proposed_scores: Iterable[float],
+    baseline_scores: Iterable[float],
+    *,
+    tie_breaker: Iterable[int] | np.ndarray,
+    proposed_name: str = "gbdt",
+    baseline_name: str = "baseline",
+    iterations: int = PAIRED_BOOTSTRAP_ITERATIONS,
+    seed: int = PAIRED_BOOTSTRAP_SEED,
+) -> PairedBootstrapComparison:
+    """Paired same-row Poisson bootstrap for headline metric differences."""
+
+    if iterations < 100:
+        raise ValueError("iterations must be at least 100")
+    y = _as_binary(y_true)
+    proposed = _as_scores(proposed_scores, len(y))
+    baseline = _as_scores(baseline_scores, len(y))
+    tie = np.asarray(list(tie_breaker), dtype=np.uint64)
+    if len(tie) != len(y):
+        raise ValueError("tie_breaker must match y_true length")
+
+    proposed_point = ranking_metrics(y, proposed, tie_breaker=tie)
+    baseline_point = ranking_metrics(y, baseline, tie_breaker=tie)
+    proposed_budget = primary_budget(proposed_point)
+    baseline_budget = primary_budget(baseline_point)
+
+    point_differences = np.array(
+        [
+            proposed_point.pr_auc - baseline_point.pr_auc,
+            proposed_budget.recall - baseline_budget.recall,
+            proposed_budget.precision - baseline_budget.precision,
+        ],
+        dtype=np.float64,
+    )
+
+    rng = np.random.default_rng(seed)
+    differences = np.empty((iterations, 3), dtype=np.float64)
+
+    for index in range(iterations):
+        weights = rng.poisson(1.0, size=len(y)).astype(np.int32, copy=False)
+        proposed_rep = _weighted_model_metrics(
+            y=y,
+            scores=proposed,
+            tie_breaker=tie,
+            weights=weights,
+        )
+        baseline_rep = _weighted_model_metrics(
+            y=y,
+            scores=baseline,
+            tie_breaker=tie,
+            weights=weights,
+        )
+        differences[index] = np.asarray(proposed_rep) - np.asarray(baseline_rep)
+
+    valid = differences[np.all(np.isfinite(differences), axis=1)]
+    if len(valid) < max(100, int(iterations * 0.95)):
+        raise RuntimeError("too many degenerate paired bootstrap replicates")
+
+    lower = np.quantile(valid, 0.025, axis=0)
+    upper = np.quantile(valid, 0.975, axis=0)
+    names = ("pr_auc", "top_0_5_recall", "top_0_5_precision")
+    intervals = [
+        DifferenceInterval(
+            metric=name,
+            point_difference=float(point_differences[idx]),
+            lower_95=float(lower[idx]),
+            upper_95=float(upper[idx]),
+        )
+        for idx, name in enumerate(names)
+    ]
+    return PairedBootstrapComparison(
+        proposed_name=proposed_name,
+        baseline_name=baseline_name,
+        pr_auc_difference=intervals[0],
+        top_0_5_recall_difference=intervals[1],
+        top_0_5_precision_difference=intervals[2],
+        iterations=iterations,
+        method="paired-same-row-poisson-bootstrap",
+        seed=seed,
+    )
+
+
 def validation_gate_decision(
     *,
     gbdt_metrics: RankingMetrics,
@@ -422,6 +588,18 @@ def metric_contract_dict() -> dict[str, object]:
         "primary_review_budget": PRIMARY_REVIEW_BUDGET,
         "poisson_bootstrap_iterations": POISSON_BOOTSTRAP_ITERATIONS,
         "poisson_bootstrap_seed": POISSON_BOOTSTRAP_SEED,
+        "paired_bootstrap_iterations": PAIRED_BOOTSTRAP_ITERATIONS,
+        "paired_bootstrap_seed": PAIRED_BOOTSTRAP_SEED,
+        "paired_bootstrap_metrics": [
+            "pr_auc",
+            "top_0_5_recall",
+            "top_0_5_precision",
+        ],
+        "non_gbdt_gate_baselines": [
+            "prevalence",
+            "behavioral_heuristic",
+            "regularized_logistic",
+        ],
         "behavioral_heuristic": {
             "amount_surprise_weight": 0.35,
             "channel_novelty_weight": 0.15,
@@ -429,7 +607,9 @@ def metric_contract_dict() -> dict[str, object]:
             "transaction_country_novelty_weight": 0.15,
             "prior_24h_velocity_weight": 0.15,
             "prior_30d_velocity_weight": 0.10,
+            "amount_surprise_transform": "clip(log2(ratio)/3,0,1) for ratio>1 else 0",
             "amount_surprise_saturates_at_ratio": 8.0,
+            "velocity_transform": "clip(log1p(count)/log1p(saturation_count),0,1)",
             "prior_24h_velocity_saturates_at_count": 5,
             "prior_30d_velocity_saturates_at_count": 20,
         },
