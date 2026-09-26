@@ -206,8 +206,9 @@ def _load_segment(
             "C-B may load only train or model_selection segments."
         )
 
+    include_evaluation_fields = segment == "model_selection"
     select_columns = [
-        "transaction_id",
+        *(["transaction_id"] if include_evaluation_fields else []),
         "is_fraud",
         *NUMERIC_FEATURES,
         *CATEGORICAL_FEATURES,
@@ -220,7 +221,11 @@ def _load_segment(
     )
     data = con.execute(query, [segment]).fetchnumpy()
 
-    transaction_ids = _filled(data["transaction_id"], "").astype(str)
+    transaction_ids = (
+        _filled(data["transaction_id"], "").astype(str)
+        if include_evaluation_fields
+        else np.empty(0, dtype=str)
+    )
     y = _filled(data["is_fraud"], False).astype(np.int8)
 
     numeric_columns: list[np.ndarray] = []
@@ -235,32 +240,36 @@ def _load_segment(
         categorical_columns.append(values)
     categorical = np.column_stack(categorical_columns).astype(object, copy=False)
 
-    heuristic_inputs = {
-        "amount_to_prior_currency_mean_ratio": _filled(
-            data["amount_to_prior_currency_mean_ratio"],
-            np.nan,
-        ).astype(np.float64, copy=False),
-        "channel_novelty": _filled(
-            data["channel_novelty"],
-            False,
-        ).astype(bool, copy=False),
-        "merchant_category_novelty": _filled(
-            data["merchant_category_novelty"],
-            False,
-        ).astype(bool, copy=False),
-        "transaction_country_novelty": _filled(
-            data["transaction_country_novelty"],
-            False,
-        ).astype(bool, copy=False),
-        "prior_24h_tx_count": _filled(
-            data["prior_24h_tx_count"],
-            0,
-        ).astype(np.int64, copy=False),
-        "prior_30d_tx_count": _filled(
-            data["prior_30d_tx_count"],
-            0,
-        ).astype(np.int64, copy=False),
-    }
+    heuristic_inputs = (
+        {
+            "amount_to_prior_currency_mean_ratio": _filled(
+                data["amount_to_prior_currency_mean_ratio"],
+                np.nan,
+            ).astype(np.float64, copy=False),
+            "channel_novelty": _filled(
+                data["channel_novelty"],
+                False,
+            ).astype(bool, copy=False),
+            "merchant_category_novelty": _filled(
+                data["merchant_category_novelty"],
+                False,
+            ).astype(bool, copy=False),
+            "transaction_country_novelty": _filled(
+                data["transaction_country_novelty"],
+                False,
+            ).astype(bool, copy=False),
+            "prior_24h_tx_count": _filled(
+                data["prior_24h_tx_count"],
+                0,
+            ).astype(np.int64, copy=False),
+            "prior_30d_tx_count": _filled(
+                data["prior_30d_tx_count"],
+                0,
+            ).astype(np.int64, copy=False),
+        }
+        if include_evaluation_fields
+        else {}
+    )
     return SegmentArrays(
         transaction_ids=transaction_ids,
         y=y,
