@@ -301,6 +301,175 @@ def _development_combined_sha(cases_path: Path, keys_path: Path) -> str:
     ).hexdigest()
 
 
+def candidate_eligibility_failures(summary: dict[str, object]) -> list[str]:
+    """Apply the pre-result v3 eligibility gates to one aggregate result."""
+
+    failures: list[str] = []
+
+    def below(name: str, threshold: float) -> bool:
+        value = summary.get(name)
+        return not isinstance(value, (int, float)) or float(value) < threshold
+
+    if summary.get("unsafe_cross_customer_bindings") != 0:
+        failures.append("unsafe_cross_customer_bindings")
+    if below("verified_step_rate", 0.98):
+        failures.append("verified_step_rate")
+    if below("unauthorized_positive_recall", 1.0):
+        failures.append("unauthorized_positive_recall")
+    if below("explicit_transaction_id_accuracy", 0.95):
+        failures.append("explicit_transaction_id_accuracy")
+    if below("portuguese_core_accuracy", 0.85):
+        failures.append("portuguese_core_accuracy")
+    if below("portuguese_stress_accuracy", 0.85):
+        failures.append("portuguese_stress_accuracy")
+    if below("bilingual_unauthorized_stress_recall", 1.0):
+        failures.append("bilingual_unauthorized_stress_recall")
+    return failures
+
+
+def run_candidate_preflight(
+    *,
+    candidate_id: str,
+    output_path: Path,
+    timeout_seconds: float = 30.0,
+) -> dict[str, object]:
+    """Run only public synthetic schema/API smoke checks.
+
+    This does not open the private development pool, the held-out suite, or banking data.
+    """
+
+    if candidate_id not in CANDIDATES:
+        raise ProviderBakeoffError(f"unknown candidate: {candidate_id}")
+
+    adapter = CandidateProviderAdapter.from_environment(
+        candidate_id,
+        timeout_seconds=timeout_seconds,
+    )
+    if not adapter.is_configured():
+        raise ProviderBakeoffError(
+            f"{candidate_id} is not configured; set {CANDIDATES[candidate_id].api_key_env}"
+        )
+
+    probes = (
+        (
+            SupportedLanguage.ES,
+            "Muéstrame la transacción PREFLIGHT-ES-001.",
+            PolicyIntent.TRANSACTION_LOOKUP,
+            "PREFLIGHT-ES-001",
+            False,
+        ),
+        (
+            SupportedLanguage.PT,
+            "Mostre a transação PREFLIGHT-PT-001.",
+            PolicyIntent.TRANSACTION_LOOKUP,
+            "PREFLIGHT-PT-001",
+            False,
+        ),
+        (
+            SupportedLanguage.ES,
+            "No reconozco la transacción PREFLIGHT-ES-002; yo no autoricé esa compra.",
+            None,
+            "PREFLIGHT-ES-002",
+            True,
+        ),
+        (
+            SupportedLanguage.PT,
+            "Não reconheço a transação PREFLIGHT-PT-002; eu não autorizei essa compra.",
+            None,
+            "PREFLIGHT-PT-002",
+            True,
+        ),
+    )
+
+    passed = 0
+    provider_failures = 0
+    invalid_outputs = 0
+    served_models: Counter[str] = Counter()
+    http_statuses: Counter[str] = Counter()
+    failure_kinds: Counter[str] = Counter()
+    error_codes: Counter[str] = Counter()
+
+    for language, message, expected_intent, expected_id, expected_unauthorized in probes:
+        adapter.last_telemetry = None
+        adapter.last_raw_content = None
+        request = ModelInterpretationRequest(
+            language=language,
+            message=message,
+            reference_date=date(2026, 9, 26),
+            previous_intent=None,
+        )
+        try:
+            raw = adapter.extract(
+                request,
+                system_prompt=INTERPRETATION_SYSTEM_PROMPT,
+                response_schema=ModelInterpretation.model_json_schema(),
+            )
+        except InterpretationProviderError:
+            provider_failures += 1
+            failure_kinds[adapter.last_failure_kind or "provider_failure"] += 1
+            if adapter.last_http_status is not None:
+                http_statuses[str(adapter.last_http_status)] += 1
+            if adapter.last_provider_error_code:
+                error_codes[adapter.last_provider_error_code] += 1
+            continue
+
+        if adapter.last_http_status is not None:
+            http_statuses[str(adapter.last_http_status)] += 1
+        if adapter.last_telemetry and adapter.last_telemetry.served_model:
+            served_models[adapter.last_telemetry.served_model] += 1
+
+        try:
+            parsed = ModelInterpretation.model_validate_json(raw)
+        except (ValueError, TypeError):
+            invalid_outputs += 1
+            continue
+
+        intent_ok = expected_intent is None or parsed.intent is expected_intent
+        if (
+            intent_ok
+            and parsed.transaction_id == expected_id
+            and parsed.unauthorized_activity_asserted == expected_unauthorized
+        ):
+            passed += 1
+
+    candidate = CANDIDATES[candidate_id]
+    summary: dict[str, object] = {
+        "preflight_version": "r3c-provider-preflight-v1",
+        "benchmark_version": "r3c-provider-bakeoff-v3",
+        "interpretation_contract_sha256": interpretation_contract_sha256(),
+        "git_sha": _git_sha(),
+        "run_started_at_utc": datetime.now(timezone.utc).isoformat(),
+        "candidate_id": candidate_id,
+        "provider": candidate.provider,
+        "model": candidate.model,
+        "strict_json_schema": candidate.strict_json_schema,
+        "base_url_host": _candidate_base_url_host(candidate_id),
+        "probe_count": len(probes),
+        "probe_pass_count": passed,
+        "provider_failures": provider_failures,
+        "invalid_outputs": invalid_outputs,
+        "served_model_counts": dict(served_models),
+        "http_status_counts": dict(http_statuses),
+        "provider_failure_kinds": dict(failure_kinds),
+        "provider_error_code_counts": dict(error_codes),
+        "preflight_pass": passed == len(probes),
+        "private_development_data_accessed": False,
+        "heldout_data_accessed": False,
+        "banking_data_accessed": False,
+        "raw_prompts_persisted": False,
+        "raw_outputs_persisted": False,
+    }
+    eligibility_failures = candidate_eligibility_failures(summary)
+    summary["eligible"] = not eligibility_failures
+    summary["eligibility_failures"] = eligibility_failures
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return summary
+
+
 def run_candidate(
     *,
     candidate_id: str,
@@ -739,9 +908,33 @@ def main() -> int:
     parser.add_argument("--frozen-dir", default=str(DEFAULT_FROZEN_DIR))
     parser.add_argument("--results-dir", default=str(DEFAULT_RESULTS_DIR))
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
+    parser.add_argument(
+        "--preflight-only",
+        action="store_true",
+        help="Run public synthetic API/schema smoke checks only; do not open private data.",
+    )
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)
+    if args.preflight_only:
+        summary = run_candidate_preflight(
+            candidate_id=args.candidate,
+            output_path=results_dir / f"{args.candidate}-preflight.json",
+            timeout_seconds=args.timeout_seconds,
+        )
+        print("R3C PROVIDER PREFLIGHT COMPLETE")
+        for key in (
+            "candidate_id",
+            "preflight_pass",
+            "probe_pass_count",
+            "provider_failures",
+            "invalid_outputs",
+            "served_model_counts",
+            "http_status_counts",
+        ):
+            print(f"{key}: {summary[key]}")
+        return 0 if summary["preflight_pass"] else 2
+
     summary = run_candidate(
         candidate_id=args.candidate,
         database_path=Path(args.database),
@@ -767,6 +960,8 @@ def main() -> int:
         "estimated_cost_min",
         "estimated_cost_max",
         "cost_currency",
+        "eligible",
+        "eligibility_failures",
     ):
         print(f"{key}: {summary[key]}")
     return 0
