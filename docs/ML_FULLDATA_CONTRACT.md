@@ -1,6 +1,6 @@
 # R4B reduced full-data ML contract
 
-This document freezes the exact split and reduced feature semantics selected by the pre-registered R4A signal probe.
+This document freezes the exact split and reduced feature semantics selected by the pre-registered R4A signal probe. The canonical contract is serialized deterministically and SHA-256 hashed; every later analytical/model artifact must record that contract hash.
 
 ## Official chronological segments
 
