@@ -39,6 +39,7 @@ class ProviderCandidate:
 class ProviderCallTelemetry:
     provider: str
     model: str
+    served_model: str | None
     latency_ms: int
     input_tokens: int | None
     output_tokens: int | None
@@ -414,10 +415,13 @@ class CandidateProviderAdapter:
             input_tokens,
             output_tokens,
         )
+        raw_served_model = envelope.get("model")
+        served_model = raw_served_model if isinstance(raw_served_model, str) else None
         self.last_raw_content = content
         self.last_telemetry = ProviderCallTelemetry(
             provider=self.candidate.provider,
             model=self.candidate.model,
+            served_model=served_model,
             latency_ms=latency_ms,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
