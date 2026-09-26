@@ -44,6 +44,8 @@ The R3B build step reads the organizer files without modifying them and creates 
 - `is_fraud`
 - `fraud_score`
 
+`is_fraud` and `fraud_score` remain in the local curated artifact only for offline analytical/evaluation work. They are deliberately excluded from the operational `TransactionRecord`, customer-facing query results, LLM context, and deterministic policy inputs.
+
 ## Deliberately excluded
 
 The curated artifact does not include customer names, document numbers, email addresses, phone numbers, street addresses, product/account/card numbers, latitude/longitude, branch joins, free-text transcripts, complaints, digital-event product context, or other fields that are unnecessary for the selected workflow.
