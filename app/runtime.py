@@ -14,6 +14,7 @@ from app.schemas import (
     ConversationState,
     EscalationRecord,
     EscalationRequest,
+    SessionRole,
     SupportedLanguage,
     TransactionQuery,
 )
@@ -222,8 +223,6 @@ class OperationalStore:
             ).fetchone()
         if row is None:
             return None
-        from app.schemas import SessionRole
-
         return AuthenticatedSession(
             session_id=UUID(row["session_id"]),
             tenant_id=row["tenant_id"],
