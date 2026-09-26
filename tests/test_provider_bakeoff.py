@@ -116,11 +116,11 @@ def test_portuguese_stress_set_is_bounded_and_contains_no_organizer_ids() -> Non
 
 def test_candidate_registry_freezes_exact_r3c_b_starting_candidates() -> None:
     assert set(CANDIDATES) == {
-        "openai-gpt-5.6-luna",
+        "openai-gpt-6-luna",
         "qwen3.7-flash",
         "deepseek-v4.1-flash",
     }
-    assert CANDIDATES["openai-gpt-5.6-luna"].strict_json_schema is True
+    assert CANDIDATES["openai-gpt-6-luna"].strict_json_schema is True
     assert CANDIDATES["qwen3.7-flash"].strict_json_schema is True
     assert CANDIDATES["deepseek-v4.1-flash"].strict_json_schema is False
 
@@ -157,7 +157,7 @@ def test_openai_adapter_uses_responses_strict_schema(monkeypatch) -> None:
         )
 
     monkeypatch.setattr("app.provider_adapters._post_json", fake_post_json)
-    adapter = CandidateProviderAdapter.from_environment("openai-gpt-5.6-luna")
+    adapter = CandidateProviderAdapter.from_environment("openai-gpt-6-luna")
     output = adapter.extract(
         _request(),
         system_prompt="Return structured output.",
@@ -173,12 +173,12 @@ def test_openai_adapter_uses_responses_strict_schema(monkeypatch) -> None:
     assert payload["text"]["format"]["strict"] is True
     assert adapter.last_telemetry is not None
     assert adapter.last_telemetry.provider == "OpenAI"
-    assert adapter.last_telemetry.model == "gpt-5.6-luna"
+    assert adapter.last_telemetry.model == "gpt-6-luna"
     assert adapter.last_telemetry.latency_ms == 42
     assert adapter.last_telemetry.input_tokens == 120
     assert adapter.last_telemetry.output_tokens == 20
-    assert adapter.last_telemetry.estimated_cost_min == pytest.approx(0.000048)
-    assert adapter.last_telemetry.estimated_cost_max == pytest.approx(0.000048)
+    assert adapter.last_telemetry.estimated_cost_min == pytest.approx(0.000022)
+    assert adapter.last_telemetry.estimated_cost_max == pytest.approx(0.000022)
     assert adapter.last_telemetry.cost_currency == "USD"
 
 
@@ -228,7 +228,7 @@ def test_qwen_adapter_uses_strict_json_schema(monkeypatch) -> None:
     assert captured["payload"]["model"] == "qwen3.7-flash"
     assert captured["payload"]["enable_thinking"] is False
     assert adapter.last_telemetry is not None
-    assert adapter.last_telemetry.cost_currency == "CNY"
+    assert adapter.last_telemetry.cost_currency == "USD"
 
 
 def test_deepseek_adapter_preserves_json_object_disadvantage(monkeypatch) -> None:
