@@ -303,6 +303,9 @@ class CustomerTurnResponse(ContractModel):
     response_text: str = Field(min_length=1, max_length=2000)
     reason_codes: list[PolicyReason] = Field(default_factory=list, max_length=20)
     transactions: list[TransactionRecord] = Field(default_factory=list, max_length=10)
+    clarification_transaction_ids: list[
+        Annotated[str, Field(min_length=1, max_length=128)]
+    ] = Field(default_factory=list, max_length=10)
     escalation_ticket_id: UUID | None = None
     handoff_available: bool = False
     synthetic_data: bool = True
