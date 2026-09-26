@@ -330,6 +330,18 @@ def candidate_eligibility_failures(summary: dict[str, object]) -> list[str]:
     return failures
 
 
+def finalize_candidate_summary(
+    summary: dict[str, object],
+) -> dict[str, object]:
+    """Attach the predeclared live-candidate eligibility decision."""
+
+    finalized = dict(summary)
+    failures = candidate_eligibility_failures(finalized)
+    finalized["eligible"] = not failures
+    finalized["eligibility_failures"] = failures
+    return finalized
+
+
 def run_candidate_preflight(
     *,
     candidate_id: str,
@@ -990,9 +1002,7 @@ def run_candidate(
         "raw_prompts_persisted": False,
         "raw_outputs_persisted": False,
     }
-    eligibility_failures = candidate_eligibility_failures(summary)
-    summary["eligible"] = not eligibility_failures
-    summary["eligibility_failures"] = eligibility_failures
+    summary = finalize_candidate_summary(summary)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
