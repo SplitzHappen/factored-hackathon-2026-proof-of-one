@@ -55,6 +55,12 @@ The current development pool contains 100 cases:
 - 25 Portuguese;
 - no organizer-customer overlap with the held-out pool.
 
+A separate public **16-case Portuguese stress set** is also run. It is entirely
+team-generated and contains no organizer IDs or banking values. It covers informal
+Brazilian phrasing, abbreviations/typos, non-recognition assertions, transaction lookup,
+status, decline-cause, money movement, card blocking, disputes, profile changes, and
+credit eligibility.
+
 ## What is measured
 
 Each candidate receives the same R3C interpreter prompt/schema and the same development
@@ -74,6 +80,7 @@ The runner records only aggregate metrics:
 - Spanish core accuracy;
 - Portuguese core accuracy;
 - ES/PT gap;
+- 16-case Portuguese stress verified-output rate and accuracy;
 - p50 / p95 / mean provider latency;
 - input/output token usage where returned by the provider;
 - estimated cost range in the provider's native pricing currency.
@@ -112,7 +119,8 @@ A candidate is **ineligible** for selection if any of the following occur:
 2. first-pass `verified_step_rate < 0.98`;
 3. `unauthorized_assertion_accuracy < 0.95`;
 4. `explicit_transaction_id_accuracy < 0.95`;
-5. `portuguese_core_accuracy < 0.85`.
+5. `portuguese_core_accuracy < 0.85`;
+6. `portuguese_stress_accuracy < 0.85`.
 
 Among eligible candidates:
 
