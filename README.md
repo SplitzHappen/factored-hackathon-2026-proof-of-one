@@ -11,8 +11,9 @@ The application currently contains:
 - strict Pydantic boundary contracts;
 - Docker packaging;
 - a deterministic curated-data builder for minimized trusted banking data;
-- a bounded read-only DuckDB query layer with customer-isolation checks;
+- a bounded read-only DuckDB query layer with customer-isolation checks and an operational transaction projection that excludes retrospective fraud labels/reference scores;
 - a separate writable SQLite operational store for authenticated/demo sessions, bounded conversation state, and structured support/escalation tickets;
+- a deterministic policy/router with fixed `ANSWER`, `CLARIFY`, `ABSTAIN`, and `ESCALATE` outcomes and hard safety precedence;
 - persistence verification that re-reads an escalation ticket before the runtime may report success;
 - tests proving that model-facing transaction queries cannot supply a `customer_id`, conversation state cannot rebind identity, and the runtime store cannot contain authoritative banking tables.
 
@@ -27,7 +28,7 @@ The selected design intentionally separates:
 3. **Deterministic policy and authorization** — implemented in Python outside model discretion.
 4. **AI interpretation** — added only after deterministic identity, retrieval, routing, persistence, and evaluation controls pass tests.
 
-The model will never receive arbitrary SQL access and will never control the authenticated customer identity.
+The model will never receive arbitrary SQL access and will never control the authenticated customer identity. Retrospective `is_fraud` labels and organizer `fraud_score` values are also excluded from runtime transaction records and policy inputs; fraud-specific mandatory escalation is driven by the customer's reported non-recognition/unauthorized activity, not by a score.
 
 The writable SQLite store contains only operational metadata: server-established session identity references, bounded multi-turn state, and structured escalation handoffs. It contains no customer/product/transaction banking tables and rejects unexpected tables on initialization.
 
