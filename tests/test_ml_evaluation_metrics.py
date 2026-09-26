@@ -19,7 +19,7 @@ from ml.evaluation_metrics import (
     primary_budget,
     probability_metrics,
     ranking_metrics,
-    test_survival_decision,
+    evaluate_test_survival,
     validation_gate_decision,
 )
 
@@ -201,14 +201,14 @@ def test_validation_gate_requires_all_three_frozen_conditions() -> None:
 
 
 def test_test_survival_requires_all_frozen_conditions() -> None:
-    good = test_survival_decision(
+    good = evaluate_test_survival(
         test_gbdt_metrics=_gate_metrics(recall=0.03, lift=6.0, pr_auc=0.12),
         gate_gbdt_pr_auc=0.20,
         test_non_gbdt_baseline_pr_aucs={"logistic": 0.08},
     )
     assert good.passed is True
 
-    bad = test_survival_decision(
+    bad = evaluate_test_survival(
         test_gbdt_metrics=_gate_metrics(recall=0.03, lift=6.0, pr_auc=0.09),
         gate_gbdt_pr_auc=0.20,
         test_non_gbdt_baseline_pr_aucs={"logistic": 0.08},
