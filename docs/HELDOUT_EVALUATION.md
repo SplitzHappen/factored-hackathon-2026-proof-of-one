@@ -171,3 +171,20 @@ A frozen suite can later be re-verified without regeneration:
 `python -m evaluation.freeze --verify --database data/curated/bank.duckdb --curated-manifest data/curated/build_manifest.json`
 
 The canonical held-out identity for all later model evaluation is the `heldout_combined_sha256` printed by the successful real-data freeze. That hash must be copied into Continuity before any LLM prompt/provider optimization begins.
+
+
+## Claim boundary after the 2026-09-26 full-project audit
+
+The frozen `factored-heldout-v1` suite remains unchanged.
+
+Because its development and held-out pools share public generator template families,
+v1 is classified as a **template-controlled conformance/safety suite on unseen organizer
+records**, not strong evidence of generalization to novel customer phrasing.
+
+A separate public synthetic freeze,
+`factored-realistic-language-v1`, provides a phrasing-distinct ES/PT stress surface.
+It does not use organizer rows and is not a substitute for naturally occurring customer
+conversation data. See `docs/REALISTIC_LANGUAGE_SLICE.md`.
+
+No provider-selection, prompt-tuning, or debugging result may use the frozen 200-case
+held-out suite.
