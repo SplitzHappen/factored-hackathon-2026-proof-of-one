@@ -295,6 +295,13 @@ class CandidateProviderAdapter:
                     ],
                     "response_format": response_format,
                     "stream": False,
+                    **(
+                        {"enable_thinking": False}
+                        if self.candidate.candidate_id == "qwen3.7-flash"
+                        else {"thinking": {"type": "disabled"}}
+                        if self.candidate.candidate_id == "deepseek-v4.1-flash"
+                        else {}
+                    ),
                 },
             )
             content = self._chat_completion_text(envelope)
