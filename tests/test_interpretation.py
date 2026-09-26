@@ -485,3 +485,153 @@ def test_forged_or_unpersisted_session_is_blocked_before_provider_call(
         service.interpret(session=_session(), message="Revisa T001.", reference_date=REFERENCE_DATE)
 
     assert provider.calls == []
+
+
+def test_partial_transaction_id_substring_is_rejected(runtime_parts) -> None:
+    bank, store = runtime_parts
+    session = _session()
+    store.save_authenticated_session(session)
+    provider = FakeProvider(_output(transaction_id="T001"))
+    service = InterpretationService(
+        bank=bank,
+        store=store,
+        provider=provider,
+        max_attempts=1,
+    )
+
+    result = service.interpret(
+        session=session,
+        message="Revisa T001X por favor.",
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status is InterpretationStatus.SAFE_FALLBACK
+    assert result.fallback_reason is InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
+
+
+def test_cross_language_unauthorized_backstop_still_raises_signal(runtime_parts) -> None:
+    bank, store = runtime_parts
+    session = _session(SupportedLanguage.ES)
+    store.save_authenticated_session(session)
+    provider = FakeProvider(
+        _output(
+            intent="transaction_lookup",
+            unauthorized=False,
+            transaction_id=None,
+        )
+    )
+    service = InterpretationService(bank=bank, store=store, provider=provider)
+
+    result = service.interpret(
+        session=session,
+        message="Não reconheço essa compra; não fui eu.",
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.unauthorized_activity_asserted is True
+    assert result.lexical_unauthorized_override is True
+
+
+def test_model_invented_status_filter_without_message_provenance_is_rejected(
+    runtime_parts,
+) -> None:
+    bank, store = runtime_parts
+    session = _session()
+    store.save_authenticated_session(session)
+    provider = FakeProvider(
+        _output(
+            transaction_id=None,
+            transaction_query={"status": "Declined"},
+        )
+    )
+    service = InterpretationService(
+        bank=bank,
+        store=store,
+        provider=provider,
+        max_attempts=1,
+    )
+
+    result = service.interpret(
+        session=session,
+        message="Busca mi transacción aprobada.",
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status is InterpretationStatus.SAFE_FALLBACK
+    assert result.fallback_reason is InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
+
+
+def test_canonical_status_enum_matches_spanish_message_cue(runtime_parts) -> None:
+    bank, store = runtime_parts
+    session = _session()
+    store.save_authenticated_session(session)
+    provider = FakeProvider(
+        _output(
+            transaction_id=None,
+            transaction_query={"status": "Approved"},
+        )
+    )
+    service = InterpretationService(bank=bank, store=store, provider=provider)
+
+    result = service.interpret(
+        session=session,
+        message="Busca mi transacción aprobada.",
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status is InterpretationStatus.VERIFIED
+    assert result.transaction_reference_status is TransactionReferenceStatus.AMBIGUOUS
+
+
+def test_localized_noncanonical_status_value_is_rejected(runtime_parts) -> None:
+    bank, store = runtime_parts
+    session = _session()
+    store.save_authenticated_session(session)
+    provider = FakeProvider(
+        _output(
+            transaction_id=None,
+            transaction_query={"status": "Aprobada"},
+        )
+    )
+    service = InterpretationService(
+        bank=bank,
+        store=store,
+        provider=provider,
+        max_attempts=1,
+    )
+
+    result = service.interpret(
+        session=session,
+        message="Busca mi transacción aprobada.",
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status is InterpretationStatus.SAFE_FALLBACK
+    assert result.fallback_reason is InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
+
+
+def test_model_invented_amount_filter_is_rejected(runtime_parts) -> None:
+    bank, store = runtime_parts
+    session = _session()
+    store.save_authenticated_session(session)
+    provider = FakeProvider(
+        _output(
+            transaction_id=None,
+            transaction_query={"amount": "200.00"},
+        )
+    )
+    service = InterpretationService(
+        bank=bank,
+        store=store,
+        provider=provider,
+        max_attempts=1,
+    )
+
+    result = service.interpret(
+        session=session,
+        message="Busca una transacción reciente.",
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status is InterpretationStatus.SAFE_FALLBACK
+    assert result.fallback_reason is InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT

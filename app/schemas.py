@@ -46,6 +46,26 @@ class PolicyIntent(StrEnum):
     UNKNOWN = "unknown"
 
 
+class TransactionTypeFilter(StrEnum):
+    """Canonical transaction-type values stored in the curated banking layer."""
+
+    PURCHASE = "Purchase"
+    WITHDRAWAL = "Withdrawal"
+    TRANSFER = "Transfer"
+    PAYMENT = "Payment"
+    DEPOSIT = "Deposit"
+    ADJUSTMENT = "Adjustment"
+
+
+class TransactionStatusFilter(StrEnum):
+    """Canonical transaction-status values stored in the curated banking layer."""
+
+    APPROVED = "Approved"
+    DECLINED = "Declined"
+    PENDING = "Pending"
+    REVERSED = "Reversed"
+
+
 class PolicyReason(StrEnum):
     SUPPORTED_VERIFIED = "supported_verified"
     UNAUTHORIZED_ACTIVITY_REPORTED = "unauthorized_activity_reported"
@@ -87,13 +107,17 @@ class TransactionQuery(ContractModel):
 
 
 class InterpretedTransactionQuery(ContractModel):
-    """Model-extracted filters with no model-controlled result limit or identity."""
+    """Model-extracted filters with canonical server-side enum values.
+
+    The model may interpret Spanish or Portuguese customer language, but these values
+    are constrained to the English canonical values stored in the curated database.
+    """
 
     date_from: date | None = None
     date_to: date | None = None
     amount: Decimal | None = Field(default=None, ge=0)
-    transaction_type: str | None = Field(default=None, max_length=80)
-    status: str | None = Field(default=None, max_length=80)
+    transaction_type: TransactionTypeFilter | None = None
+    status: TransactionStatusFilter | None = None
 
 
 class InterpretationStatus(StrEnum):

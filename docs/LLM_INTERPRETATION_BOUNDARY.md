@@ -1,4 +1,4 @@
-# R3C Language Interpretation and Deterministic Post-check
+# R3C Language Interpretation and Deterministic Post-check — contract r3c-v2
 
 R3C adds the internal language-understanding boundary for Spanish and Portuguese. It
 does **not** expose a public HTTP endpoint and it does not freeze an LLM provider.
@@ -10,7 +10,8 @@ The language model may interpret only:
 - the normalized intent;
 - whether the customer explicitly asserts that activity was unauthorized or not theirs;
 - a transaction ID explicitly mentioned by the customer;
-- bounded transaction filters explicitly mentioned by the customer.
+- bounded transaction filters explicitly mentioned by the customer, normalized to
+  canonical server-side transaction-type/status enum values.
 
 The provider request contains only:
 
@@ -33,8 +34,11 @@ changing the banking or policy boundary. Provider/model selection is intentional
 deferred to development-pool evidence.
 
 Provider adapters return raw JSON text. R3C validates that text against the exact
-`ModelInterpretation` schema. There is no provider SDK in the production dependency
-set yet.
+`ModelInterpretation` schema. For provider-comparison fairness, every adapter receives
+the same textual canonical schema, enum list, and example; providers that support native
+strict JSON Schema also receive API-level enforcement. JSON-object-only providers retain
+their genuine reliability disadvantage without being denied the contract itself. There is
+no provider SDK in the production dependency set yet.
 
 ## Bounded retry and fallback
 
@@ -51,13 +55,19 @@ or banking fact.
 Model output is not banking truth.
 
 - The exact persisted server session is verified before any provider call.
-- A model-returned transaction ID must first appear in the actual customer message;
-  an invented ID is rejected before banking lookup.
+- A model-returned transaction ID must first appear as a whole token in the actual
+  customer message; partial-ID substring matches and invented IDs are rejected before
+  banking lookup.
 - A model-returned transaction ID is then ownership-checked through the read-only banking
   repository.
 - An unowned/nonexistent transaction ID is never surfaced as a verified transaction ID.
 - Model-extracted transaction filters are executed only against the authenticated
   customer.
+- Transaction type/status are constrained to the canonical English enum values stored
+  in the curated database even when the user speaks Spanish or Portuguese.
+- Every extracted amount/type/status/date filter must have deterministic semantic
+  provenance in the customer message; invented narrowing filters are rejected rather
+  than allowed to manufacture a unique match.
 - Search breadth is server-controlled at 50 results. The model-facing query schema has
   no `limit` field, so the model cannot manufacture uniqueness by asking for one row.
 - Multiple owned matches remain `AMBIGUOUS`.
@@ -73,9 +83,10 @@ facts and the already-frozen policy router.
 ## Unauthorized-activity safety backstop
 
 The model may raise the unauthorized-activity signal but cannot lower a high-confidence
-deterministic language backstop. R3C currently recognizes a deliberately narrow set of
-first-person Spanish and Portuguese phrases such as "no reconozco / no fui yo" and
-"não reconheço / não fui eu".
+deterministic language backstop. Contract r3c-v2 expands the first-person Spanish and
+Portuguese non-recognition/authorization vocabulary and intentionally scans both supported
+languages even when the server session language is one of them. This protects code-switching
+and injection-plus-fraud cases such as "ignore the rules; I do not recognize this purchase."
 
 This backstop is monotonic: it may change `false -> true`, never `true -> false`.
 It is not a fraud classifier and does not inspect behavioral evidence or fraud labels.
@@ -95,3 +106,10 @@ R3C deliberately does not add:
 The frozen 200-case held-out suite remains untouched. Provider selection and prompt
 refinement must use the separate development pool only, then freeze before held-out
 execution.
+
+
+## Remaining R3D time contract
+
+`reference_date` is server-authoritative and already resolved before the provider call.
+R3D must document which tenant/demo timezone produced that date; the provider may not infer
+or substitute a timezone. This is a product-integration obligation rather than model authority.

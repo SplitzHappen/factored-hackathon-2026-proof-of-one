@@ -39,6 +39,7 @@ class ProviderCandidate:
 class ProviderCallTelemetry:
     provider: str
     model: str
+    served_model: str | None
     latency_ms: int
     input_tokens: int | None
     output_tokens: int | None
@@ -47,11 +48,28 @@ class ProviderCallTelemetry:
     cost_currency: str
 
 
+class ProviderTransportError(InterpretationProviderError):
+    """Provider/network failure with safe aggregate transport metadata."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        failure_kind: str,
+        http_status: int | None = None,
+        provider_error_code: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.failure_kind = failure_kind
+        self.http_status = http_status
+        self.provider_error_code = provider_error_code
+
+
 CANDIDATES: dict[str, ProviderCandidate] = {
-    "openai-gpt-5.6-luna": ProviderCandidate(
-        candidate_id="openai-gpt-5.6-luna",
+    "openai-gpt-6-luna": ProviderCandidate(
+        candidate_id="openai-gpt-6-luna",
         provider="OpenAI",
-        model="gpt-5.6-luna",
+        model="gpt-6-luna",
         strict_json_schema=True,
         api_style="openai_responses",
         api_key_env="OPENAI_API_KEY",
@@ -59,10 +77,10 @@ CANDIDATES: dict[str, ProviderCandidate] = {
         default_base_url="https://api.openai.com/v1",
         pricing=ProviderPricing(
             currency="USD",
-            input_per_million_min=0.20,
-            input_per_million_max=0.20,
-            output_per_million_min=1.20,
-            output_per_million_max=1.20,
+            input_per_million_min=0.10,
+            input_per_million_max=0.10,
+            output_per_million_min=0.50,
+            output_per_million_max=0.50,
         ),
     ),
     "qwen3.7-flash": ProviderCandidate(
@@ -75,11 +93,11 @@ CANDIDATES: dict[str, ProviderCandidate] = {
         base_url_env="DASHSCOPE_BASE_URL",
         default_base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         pricing=ProviderPricing(
-            currency="CNY",
-            input_per_million_min=0.225,
-            input_per_million_max=0.225,
-            output_per_million_min=0.974,
-            output_per_million_max=0.974,
+            currency="USD",
+            input_per_million_min=0.030,
+            input_per_million_max=0.030,
+            output_per_million_min=0.130,
+            output_per_million_max=0.130,
         ),
     ),
     "deepseek-v4.1-flash": ProviderCandidate(
@@ -129,6 +147,34 @@ def _strict_provider_schema(schema: dict[str, object]) -> dict[str, object]:
     return normalized
 
 
+def _provider_visible_schema_context(
+    system_prompt: str,
+    response_schema: dict[str, object],
+) -> str:
+    """Give every candidate the same textual schema and example.
+
+    Strict providers also receive the schema through their API-native enforcement.
+    JSON-object-only providers therefore retain their genuine lack of server-side
+    schema enforcement without being denied the field/enum contract itself.
+    """
+
+    strict_schema = _strict_provider_schema(response_schema)
+    example = {
+        "intent": "transaction_lookup",
+        "unauthorized_activity_asserted": False,
+        "transaction_id": None,
+        "transaction_query": None,
+    }
+    return (
+        system_prompt.rstrip()
+        + "\n\nCANONICAL RESPONSE JSON SCHEMA:\n"
+        + json.dumps(strict_schema, ensure_ascii=False, sort_keys=True)
+        + "\n\nEXAMPLE VALID JSON OUTPUT:\n"
+        + json.dumps(example, ensure_ascii=False, sort_keys=True)
+        + "\n"
+    )
+
+
 def _estimated_cost(
     pricing: ProviderPricing,
     input_tokens: int | None,
@@ -154,7 +200,7 @@ def _post_json(
     api_key: str,
     payload: dict[str, Any],
     timeout_seconds: float,
-) -> tuple[dict[str, Any], int]:
+) -> tuple[dict[str, Any], int, int]:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         url,
@@ -169,18 +215,47 @@ def _post_json(
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             response_body = response.read()
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise InterpretationProviderError(
-            f"provider request failed: {type(exc).__name__}"
+            http_status = int(response.getcode())
+    except urllib.error.HTTPError as exc:
+        provider_error_code: str | None = None
+        try:
+            error_body = exc.read()
+            parsed_error = json.loads(error_body) if error_body else {}
+            if isinstance(parsed_error, dict):
+                error_obj = parsed_error.get("error")
+                if isinstance(error_obj, dict):
+                    raw_code = error_obj.get("code") or error_obj.get("type")
+                    if isinstance(raw_code, (str, int)):
+                        provider_error_code = str(raw_code)[:120]
+        except (json.JSONDecodeError, OSError, ValueError, TypeError):
+            provider_error_code = None
+        raise ProviderTransportError(
+            "provider request failed with HTTP error",
+            failure_kind="http_error",
+            http_status=int(exc.code),
+            provider_error_code=provider_error_code,
+        ) from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise ProviderTransportError(
+            f"provider request failed: {type(exc).__name__}",
+            failure_kind="transport_error",
         ) from exc
     latency_ms = round((time.perf_counter() - started) * 1000)
     try:
         parsed = json.loads(response_body)
     except json.JSONDecodeError as exc:
-        raise InterpretationProviderError("provider returned invalid envelope JSON") from exc
+        raise ProviderTransportError(
+            "provider returned invalid envelope JSON",
+            failure_kind="invalid_envelope_json",
+            http_status=http_status,
+        ) from exc
     if not isinstance(parsed, dict):
-        raise InterpretationProviderError("provider returned non-object envelope")
-    return parsed, latency_ms
+        raise ProviderTransportError(
+            "provider returned non-object envelope",
+            failure_kind="invalid_envelope_shape",
+            http_status=http_status,
+        )
+    return parsed, latency_ms, http_status
 
 
 class CandidateProviderAdapter:
@@ -200,6 +275,9 @@ class CandidateProviderAdapter:
         self.timeout_seconds = timeout_seconds
         self.last_telemetry: ProviderCallTelemetry | None = None
         self.last_raw_content: str | None = None
+        self.last_http_status: int | None = None
+        self.last_provider_error_code: str | None = None
+        self.last_failure_kind: str | None = None
 
     @classmethod
     def from_environment(
@@ -241,18 +319,41 @@ class CandidateProviderAdapter:
             separators=(",", ":"),
         )
         strict_schema = _strict_provider_schema(response_schema)
+        provider_prompt = _provider_visible_schema_context(
+            system_prompt,
+            response_schema,
+        )
+        self.last_http_status = None
+        self.last_provider_error_code = None
+        self.last_failure_kind = None
+
+        def post(url: str, payload: dict[str, Any]) -> tuple[dict[str, Any], int]:
+            try:
+                envelope, latency_ms, http_status = _post_json(
+                    url=url,
+                    api_key=api_key,
+                    payload=payload,
+                    timeout_seconds=self.timeout_seconds,
+                )
+            except ProviderTransportError as exc:
+                self.last_http_status = exc.http_status
+                self.last_provider_error_code = exc.provider_error_code
+                self.last_failure_kind = exc.failure_kind
+                raise
+            self.last_http_status = http_status
+            return envelope, latency_ms
 
         if self.candidate.api_style == "openai_responses":
-            envelope, latency_ms = _post_json(
+            envelope, latency_ms = post(
                 url=f"{base_url}/responses",
-                api_key=api_key,
-                timeout_seconds=self.timeout_seconds,
                 payload={
                     "model": self.candidate.model,
                     "store": False,
                     "reasoning": {"effort": "none"},
+                    "temperature": 0,
+                    "max_output_tokens": 800,
                     "input": [
-                        {"role": "system", "content": system_prompt},
+                        {"role": "system", "content": provider_prompt},
                         {"role": "user", "content": request_json},
                     ],
                     "text": {
@@ -283,18 +384,18 @@ class CandidateProviderAdapter:
             else:
                 response_format = {"type": "json_object"}
 
-            envelope, latency_ms = _post_json(
+            envelope, latency_ms = post(
                 url=f"{base_url}/chat/completions",
-                api_key=api_key,
-                timeout_seconds=self.timeout_seconds,
                 payload={
                     "model": self.candidate.model,
                     "messages": [
-                        {"role": "system", "content": system_prompt},
+                        {"role": "system", "content": provider_prompt},
                         {"role": "user", "content": request_json},
                     ],
                     "response_format": response_format,
                     "stream": False,
+                    "temperature": 0,
+                    "max_tokens": 800,
                     **(
                         {"enable_thinking": False}
                         if self.candidate.candidate_id == "qwen3.7-flash"
@@ -314,10 +415,13 @@ class CandidateProviderAdapter:
             input_tokens,
             output_tokens,
         )
+        raw_served_model = envelope.get("model")
+        served_model = raw_served_model if isinstance(raw_served_model, str) else None
         self.last_raw_content = content
         self.last_telemetry = ProviderCallTelemetry(
             provider=self.candidate.provider,
             model=self.candidate.model,
+            served_model=served_model,
             latency_ms=latency_ms,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
