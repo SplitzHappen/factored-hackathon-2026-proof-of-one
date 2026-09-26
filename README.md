@@ -51,6 +51,20 @@ docker compose up --build
 
 The service is exposed on port 8000.
 
+## Curated data build
+
+The application does not query the complete organizer dataset directly. The deterministic R3B builder creates the minimized trusted `bank.duckdb` used by the service:
+
+```powershell
+python scripts/build_curated_bank.py `
+  --data-root "$HOME\Documents\Factored-Hackathon-2026\data" `
+  --output "data\curated\bank.duckdb" `
+  --manifest "data\curated\build_manifest.json" `
+  --overwrite
+```
+
+The builder is fail-closed on primary-key, foreign-key, and transaction/product/customer ownership violations and refuses to write any generated artifact into the raw organizer-data root. See `docs/CURATED_DATA.md` for the exact retained/excluded fields and reproducibility contract.
+
 ## Data policy
 
 Raw organizer data is not committed to this public repository.
