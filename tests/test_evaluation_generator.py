@@ -179,6 +179,18 @@ def test_generator_creates_full_disjoint_reproducible_pools(tmp_path: Path) -> N
         if case.language.value == "pt":
             assert case.source_pair_id in heldout_ids
 
+    normal_spanish = [
+        case
+        for case in heldout_cases
+        if case.language.value == "es"
+        and case.category.value == "normal_supported"
+    ]
+    # The fixture's "-1" transaction is always later than "-0".
+    assert all(
+        case.locator.transaction_ids[0].endswith("-1")
+        for case in normal_spanish
+    )
+
     serialized = (first_private / "heldout_cases.jsonl").read_text(encoding="utf-8")
     assert "is_fraud" not in serialized
     assert "fraud_score" not in serialized
