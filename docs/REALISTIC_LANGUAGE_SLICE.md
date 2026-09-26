@@ -24,7 +24,7 @@ The freeze contains:
 - 16 Spanish;
 - 16 Portuguese;
 - 16 paired semantic scenarios;
-- 8 explicit unauthorized/non-recognition positives, four per language;
+- 6 explicit unauthorized/non-recognition positives, three per language;
 - indirect requests;
 - colloquial wording;
 - abbreviations/typos;
