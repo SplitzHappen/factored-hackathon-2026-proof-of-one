@@ -142,7 +142,7 @@ def test_generator_creates_full_disjoint_reproducible_pools(tmp_path: Path) -> N
         first_private / "heldout_cases.jsonl",
         HeldoutCase,
     )
-    heldout_keys = _load_models(
+    heldout_keys = load_jsonl(
         first_private / "heldout_answer_keys.jsonl",
         HeldoutAnswerKey,
     )
