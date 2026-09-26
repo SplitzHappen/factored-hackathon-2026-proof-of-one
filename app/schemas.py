@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class ContractModel(BaseModel):
     """Reject unknown fields at service boundaries."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 class SupportedLanguage(StrEnum):
