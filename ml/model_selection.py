@@ -4,6 +4,7 @@ import argparse
 import gc
 import hashlib
 import json
+import math
 import os
 import platform
 import subprocess
@@ -228,9 +229,9 @@ def _load_segment(
 
     categorical_columns: list[np.ndarray] = []
     for name in CATEGORICAL_FEATURES:
-        values = _filled(data[name], "__MISSING__").astype(str)
+        values = _filled(data[name], "__MISSING__").astype(object, copy=False)
         categorical_columns.append(values)
-    categorical = np.column_stack(categorical_columns)
+    categorical = np.column_stack(categorical_columns).astype(object, copy=False)
 
     heuristic_inputs = {
         "amount_to_prior_currency_mean_ratio": _filled(
