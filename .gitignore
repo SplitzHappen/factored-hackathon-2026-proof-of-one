@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+.env.*
+!.env.example
+
+# Application-generated writable state
+runtime/
+*.sqlite
+*.sqlite3
+
+# Curated/local data artifacts are generated, not committed
+data/raw/
+data/curated/
+*.duckdb
+*.duckdb.wal
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
