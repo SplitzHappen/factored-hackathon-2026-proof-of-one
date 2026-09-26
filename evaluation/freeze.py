@@ -276,7 +276,6 @@ def freeze_evaluation(
     curated_manifest_path: Path,
     output_root: Path,
     repo_root: Path,
-    seed: str = DEFAULT_SEED,
 ) -> FrozenEvaluationManifest:
     database_path = database_path.expanduser().resolve()
     curated_manifest_path = curated_manifest_path.expanduser().resolve()
@@ -314,7 +313,7 @@ def freeze_evaluation(
         summary = generate(
             database_path=database_path,
             output_dir=build_dir,
-            seed=seed,
+            seed=DEFAULT_SEED,
         )
         private_dir = build_dir / "private"
 
@@ -376,7 +375,7 @@ def freeze_evaluation(
         manifest = FrozenEvaluationManifest(
             freeze_version=FREEZE_VERSION,
             frozen_utc=datetime.now(timezone.utc).isoformat(),
-            generator_seed=seed,
+            generator_seed=DEFAULT_SEED,
             implementation_commit=_git_head(repo_root),
             curated_database_sha256=database_sha,
             curated_manifest_sha256=_sha256_file(curated_manifest_path),
@@ -420,7 +419,17 @@ def freeze_evaluation(
 
         final_dir.parent.mkdir(parents=True, exist_ok=True)
         os.replace(staging, final_dir)
-        return manifest
+
+        verified = verify_frozen_evaluation(
+            frozen_dir=final_dir,
+            database_path=database_path,
+            curated_manifest_path=curated_manifest_path,
+        )
+        if verified != manifest:
+            raise FreezeError(
+                "Persisted evaluation freeze did not verify against the in-memory manifest."
+            )
+        return verified
     finally:
         if build_dir.exists():
             shutil.rmtree(build_dir)
@@ -542,7 +551,6 @@ def main() -> int:
     )
     parser.add_argument("--output-root", default="evaluation")
     parser.add_argument("--repo-root", default=".")
-    parser.add_argument("--seed", default=DEFAULT_SEED)
     parser.add_argument(
         "--verify",
         action="store_true",
@@ -568,7 +576,6 @@ def main() -> int:
             curated_manifest_path=Path(args.curated_manifest),
             output_root=Path(args.output_root),
             repo_root=Path(args.repo_root),
-            seed=args.seed,
         )
         print("EVALUATION FREEZE COMPLETE")
 
