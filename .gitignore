@@ -22,3 +22,8 @@ data/curated/
 .idea/
 .DS_Store
 Thumbs.db
+
+
+# Held-out evaluation prompts/locators and answer keys stay local/private
+evaluation/private/
+evaluation/results/private/
