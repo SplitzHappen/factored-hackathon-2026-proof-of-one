@@ -139,6 +139,35 @@ class DevelopmentAnswerKey(ContractModel):
 
 
 
+class RealisticLanguageCase(ContractModel):
+    """Public synthetic language-only case for provider generalization evidence."""
+
+    case_id: str = Field(pattern=r"^RL-[A-Z]{2}-\d{3}$")
+    language: SupportedLanguage
+    language_provenance: LanguageProvenance
+    message: str = Field(min_length=1, max_length=1000)
+    accepted_intents: list[str] = Field(min_length=1, max_length=8)
+    unauthorized_activity_asserted: bool
+    expected_transaction_id: str | None = Field(default=None, max_length=128)
+    score_intent: bool = True
+    phenomena: list[str] = Field(min_length=1, max_length=12)
+    source_pair_id: str = Field(pattern=r"^PAIR-\d{3}$")
+    organizer_data_used: bool = False
+    native_language_reviewed: bool = False
+
+
+class RealisticLanguageManifest(ContractModel):
+    suite_version: str = Field(pattern=r"^factored-realistic-language-v\d+$")
+    cases_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    case_count: int = Field(ge=1)
+    spanish_count: int = Field(ge=0)
+    portuguese_count: int = Field(ge=0)
+    paired_count: int = Field(ge=0)
+    organizer_data_used: bool
+    portuguese_native_reviewed: bool
+    max_legacy_surface_similarity: float = Field(ge=0, le=1)
+
+
 class EvaluationSystem(StrEnum):
     DETERMINISTIC_BASELINE = "deterministic_baseline"
     SIMPLE_MODEL_BASELINE = "simple_model_baseline"
