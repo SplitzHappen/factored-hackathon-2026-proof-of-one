@@ -76,7 +76,7 @@ The runner records only aggregate metrics:
 - provider failure rate plus aggregate transport/HTTP failure classes;
 - invalid structured-output rate;
 - scored intent accuracy;
-- answer-key-backed route-proxy accuracy where the interpretation contract can derive the route;
+- answer-key-backed route-proxy accuracy where the interpretation contract can derive the route (**diagnostic only; not part of provider language-core ranking**);
 - unauthorized-activity **positive recall**;
 - unauthorized-activity specificity;
 - explicit transaction-ID extraction accuracy;
