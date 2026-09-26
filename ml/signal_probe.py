@@ -5,6 +5,8 @@ import hashlib
 import json
 import math
 import os
+import platform
+import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +16,7 @@ import duckdb
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
+from sklearn import __version__ as sklearn_version
 from sklearn.preprocessing import OrdinalEncoder
 
 
@@ -53,6 +56,32 @@ class SplitIdentity:
     internal_train_rows: int
     internal_holdout_rows: int
     internal_cutoff: str
+
+
+
+def _git_identity(repo_root: Path) -> str:
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    if status.stdout.strip():
+        raise SignalProbeError(
+            "Refusing to run the signal probe from a dirty Git working tree."
+        )
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    commit = result.stdout.strip()
+    if len(commit) != 40 or any(ch not in "0123456789abcdef" for ch in commit):
+        raise SignalProbeError("Could not resolve canonical Git commit.")
+    return commit
 
 
 def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -453,10 +482,20 @@ def run_probe(
     database_path: Path,
     curated_manifest_path: Path,
     output_path: Path,
+    repo_root: Path,
 ) -> dict[str, Any]:
     database_path = database_path.expanduser().resolve()
     curated_manifest_path = curated_manifest_path.expanduser().resolve()
     output_path = output_path.expanduser().resolve()
+    repo_root = repo_root.expanduser().resolve()
+
+    if output_path.exists():
+        raise SignalProbeError(
+            f"Signal-probe result already exists: {output_path}. "
+            "Do not overwrite a completed probe after observing its result."
+        )
+
+    implementation_commit = _git_identity(repo_root)
 
     if not database_path.is_file():
         raise FileNotFoundError(database_path)
@@ -519,6 +558,10 @@ def run_probe(
 
     result = {
         "probe_version": PROBE_VERSION,
+        "implementation_commit": implementation_commit,
+        "python_version": platform.python_version(),
+        "duckdb_version": duckdb.__version__,
+        "scikit_learn_version": sklearn_version,
         "curated_database_sha256": database_sha,
         "curated_manifest_sha256": _sha256_file(curated_manifest_path),
         "split": asdict(split),
@@ -560,6 +603,10 @@ def run_probe(
 def _safe_summary(result: dict[str, Any]) -> dict[str, Any]:
     return {
         "probe_version": result["probe_version"],
+        "implementation_commit": result["implementation_commit"],
+        "python_version": result["python_version"],
+        "duckdb_version": result["duckdb_version"],
+        "scikit_learn_version": result["scikit_learn_version"],
         "curated_database_sha256": result["curated_database_sha256"],
         "curated_manifest_sha256": result["curated_manifest_sha256"],
         "split": result["split"],
@@ -579,12 +626,14 @@ def main() -> int:
         "--output",
         default="ml/private/r4a_signal_probe.json",
     )
+    parser.add_argument("--repo-root", default=".")
     args = parser.parse_args()
 
     result = run_probe(
         database_path=Path(args.database),
         curated_manifest_path=Path(args.curated_manifest),
         output_path=Path(args.output),
+        repo_root=Path(args.repo_root),
     )
     print("R4A TRAINING-ONLY SIGNAL PROBE COMPLETE")
     print(json.dumps(_safe_summary(result), indent=2, sort_keys=True))
