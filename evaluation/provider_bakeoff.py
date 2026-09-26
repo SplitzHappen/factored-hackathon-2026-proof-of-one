@@ -12,7 +12,11 @@ from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
 from app.bank import BankRepository
-from app.interpretation import InterpretationProviderError, InterpretationService
+from app.interpretation import (
+    INTERPRETATION_SYSTEM_PROMPT,
+    InterpretationProviderError,
+    InterpretationService,
+)
 from app.provider_adapters import CANDIDATES, CandidateProviderAdapter
 from app.runtime import OperationalStore
 from app.schemas import (
@@ -20,10 +24,12 @@ from app.schemas import (
     InterpretationFallbackReason,
     InterpretationStatus,
     ModelInterpretation,
+    ModelInterpretationRequest,
     PolicyIntent,
     SupportedLanguage,
 )
 from evaluation.contracts import CaseCategory, DevelopmentAnswerKey, DevelopmentCase
+from evaluation.portuguese_stress import PORTUGUESE_STRESS_CASES
 from evaluation.suite import load_jsonl
 
 
@@ -370,6 +376,65 @@ def run_candidate(
             else:
                 pt_core_correct += int(core_correct)
 
+    stress_verified = 0
+    stress_correct = 0
+    stress_failures = 0
+    stress_invalid = 0
+    stress_latencies: list[int] = []
+    stress_cost_min = 0.0
+    stress_cost_max = 0.0
+    stress_cost_steps = 0
+
+    for stress_case in PORTUGUESE_STRESS_CASES:
+        adapter.last_telemetry = None
+        adapter.last_raw_content = None
+        request = ModelInterpretationRequest(
+            language=SupportedLanguage.PT,
+            message=stress_case.message,
+            reference_date=date(2026, 9, 26),
+            previous_intent=None,
+        )
+        try:
+            raw = adapter.extract(
+                request,
+                system_prompt=INTERPRETATION_SYSTEM_PROMPT,
+                response_schema=ModelInterpretation.model_json_schema(),
+            )
+        except InterpretationProviderError:
+            stress_failures += 1
+            continue
+
+        telemetry = adapter.last_telemetry
+        if telemetry is not None:
+            stress_latencies.append(telemetry.latency_ms)
+            if (
+                telemetry.estimated_cost_min is not None
+                and telemetry.estimated_cost_max is not None
+            ):
+                stress_cost_min += telemetry.estimated_cost_min
+                stress_cost_max += telemetry.estimated_cost_max
+                stress_cost_steps += 1
+
+        try:
+            parsed = ModelInterpretation.model_validate_json(raw)
+        except (ValueError, TypeError):
+            stress_invalid += 1
+            continue
+
+        stress_verified += 1
+        correct = (
+            parsed.unauthorized_activity_asserted
+            == stress_case.unauthorized_activity_asserted
+        )
+        if stress_case.score_intent:
+            correct = correct and parsed.intent in stress_case.accepted_intents
+        if stress_case.expected_transaction_id is not None:
+            correct = (
+                correct
+                and parsed.transaction_id == stress_case.expected_transaction_id
+            )
+        stress_correct += int(correct)
+
     candidate = CANDIDATES[candidate_id]
     summary: dict[str, object] = {
         "benchmark_version": "r3c-provider-bakeoff-v1",
@@ -406,6 +471,16 @@ def run_candidate(
             if es_steps == 0 or pt_steps == 0
             else abs(es_core_correct / es_steps - pt_core_correct / pt_steps) * 100
         ),
+        "portuguese_stress_case_count": len(PORTUGUESE_STRESS_CASES),
+        "portuguese_stress_verified_rate": _safe_rate(
+            stress_verified, len(PORTUGUESE_STRESS_CASES)
+        ),
+        "portuguese_stress_accuracy": _safe_rate(
+            stress_correct, len(PORTUGUESE_STRESS_CASES)
+        ),
+        "portuguese_stress_provider_failures": stress_failures,
+        "portuguese_stress_invalid_outputs": stress_invalid,
+        "portuguese_stress_latency_p95_ms": _percentile(stress_latencies, 0.95),
         "latency_p50_ms": _percentile(latencies, 0.50),
         "latency_p95_ms": _percentile(latencies, 0.95),
         "mean_latency_ms": statistics.fmean(latencies) if latencies else None,
@@ -416,6 +491,12 @@ def run_candidate(
         "estimated_cost_max": cost_max if cost_telemetry_steps else None,
         "cost_currency": candidate.pricing.currency,
         "cost_telemetry_steps": cost_telemetry_steps,
+        "portuguese_stress_estimated_cost_min": (
+            stress_cost_min if stress_cost_steps else None
+        ),
+        "portuguese_stress_estimated_cost_max": (
+            stress_cost_max if stress_cost_steps else None
+        ),
         "raw_prompts_persisted": False,
         "raw_outputs_persisted": False,
     }
@@ -457,6 +538,7 @@ def main() -> int:
         "cross_customer_reference_block_rate",
         "spanish_core_accuracy",
         "portuguese_core_accuracy",
+        "portuguese_stress_accuracy",
         "language_gap_percentage_points",
         "latency_p50_ms",
         "latency_p95_ms",
