@@ -7,6 +7,7 @@ from typing import Iterator
 
 import duckdb
 
+from app.behavioral_evidence import BehavioralEvidenceInput
 from app.schemas import CustomerSummary, ProductRecord, TransactionQuery, TransactionRecord
 
 
@@ -265,6 +266,146 @@ class BankRepository:
         if row is None:
             return None
         return self._transaction_from_row(row)
+
+    def get_behavioral_evidence_input(
+        self,
+        authenticated_customer_id: str,
+        transaction_id: str,
+    ) -> BehavioralEvidenceInput | None:
+        """Build target-free evidence facts for one ownership-verified transaction.
+
+        History is restricted to the same customer and timestamps strictly earlier
+        than the target transaction. Same-timestamp peers and future records never
+        contribute. Retrospective fraud labels/reference scores are never selected.
+        """
+
+        with self._connect() as con:
+            row = con.execute(
+                """
+                WITH target AS (
+                    SELECT
+                        t.transaction_date,
+                        CAST(t.amount AS DOUBLE) AS amount,
+                        t.currency,
+                        t.channel,
+                        t.merchant_category,
+                        t.transaction_country,
+                        p.opening_date,
+                        t.customer_id
+                    FROM transactions t
+                    JOIN products p
+                      ON p.product_id = t.product_id
+                     AND p.customer_id = ?
+                    WHERE t.transaction_id = ?
+                      AND t.customer_id = ?
+                    LIMIT 1
+                ),
+                history AS (
+                    SELECT
+                        h.transaction_id,
+                        h.transaction_date,
+                        CAST(h.amount AS DOUBLE) AS amount,
+                        h.currency,
+                        h.channel,
+                        h.merchant_category,
+                        h.transaction_country
+                    FROM transactions h
+                    JOIN products hp
+                      ON hp.product_id = h.product_id
+                    JOIN target t
+                      ON h.customer_id = t.customer_id
+                     AND hp.customer_id = t.customer_id
+                    WHERE h.transaction_date < t.transaction_date
+                )
+                SELECT
+                    t.transaction_date,
+                    t.amount,
+                    t.currency,
+                    t.channel,
+                    t.merchant_category,
+                    t.transaction_country,
+                    t.opening_date,
+                    COUNT(h.transaction_id) AS prior_tx_count_lifetime,
+                    AVG(h.amount) FILTER (
+                        WHERE h.currency = t.currency
+                    ) AS prior_same_currency_mean,
+                    COUNT(h.transaction_id) FILTER (
+                        WHERE h.channel = t.channel
+                    ) AS prior_same_channel_count,
+                    COUNT(h.transaction_id) FILTER (
+                        WHERE t.merchant_category IS NOT NULL
+                          AND h.merchant_category = t.merchant_category
+                    ) AS prior_same_merchant_category_count,
+                    COUNT(h.transaction_id) FILTER (
+                        WHERE h.transaction_country = t.transaction_country
+                    ) AS prior_same_country_count,
+                    COUNT(h.transaction_id) FILTER (
+                        WHERE h.transaction_date
+                              >= t.transaction_date - INTERVAL '24 hours'
+                    ) AS prior_24h_tx_count,
+                    COUNT(h.transaction_id) FILTER (
+                        WHERE h.transaction_date
+                              >= t.transaction_date - INTERVAL '30 days'
+                    ) AS prior_30d_tx_count
+                FROM target t
+                LEFT JOIN history h ON TRUE
+                GROUP BY
+                    t.transaction_date,
+                    t.amount,
+                    t.currency,
+                    t.channel,
+                    t.merchant_category,
+                    t.transaction_country,
+                    t.opening_date
+                """,
+                [
+                    authenticated_customer_id,
+                    transaction_id,
+                    authenticated_customer_id,
+                ],
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        occurred_at = row[0]
+        opening_date = row[6]
+        product_tenure_days = float(
+            max((occurred_at.date() - opening_date).days, 0)
+        )
+
+        current_amount = float(row[1])
+        prior_same_currency_mean = (
+            None if row[8] is None else float(row[8])
+        )
+        has_positive_amount_baseline = (
+            current_amount > 0.0
+            and prior_same_currency_mean is not None
+            and prior_same_currency_mean > 0.0
+        )
+        amount_ratio = (
+            current_amount / prior_same_currency_mean
+            if has_positive_amount_baseline
+            else None
+        )
+
+        prior_lifetime = int(row[7])
+        merchant_category_present = row[4] is not None
+
+        return BehavioralEvidenceInput(
+            prior_tx_count_lifetime=prior_lifetime,
+            product_tenure_days=product_tenure_days,
+            has_prior_currency_amount_history=has_positive_amount_baseline,
+            amount_to_prior_currency_mean_ratio=amount_ratio,
+            channel_novelty=int(row[9]) == 0,
+            merchant_category_present=merchant_category_present,
+            merchant_category_novelty=(
+                merchant_category_present and int(row[10]) == 0
+            ),
+            transaction_country_novelty=int(row[11]) == 0,
+            prior_24h_tx_count=int(row[12]),
+            prior_30d_tx_count=int(row[13]),
+        )
 
     @staticmethod
     def _transaction_from_row(row: tuple[object, ...]) -> TransactionRecord:
