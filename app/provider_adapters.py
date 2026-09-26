@@ -277,7 +277,7 @@ class CandidateProviderAdapter:
                     "json_schema": {
                         "name": "model_interpretation",
                         "strict": True,
-                        "schema": response_schema,
+                        "schema": strict_schema,
                     },
                 }
             else:
