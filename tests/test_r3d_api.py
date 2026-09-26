@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from app.bootstrap import build_app_context
-from app.demo_data import DEMO_TENANT_ID
+from app.demo_data import DEMO_TENANT_ID, build_synthetic_demo_bank
 from app.main import create_app
 from app.schemas import (
     AuthenticatedSession,
@@ -255,3 +255,45 @@ def test_customer_endpoint_rejects_wrong_tenant_even_with_valid_session(tmp_path
     )
 
     assert response.status_code == 403
+
+
+def test_curated_mode_disables_public_demo_issuance_and_marks_turn_non_synthetic(
+    tmp_path,
+) -> None:
+    bank_path = tmp_path / "curated-compatible.duckdb"
+    build_synthetic_demo_bank(bank_path)
+    context = build_app_context(
+        Settings(
+            bank_db_path=bank_path,
+            runtime_db_path=tmp_path / "curated-runtime.sqlite",
+            data_mode="curated",
+        )
+    )
+    client = TestClient(create_app(context))
+
+    assert client.get("/api/demo/personas").status_code == 404
+    assert client.post(
+        "/api/demo/sessions",
+        json={"persona_id": "lucia"},
+    ).status_code == 404
+
+    session = AuthenticatedSession(
+        session_id=uuid4(),
+        tenant_id=DEMO_TENANT_ID,
+        role=SessionRole.CUSTOMER,
+        demo_persona_id="lucia",
+        customer_id="DEMO-CUST-ES-001",
+        language=SupportedLanguage.ES,
+    )
+    context.store.save_authenticated_session(session)
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": str(session.session_id)},
+        json={
+            "message": "¿Cuál es el estado de la transacción DEMO-ES-1001?"
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["synthetic_data"] is False
