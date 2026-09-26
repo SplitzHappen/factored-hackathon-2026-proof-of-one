@@ -92,6 +92,7 @@ def test_verified_spanish_transaction_status_flows_end_to_end(tmp_path) -> None:
         "DEMO-ES-1001"
     ]
     assert body["transactions"][0]["status"] == "Approved"
+    assert "aprobada" in body["response_text"]
     assert body["escalation_ticket_id"] is None
     assert "DEMO-PT-" not in response.text
 
@@ -112,6 +113,7 @@ def test_verified_portuguese_transaction_status_uses_pt_template(tmp_path) -> No
     assert body["transactions"][0]["transaction_id"] == "DEMO-PT-2002"
     assert body["transactions"][0]["status"] == "Pending"
     assert "A transação" in body["response_text"]
+    assert "pendente" in body["response_text"]
 
 
 def test_other_customer_transaction_is_not_disclosed_or_fraud_escalated(tmp_path) -> None:
