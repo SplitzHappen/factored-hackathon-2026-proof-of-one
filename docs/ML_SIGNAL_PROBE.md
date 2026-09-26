@@ -69,7 +69,7 @@ Explicitly excluded:
 - target-derived history;
 - future rows/labels.
 
-For speed, the quick GBDT uses a deterministic target-blind 1-in-5 transaction-ID hash sample independently inside the internal training and internal holdout periods. All descriptive profiles still use the complete earliest-70% region. The later R4B experiment returns to the complete dataset.
+For speed, the quick GBDT uses a deterministic target-blind 1-in-4 transaction-ID hash sample independently inside the internal training and internal holdout periods. All descriptive profiles still use the complete earliest-70% region. The later R4B experiment returns to the complete dataset.
 
 The model is a scikit-learn histogram gradient-boosted classifier using class weighting and categorical encoding. Scikit-learn remains an offline/development dependency and is not installed in the production FastAPI Docker image.
 
