@@ -285,6 +285,9 @@ def test_builder_preserves_strict_history_and_same_timestamp_peer_exclusion(
                     prior_24h_amount_sum,
                     prior_30d_tx_count,
                     prior_30d_amount_sum,
+                    prior_currency_mean_amount_lifetime,
+                    has_prior_currency_amount_history,
+                    amount_to_prior_currency_mean_ratio,
                     prior_channel_count_lifetime,
                     channel_novelty,
                     prior_merchant_category_count_lifetime,
@@ -310,8 +313,11 @@ def test_builder_preserves_strict_history_and_same_timestamp_peer_exclusion(
     assert rows["T-000-C"][2] == 86400.0
     assert rows["T-000-C"][3] == 2
     assert rows["T-000-C"][4] == 30.0
-    assert rows["T-000-C"][8] == 0
-    assert rows["T-000-C"][9] is True
+    assert rows["T-000-C"][7] == 15.0
+    assert rows["T-000-C"][8] is True
+    assert rows["T-000-C"][9] == 2.0
+    assert rows["T-000-C"][10] == 0
+    assert rows["T-000-C"][11] is True
 
     # Feb 5 is outside both the 24h and 30d window of the prior Jan 2 event.
     assert rows["T-000-D"][0] == 3
@@ -319,8 +325,11 @@ def test_builder_preserves_strict_history_and_same_timestamp_peer_exclusion(
     assert rows["T-000-D"][4] == 0.0
     assert rows["T-000-D"][5] == 0
     assert rows["T-000-D"][6] == 0.0
-    assert rows["T-000-D"][10] == 0
-    assert rows["T-000-D"][11] is False
+    assert rows["T-000-D"][7] == 20.0
+    assert rows["T-000-D"][8] is True
+    assert rows["T-000-D"][9] == 2.0
+    assert rows["T-000-D"][12] == 0
+    assert rows["T-000-D"][13] is False
 
     verified = verify_feature_artifact(
         database_path=tmp_path / "base.duckdb",
