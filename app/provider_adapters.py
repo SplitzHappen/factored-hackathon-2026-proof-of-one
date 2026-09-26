@@ -48,10 +48,10 @@ class ProviderCallTelemetry:
 
 
 CANDIDATES: dict[str, ProviderCandidate] = {
-    "openai-gpt-5.6-luna": ProviderCandidate(
-        candidate_id="openai-gpt-5.6-luna",
+    "openai-gpt-6-luna": ProviderCandidate(
+        candidate_id="openai-gpt-6-luna",
         provider="OpenAI",
-        model="gpt-5.6-luna",
+        model="gpt-6-luna",
         strict_json_schema=True,
         api_style="openai_responses",
         api_key_env="OPENAI_API_KEY",
@@ -59,10 +59,10 @@ CANDIDATES: dict[str, ProviderCandidate] = {
         default_base_url="https://api.openai.com/v1",
         pricing=ProviderPricing(
             currency="USD",
-            input_per_million_min=0.20,
-            input_per_million_max=0.20,
-            output_per_million_min=1.20,
-            output_per_million_max=1.20,
+            input_per_million_min=0.10,
+            input_per_million_max=0.10,
+            output_per_million_min=0.50,
+            output_per_million_max=0.50,
         ),
     ),
     "qwen3.7-flash": ProviderCandidate(
@@ -75,11 +75,11 @@ CANDIDATES: dict[str, ProviderCandidate] = {
         base_url_env="DASHSCOPE_BASE_URL",
         default_base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         pricing=ProviderPricing(
-            currency="CNY",
-            input_per_million_min=0.225,
-            input_per_million_max=0.225,
-            output_per_million_min=0.974,
-            output_per_million_max=0.974,
+            currency="USD",
+            input_per_million_min=0.030,
+            input_per_million_max=0.030,
+            output_per_million_min=0.130,
+            output_per_million_max=0.130,
         ),
     ),
     "deepseek-v4.1-flash": ProviderCandidate(
