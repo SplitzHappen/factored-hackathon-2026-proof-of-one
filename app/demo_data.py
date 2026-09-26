@@ -17,6 +17,7 @@ class DemoPersona:
     display_name: str
     customer_id: str
     default_language: SupportedLanguage
+    timezone_name: str
 
 
 DEMO_PERSONAS: dict[str, DemoPersona] = {
@@ -25,12 +26,14 @@ DEMO_PERSONAS: dict[str, DemoPersona] = {
         display_name="Lucía",
         customer_id="DEMO-CUST-ES-001",
         default_language=SupportedLanguage.ES,
+        timezone_name="America/Bogota",
     ),
     "rafael": DemoPersona(
         persona_id="rafael",
         display_name="Rafael",
         customer_id="DEMO-CUST-PT-001",
         default_language=SupportedLanguage.PT,
+        timezone_name="America/Sao_Paulo",
     ),
 }
 
