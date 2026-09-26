@@ -242,15 +242,24 @@ def test_r3e_verified_unauthorized_escalation_is_bilingual(
 
 
 @pytest.mark.parametrize(
-    ("persona_id", "foreign_id"),
+    ("persona_id", "message", "foreign_id"),
     [
-        ("lucia", "DEMO-PT-2001"),
-        ("rafael", "DEMO-ES-1001"),
+        (
+            "lucia",
+            "Muéstrame la transacción DEMO-PT-2001.",
+            "DEMO-PT-2001",
+        ),
+        (
+            "rafael",
+            "Mostre a transação DEMO-ES-1001.",
+            "DEMO-ES-1001",
+        ),
     ],
 )
 def test_r3e_unowned_reference_never_exposes_clarification_candidates(
     tmp_path,
     persona_id: str,
+    message: str,
     foreign_id: str,
 ) -> None:
     client, _ = _client(tmp_path)
@@ -259,7 +268,7 @@ def test_r3e_unowned_reference_never_exposes_clarification_candidates(
     response = client.post(
         "/api/customer/turn",
         headers={"X-Demo-Session": session["session_id"]},
-        json={"message": f"Muéstrame la transacción {foreign_id}."},
+        json={"message": message},
     )
 
     assert response.status_code == 200
@@ -269,3 +278,43 @@ def test_r3e_unowned_reference_never_exposes_clarification_candidates(
     assert body["clarification_transaction_ids"] == []
     assert body["escalation_ticket_id"] is None
     assert foreign_id not in body["response_text"]
+
+
+@pytest.mark.parametrize(
+    ("persona_id", "message", "expected_phrase"),
+    [
+        (
+            "lucia",
+            "¿Cuál es el estado de esa transacción?",
+            "Necesito más detalles",
+        ),
+        (
+            "rafael",
+            "Qual é o status dessa transação?",
+            "Preciso de mais detalhes",
+        ),
+    ],
+)
+def test_r3e_missing_reference_clarifies_without_empty_candidate_prompt(
+    tmp_path,
+    persona_id: str,
+    message: str,
+    expected_phrase: str,
+) -> None:
+    client, _ = _client(tmp_path)
+    session = _session(client, persona_id)
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": message},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "CLARIFY"
+    assert body["reason_codes"] == ["required_parameters_missing"]
+    assert body["transactions"] == []
+    assert body["clarification_transaction_ids"] == []
+    assert body["escalation_ticket_id"] is None
+    assert expected_phrase in body["response_text"]
