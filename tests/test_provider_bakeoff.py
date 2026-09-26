@@ -22,6 +22,7 @@ from evaluation.contracts import (
     EvaluationStep,
     LanguageProvenance,
 )
+from evaluation.portuguese_stress import PORTUGUESE_STRESS_CASES
 from evaluation.provider_bakeoff import build_target
 
 
@@ -104,6 +105,14 @@ def test_strict_schema_requires_nullable_fields_without_removing_nullability() -
     assert normalized["required"] == ["required_text", "optional_text"]
     assert "default" not in normalized["properties"]["optional_text"]
     assert {"type": "null"} in normalized["properties"]["optional_text"]["anyOf"]
+
+
+def test_portuguese_stress_set_is_bounded_and_contains_no_organizer_ids() -> None:
+    assert len(PORTUGUESE_STRESS_CASES) == 16
+    assert len({case.case_id for case in PORTUGUESE_STRESS_CASES}) == 16
+    assert all(case.case_id.startswith("PT-STRESS-") for case in PORTUGUESE_STRESS_CASES)
+    assert all("C00" not in case.message for case in PORTUGUESE_STRESS_CASES)
+    assert all("P00" not in case.message for case in PORTUGUESE_STRESS_CASES)
 
 
 def test_candidate_registry_freezes_exact_r3c_b_starting_candidates() -> None:
