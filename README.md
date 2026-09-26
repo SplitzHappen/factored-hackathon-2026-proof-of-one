@@ -10,9 +10,11 @@ The application currently contains:
 - a FastAPI service shell;
 - strict Pydantic boundary contracts;
 - Docker packaging;
-- a read-only banking-data path reserved for curated DuckDB;
-- a separate writable path reserved for SQLite operational state;
-- initial tests proving that transaction query contracts do not accept a model-controlled `customer_id`.
+- a deterministic curated-data builder for minimized trusted banking data;
+- a bounded read-only DuckDB query layer with customer-isolation checks;
+- a separate writable SQLite operational store for authenticated/demo sessions, bounded conversation state, and structured support/escalation tickets;
+- persistence verification that re-reads an escalation ticket before the runtime may report success;
+- tests proving that model-facing transaction queries cannot supply a `customer_id`, conversation state cannot rebind identity, and the runtime store cannot contain authoritative banking tables.
 
 No LLM is connected yet.
 
@@ -26,6 +28,10 @@ The selected design intentionally separates:
 4. **AI interpretation** — added only after deterministic identity, retrieval, routing, persistence, and evaluation controls pass tests.
 
 The model will never receive arbitrary SQL access and will never control the authenticated customer identity.
+
+The writable SQLite store contains only operational metadata: server-established session identity references, bounded multi-turn state, and structured escalation handoffs. It contains no customer/product/transaction banking tables and rejects unexpected tables on initialization.
+
+Escalation is a controlled Act -> Verify path: a support ticket is inserted, committed, re-read and compared with the intended handoff, marked verified, and read back again before success is returned. Persistence or verification failure is a hard failure and is never represented as a successful escalation.
 
 ## Local setup
 
@@ -49,7 +55,7 @@ http://127.0.0.1:8000/health
 docker compose up --build
 ```
 
-The service is exposed on port 8000.
+The service is exposed on port 8000. Docker Compose mounts curated banking data read-only and keeps `runtime.sqlite` on a separate writable volume path.
 
 ## Curated data build
 
@@ -69,7 +75,9 @@ The builder is fail-closed on primary-key, foreign-key, and transaction/product/
 
 Raw organizer data is not committed to this public repository.
 
-The raw dataset remains local and read-only. A later reproducible build step will create the minimal curated DuckDB artifact required by the application. Generated database files and runtime state are git-ignored.
+The raw dataset remains local and read-only. The reproducible build step creates only the minimized curated DuckDB artifact required by the application. Generated database files and runtime state are git-ignored.
+
+The operational store deliberately avoids raw conversation transcripts and unnecessary profile data. Conversation state is limited to structured interpretation state such as prior supported intent, bounded query parameters, candidate transaction references, clarification status, and language preference.
 
 ## Submission status
 
