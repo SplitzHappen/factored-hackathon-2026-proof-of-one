@@ -74,29 +74,48 @@ def _transaction_candidates(
     declined_only: bool = False,
     limit: int = 5000,
 ) -> list[TxContext]:
-    where = "AND LOWER(t.transaction_status) = 'declined'" if declined_only else ""
+    where = "WHERE LOWER(t.transaction_status) = 'declined'" if declined_only else ""
     rows = con.execute(
         f"""
+        WITH ranked AS (
+            SELECT
+                t.customer_id,
+                c.country,
+                t.product_id,
+                t.transaction_id,
+                t.transaction_date,
+                t.amount,
+                t.currency,
+                t.transaction_type,
+                t.transaction_status,
+                t.channel,
+                t.transaction_country,
+                ROW_NUMBER() OVER (
+                    PARTITION BY t.customer_id
+                    ORDER BY t.transaction_date DESC, t.transaction_id DESC
+                ) AS rn
+            FROM transactions t
+            JOIN customers c USING (customer_id)
+            JOIN products p
+              ON p.product_id = t.product_id
+             AND p.customer_id = t.customer_id
+            {where}
+        )
         SELECT
-            t.customer_id,
-            c.country,
-            t.product_id,
-            t.transaction_id,
-            CAST(t.transaction_date AS VARCHAR),
-            t.amount,
-            t.currency,
-            t.transaction_type,
-            t.transaction_status,
-            t.channel,
-            t.transaction_country
-        FROM transactions t
-        JOIN customers c USING (customer_id)
-        JOIN products p
-          ON p.product_id = t.product_id
-         AND p.customer_id = t.customer_id
-        WHERE 1 = 1
-          {where}
-        ORDER BY md5(t.transaction_id || ?)
+            customer_id,
+            country,
+            product_id,
+            transaction_id,
+            CAST(transaction_date AS VARCHAR),
+            amount,
+            currency,
+            transaction_type,
+            transaction_status,
+            channel,
+            transaction_country
+        FROM ranked
+        WHERE rn = 1
+        ORDER BY md5(transaction_id || ?)
         LIMIT ?
         """,
         [salt, limit],
@@ -238,8 +257,8 @@ def _steps_and_key(
                 f"Qual é o status da transação {tx.transaction_id}?",
             ),
             (
-                f"¿Qué pasó con mi transacción de {tx.amount} {tx.currency}?",
-                f"O que aconteceu com minha transação de {tx.amount} {tx.currency}?",
+                f"¿Cuánto fue y en qué moneda está la transacción {tx.transaction_id}?",
+                f"Qual foi o valor e a moeda da transação {tx.transaction_id}?",
             ),
             (
                 "Muéstrame mi actividad reciente y dime el estado de la más reciente.",
