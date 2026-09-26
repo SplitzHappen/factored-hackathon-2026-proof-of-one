@@ -370,14 +370,9 @@ class BankRepository:
 
         occurred_at = row[0]
         opening_date = row[6]
-        product_tenure_days = (
-            occurred_at
-            - datetime.combine(opening_date, time.min)
-        ).total_seconds() / 86_400.0
-        if product_tenure_days < 0:
-            raise IncompatibleBankDatabaseError(
-                "Target transaction predates the linked product opening date."
-            )
+        product_tenure_days = float(
+            max((occurred_at.date() - opening_date).days, 0)
+        )
 
         current_amount = float(row[1])
         prior_same_currency_mean = (
