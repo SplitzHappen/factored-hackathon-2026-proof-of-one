@@ -279,7 +279,7 @@ class DemoPersonaSummary(ContractModel):
 
 class DemoSessionCreateRequest(ContractModel):
     persona_id: str = Field(min_length=1, max_length=128)
-    language: SupportedLanguage | None = None
+    language: str | None = Field(default=None, pattern=r"^(es|pt)$")
 
 
 class DemoSessionResponse(ContractModel):
