@@ -59,10 +59,10 @@ def test_realistic_language_freeze_contains_positive_unauthorized_cases_in_both_
 
     positives = [case for case in cases if case.unauthorized_activity_asserted]
 
-    assert len(positives) == 8
+    assert len(positives) == 6
     assert {case.language for case in positives} == {
         SupportedLanguage.ES,
         SupportedLanguage.PT,
     }
-    assert sum(case.language is SupportedLanguage.ES for case in positives) == 4
-    assert sum(case.language is SupportedLanguage.PT for case in positives) == 4
+    assert sum(case.language is SupportedLanguage.ES for case in positives) == 3
+    assert sum(case.language is SupportedLanguage.PT for case in positives) == 3
