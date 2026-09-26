@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      BANK_DB_PATH: /app/data/bank.duckdb
+      RUNTIME_DB_PATH: /app/runtime/runtime.sqlite
+    volumes:
+      - ./data/curated:/app/data:ro
+      - ./runtime:/app/runtime
