@@ -26,6 +26,7 @@ from evaluation.portuguese_stress import PORTUGUESE_STRESS_CASES
 from evaluation.provider_bakeoff import (
     build_target,
     candidate_eligibility_failures,
+    run_candidate_preflight,
 )
 
 
@@ -463,3 +464,54 @@ def test_v3_eligibility_requires_perfect_bilingual_unauthorized_stress_recall() 
     failures = candidate_eligibility_failures(summary)
 
     assert failures == ["bilingual_unauthorized_stress_recall"]
+
+
+def test_preflight_uses_only_public_synthetic_probes(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    def fake_post_json(**kwargs):
+        payload = kwargs["payload"]
+        request_payload = json.loads(payload["input"][1]["content"])
+        message = request_payload["message"]
+        match = __import__("re").search(r"PREFLIGHT-[A-Z]{2}-\d{3}", message)
+        assert match is not None
+        transaction_id = match.group(0)
+        unauthorized = "No reconozco" in message or "Não reconheço" in message
+        body = {
+            "model": "gpt-6-luna",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": json.dumps(
+                                {
+                                    "intent": "transaction_lookup",
+                                    "unauthorized_activity_asserted": unauthorized,
+                                    "transaction_id": transaction_id,
+                                    "transaction_query": None,
+                                }
+                            ),
+                        }
+                    ],
+                }
+            ],
+            "usage": {"input_tokens": 100, "output_tokens": 20},
+        }
+        return body, 10, 200
+
+    monkeypatch.setattr("app.provider_adapters._post_json", fake_post_json)
+
+    result = run_candidate_preflight(
+        candidate_id="openai-gpt-6-luna",
+        output_path=tmp_path / "preflight.json",
+    )
+
+    assert result["preflight_pass"] is True
+    assert result["probe_pass_count"] == 4
+    assert result["private_development_data_accessed"] is False
+    assert result["heldout_data_accessed"] is False
+    assert result["banking_data_accessed"] is False
+    assert result["raw_prompts_persisted"] is False
+    assert result["raw_outputs_persisted"] is False
