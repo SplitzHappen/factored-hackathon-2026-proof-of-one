@@ -17,6 +17,7 @@ from app.schemas import (
     DemoSessionResponse,
     HealthResponse,
     SessionRole,
+    SupportedLanguage,
 )
 
 
@@ -114,7 +115,11 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 detail="Unknown demo persona",
             )
 
-        language = request.language or persona.default_language
+        language = (
+            SupportedLanguage(request.language)
+            if request.language is not None
+            else persona.default_language
+        )
         session = AuthenticatedSession(
             session_id=uuid4(),
             tenant_id=DEMO_TENANT_ID,
