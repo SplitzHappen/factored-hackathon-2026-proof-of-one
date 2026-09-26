@@ -260,3 +260,26 @@ class PairedDifference(ContractModel):
     ci95_low: float
     ci95_high: float
     bootstrap_iterations: int = Field(ge=100)
+
+
+
+class FrozenEvaluationManifest(ContractModel):
+    freeze_version: str = Field(pattern=r"^factored-eval-freeze-v\d+$")
+    frozen_utc: str = Field(min_length=1, max_length=80)
+    generator_seed: str = Field(min_length=1, max_length=160)
+    implementation_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+    curated_database_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    curated_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    curated_schema_version: int = Field(ge=1)
+    curated_builder_version: str = Field(min_length=1, max_length=80)
+    curated_customer_count: int = Field(ge=1)
+    curated_product_count: int = Field(ge=1)
+    curated_transaction_count: int = Field(ge=1)
+    suite: SuiteManifest
+    development_cases_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    development_answer_keys_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    development_combined_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    development_case_count: int = Field(ge=1)
+    development_spanish_count: int = Field(ge=0)
+    development_portuguese_count: int = Field(ge=0)
+    heldout_development_customer_overlap: int = Field(ge=0)

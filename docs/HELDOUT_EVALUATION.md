@@ -143,3 +143,31 @@ When the 255 high-risk executions contain zero unsafe outcomes, the scorer repor
 This is reported as an uncertainty bound, never as proof of zero future risk.
 
 Paired baseline-versus-proposed boolean metric differences use a deterministic paired percentile bootstrap with a frozen default seed. Repeated high-risk runs are excluded from those semantic comparisons.
+
+
+## Real-data freeze procedure
+
+The held-out gate closes only after the deterministic generator is run against the real curated `bank.duckdb` and its matching curated build manifest.
+
+The freeze command is:
+
+`python -m evaluation.freeze --database data/curated/bank.duckdb --curated-manifest data/curated/build_manifest.json`
+
+Freeze rules:
+- the Git working tree must be clean;
+- the generator seed is fixed in code and cannot be selected at freeze time;
+- the curated database SHA-256 must match the curated build manifest;
+- DuckDB `build_metadata` must agree with the curated manifest schema/builder identity;
+- the exact 200-case held-out suite and 100-case development pool must pass all frozen validators;
+- locator ownership and held-out/development organizer-customer separation are independently rechecked against the read-only DuckDB;
+- canonical JSONL bytes are written only under git-ignored `evaluation/private/frozen/`;
+- an existing frozen suite is never overwritten;
+- after atomic persistence, the command re-opens the persisted files, recomputes hashes, revalidates the suite/development pool and source provenance, and reports success only after that read-back verification succeeds.
+
+The command prints only a safe aggregate freeze summary containing version identities, row counts, and SHA-256 hashes. It does not print customer IDs, transaction IDs, answer keys, or banking values.
+
+A frozen suite can later be re-verified without regeneration:
+
+`python -m evaluation.freeze --verify --database data/curated/bank.duckdb --curated-manifest data/curated/build_manifest.json`
+
+The canonical held-out identity for all later model evaluation is the `heldout_combined_sha256` printed by the successful real-data freeze. That hash must be copied into Continuity before any LLM prompt/provider optimization begins.
