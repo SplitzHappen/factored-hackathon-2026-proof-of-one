@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -377,3 +379,13 @@ def feature_contract_dict() -> dict[str, object]:
         ),
         "breadth": "reduced",
     }
+
+
+
+def feature_contract_sha256() -> str:
+    payload = json.dumps(
+        feature_contract_dict(),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
