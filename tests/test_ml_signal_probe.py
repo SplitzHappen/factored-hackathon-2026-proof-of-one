@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from decimal import Decimal
 from pathlib import Path
 
@@ -13,6 +14,34 @@ from ml.signal_probe import (
     derive_splits,
     run_probe,
 )
+
+
+
+def _init_git_repo(root: Path) -> Path:
+    repo = root / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "fixture@example.com"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Fixture"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "fixture"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    return repo
 
 
 def _sha256(path: Path) -> str:
@@ -182,16 +211,19 @@ def test_probe_is_training_only_and_ignores_late_labels(tmp_path: Path) -> None:
     _build_fixture(second_db, late_labels_flipped=True)
     _write_manifest(first_manifest, first_db)
     _write_manifest(second_manifest, second_db)
+    repo_root = _init_git_repo(tmp_path)
 
     first = run_probe(
         database_path=first_db,
         curated_manifest_path=first_manifest,
         output_path=tmp_path / "first_probe.json",
+        repo_root=repo_root,
     )
     second = run_probe(
         database_path=second_db,
         curated_manifest_path=second_manifest,
         output_path=tmp_path / "second_probe.json",
+        repo_root=repo_root,
     )
 
     assert first["probe_version"] == PROBE_VERSION
@@ -206,11 +238,13 @@ def test_probe_never_uses_fraud_score_value_as_predictor(tmp_path: Path) -> None
     manifest_path = tmp_path / "manifest.json"
     _build_fixture(db_path)
     _write_manifest(manifest_path, db_path)
+    repo_root = _init_git_repo(tmp_path)
 
     first = run_probe(
         database_path=db_path,
         curated_manifest_path=manifest_path,
         output_path=tmp_path / "first.json",
+        repo_root=repo_root,
     )
 
     con = duckdb.connect(str(db_path))
@@ -224,6 +258,7 @@ def test_probe_never_uses_fraud_score_value_as_predictor(tmp_path: Path) -> None
         database_path=db_path,
         curated_manifest_path=manifest_path,
         output_path=tmp_path / "second.json",
+        repo_root=repo_root,
     )
 
     # Coverage/missingness is unchanged, and fraud_score values never enter predictors.
@@ -238,11 +273,13 @@ def test_probe_reports_pre_registered_breadth_rule(tmp_path: Path) -> None:
     manifest_path = tmp_path / "manifest.json"
     _build_fixture(db_path)
     _write_manifest(manifest_path, db_path)
+    repo_root = _init_git_repo(tmp_path)
 
     result = run_probe(
         database_path=db_path,
         curated_manifest_path=manifest_path,
         output_path=tmp_path / "probe.json",
+        repo_root=repo_root,
     )
     model = result["quick_intrinsic_gbdt"]
 
