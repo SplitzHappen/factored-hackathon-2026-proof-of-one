@@ -30,10 +30,12 @@ class CustomerResolutionService:
         bank: BankRepository,
         store: OperationalStore,
         interpreter: InterpretationService,
+        synthetic_data: bool,
     ) -> None:
         self.bank = bank
         self.store = store
         self.interpreter = interpreter
+        self.synthetic_data = synthetic_data
 
     def resolve_turn(
         self,
@@ -128,7 +130,7 @@ class CustomerResolutionService:
                 RouteDecision.ESCALATE,
             }
             or missing_or_unowned,
-            synthetic_data=True,
+            synthetic_data=self.synthetic_data,
         )
 
     def _answer_transactions(
