@@ -4,7 +4,7 @@ Proof of One is a bounded account/payment customer-support prototype for the Fac
 
 ## Current implementation stage
 
-R3B deterministic foundation.
+R3C provider-neutral interpretation/post-check foundation.
 
 The application currently contains:
 - a FastAPI service shell;
@@ -15,9 +15,29 @@ The application currently contains:
 - a separate writable SQLite operational store for authenticated/demo sessions, bounded conversation state, and structured support/escalation tickets;
 - a deterministic policy/router with fixed `ANSWER`, `CLARIFY`, `ABSTAIN`, and `ESCALATE` outcomes and hard safety precedence;
 - persistence verification that re-reads an escalation ticket before the runtime may report success;
-- tests proving that model-facing transaction queries cannot supply a `customer_id`, conversation state cannot rebind identity, and the runtime store cannot contain authoritative banking tables.
+- tests proving that model-facing transaction queries cannot supply a `customer_id`, conversation state cannot rebind identity, and the runtime store cannot contain authoritative banking tables;
+- a provider-neutral Spanish/Portuguese interpretation boundary with strict typed extraction, bounded retries/fallback, deterministic transaction-reference verification, and no model authority over identity, ownership, banking truth, policy, or behavioral evidence;
+- a frozen descriptive Behavioral Unusualness fallback after the supervised fraud-risk model failed its pre-registered usefulness gate.
 
-No LLM is connected yet.
+No production LLM provider/model is frozen yet.
+
+## Data & evaluation
+
+Proof of One is deliberately positioning **data engineering, statistical discipline, and evidence-based product decisions** as first-class parts of the submission.
+
+The governing pattern is:
+
+> **Evidence → decision → consequence**
+
+Current verified examples include:
+
+- a deterministic curated serving layer over 150,000 customers, 400,000 products, and 4,425,008 transactions;
+- a private 200-case held-out conversational suite frozen before provider/prompt optimization, plus a disjoint 100-case development pool;
+- a 26-feature point-in-time analytical surface with chronological splits and strict same-timestamp leakage prevention;
+- a supervised fraud-risk model that **failed** its pre-registered usefulness gate and was therefore **not deployed**;
+- a transparent descriptive behavioral-evidence fallback whose output is explicitly not a fraud probability or fraud determination.
+
+The full public narrative and evidence ledger are in [docs/DATA_EVIDENCE_SPINE.md](docs/DATA_EVIDENCE_SPINE.md).
 
 ## Safety architecture
 
