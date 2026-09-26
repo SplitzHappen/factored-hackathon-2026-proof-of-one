@@ -322,13 +322,26 @@ def test_test_label_changes_cannot_change_gate_metrics(tmp_path: Path) -> None:
         bootstrap_iterations=100,
     )
 
-    for key in (
-        "refit",
-        "calibration_gate",
-        "baselines",
-        "selected_gbdt",
-        "calibration",
-        "gate_decision",
-        "test_authorized",
-    ):
-        assert first_result[key] == second_result[key]
+    assert first_result["refit"] == second_result["refit"]
+    assert first_result["calibration_gate"] == second_result["calibration_gate"]
+    assert first_result["baselines"]["prevalence"] == second_result["baselines"]["prevalence"]
+    assert (
+        first_result["baselines"]["behavioral_heuristic"]
+        == second_result["baselines"]["behavioral_heuristic"]
+    )
+
+    first_logistic = dict(first_result["baselines"]["regularized_logistic"])
+    second_logistic = dict(second_result["baselines"]["regularized_logistic"])
+    first_logistic.pop("fit_seconds")
+    second_logistic.pop("fit_seconds")
+    assert first_logistic == second_logistic
+
+    first_gbdt = dict(first_result["selected_gbdt"])
+    second_gbdt = dict(second_result["selected_gbdt"])
+    first_gbdt.pop("fit_seconds")
+    second_gbdt.pop("fit_seconds")
+    assert first_gbdt == second_gbdt
+
+    assert first_result["calibration"] == second_result["calibration"]
+    assert first_result["gate_decision"] == second_result["gate_decision"]
+    assert first_result["test_authorized"] == second_result["test_authorized"]
