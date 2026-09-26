@@ -18,6 +18,12 @@ Selected configuration:
 
 No GBDT candidate may be changed after C-B.
 
+C-C is bound to the canonical C-B provenance:
+- implementation commit: `9d14bc4df27ed5a4719a98e63d7645ddf380684d`;
+- private model-selection result SHA-256: `31825d493fa6bdb7658a0e2f9e44d2ac2d0065c1e33c72690e7a55ca06dfaefe`.
+
+C-C2 must refuse a model-selection result whose SHA-256 does not match this identity.
+
 ## Symmetric refit
 
 Before calibration/gate scoring:
