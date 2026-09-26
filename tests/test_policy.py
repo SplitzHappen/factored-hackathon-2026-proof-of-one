@@ -71,7 +71,7 @@ def test_customer_unauthorized_assertion_is_hard_escalation() -> None:
     assert result.mandatory_escalation is True
 
 
-def test_ownership_failure_escalates_before_any_answer() -> None:
+def test_ownership_failure_clarifies_without_fraud_escalation() -> None:
     result = route_policy(
         policy_input(
             PolicyIntent.TRANSACTION_STATUS,
@@ -79,9 +79,10 @@ def test_ownership_failure_escalates_before_any_answer() -> None:
         )
     )
 
-    assert result.route is RouteDecision.ESCALATE
+    assert result.route is RouteDecision.CLARIFY
     assert result.reason_codes == [PolicyReason.OWNERSHIP_UNVERIFIED]
     assert result.safe_to_answer is False
+    assert result.mandatory_escalation is False
 
 
 def test_multiple_hard_data_failures_are_preserved_in_reason_codes() -> None:
@@ -96,10 +97,10 @@ def test_multiple_hard_data_failures_are_preserved_in_reason_codes() -> None:
 
     assert result.route is RouteDecision.ESCALATE
     assert result.reason_codes == [
-        PolicyReason.TRUSTED_RECORD_MISSING,
         PolicyReason.TRUSTED_DATA_CONFLICT,
         PolicyReason.EXCLUDED_RELATIONSHIP_REQUIRED,
     ]
+    assert result.mandatory_escalation is False
 
 
 def test_decline_cause_request_abstains_instead_of_inventing_reason() -> None:
@@ -138,17 +139,23 @@ def test_hard_escalation_precedes_clarification_and_prohibited_action() -> None:
     assert result.reason_codes == [PolicyReason.UNAUTHORIZED_ACTIVITY_REPORTED]
 
 
-def test_data_safety_escalation_precedes_clarification() -> None:
+def test_missing_or_unowned_reference_can_clarify_without_disclosure() -> None:
     result = route_policy(
         policy_input(
             PolicyIntent.TRANSACTION_LOOKUP,
             ownership_verified=False,
+            trusted_record_found=False,
             ambiguous_transaction_match=True,
         )
     )
 
-    assert result.route is RouteDecision.ESCALATE
-    assert result.reason_codes == [PolicyReason.OWNERSHIP_UNVERIFIED]
+    assert result.route is RouteDecision.CLARIFY
+    assert result.reason_codes == [
+        PolicyReason.OWNERSHIP_UNVERIFIED,
+        PolicyReason.TRUSTED_RECORD_MISSING,
+        PolicyReason.AMBIGUOUS_TRANSACTION_MATCH,
+    ]
+    assert result.mandatory_escalation is False
 
 
 def test_prohibited_action_is_not_clarified_even_when_parameters_are_missing() -> None:
