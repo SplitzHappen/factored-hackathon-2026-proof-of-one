@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 import time
 from dataclasses import asdict
@@ -185,21 +184,21 @@ def _feature_sql(plan: OfficialSplitPlan) -> tuple[str, list[str]]:
     history AS (
         SELECT
             *,
-            COUNT(*) OVER w_lifetime::BIGINT AS prior_tx_count_lifetime,
+            (COUNT(*) OVER w_lifetime)::BIGINT AS prior_tx_count_lifetime,
             MAX(transaction_date) OVER w_lifetime AS _previous_transaction_date,
 
-            COUNT(*) OVER w_24h::BIGINT AS prior_24h_tx_count,
+            (COUNT(*) OVER w_24h)::BIGINT AS prior_24h_tx_count,
             COALESCE(SUM(_amount) OVER w_24h, 0.0)::DOUBLE
                 AS prior_24h_amount_sum,
 
-            COUNT(*) OVER w_30d::BIGINT AS prior_30d_tx_count,
+            (COUNT(*) OVER w_30d)::BIGINT AS prior_30d_tx_count,
             COALESCE(SUM(_amount) OVER w_30d, 0.0)::DOUBLE
                 AS prior_30d_amount_sum,
 
-            AVG(_amount) OVER w_currency::DOUBLE
+            (AVG(_amount) OVER w_currency)::DOUBLE
                 AS prior_currency_mean_amount_lifetime,
 
-            COUNT(*) OVER w_channel::BIGINT
+            (COUNT(*) OVER w_channel)::BIGINT
                 AS prior_channel_count_lifetime,
 
             CASE
@@ -207,7 +206,7 @@ def _feature_sql(plan: OfficialSplitPlan) -> tuple[str, list[str]]:
                 ELSE COUNT(*) OVER w_merchant_category
             END::BIGINT AS prior_merchant_category_count_lifetime,
 
-            COUNT(*) OVER w_transaction_country::BIGINT
+            (COUNT(*) OVER w_transaction_country)::BIGINT
                 AS prior_transaction_country_count_lifetime
         FROM base
         WINDOW
