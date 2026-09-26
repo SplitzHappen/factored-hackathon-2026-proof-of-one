@@ -13,8 +13,8 @@ The starting candidate set is frozen before development-pool execution.
 
 | Candidate ID | API model | Structured-output mode | Pricing snapshot |
 |---|---|---|---|
-| `openai-gpt-5.6-luna` | `gpt-5.6-luna` | strict JSON Schema via Responses API | USD 0.20/M input, USD 1.20/M output |
-| `qwen3.7-flash` | `qwen3.7-flash` | strict JSON Schema via OpenAI-compatible Chat Completions | Singapore international, <=32K: CNY 0.225/M input, CNY 0.974/M output |
+| `openai-gpt-6-luna` | `gpt-6-luna` | strict JSON Schema via Responses API | USD 0.10/M input, USD 0.50/M output |
+| `qwen3.7-flash` | `qwen3.7-flash` | strict JSON Schema via OpenAI-compatible Chat Completions | Singapore international, <=32K: USD 0.030/M input, USD 0.130/M output |
 | `deepseek-v4.1-flash` | `deepseek-flash` | JSON Object (schema validated by Proof of One after return) | off-peak USD 0.15/M input + 0.60/M output; peak USD 0.30/M input + 1.20/M output |
 
 Important comparison rule: DeepSeek's lack of strict server-side JSON Schema is not
@@ -26,8 +26,7 @@ task where the API exposes such a control.
 
 ## Why these candidates
 
-- OpenAI Luna is the current low-cost GPT-5.6 tier and supports multilingual input and
-  structured output.
+- GPT-6 Luna is the current low-cost OpenAI tier, released September 22, 2026, and supports multilingual input, strict Structured Outputs, and `reasoning.effort=none`.
 - Qwen3.7-Flash is a low-cost current Qwen Flash model, supports strict JSON Schema, and
   Alibaba documents Portuguese among Qwen's supported languages.
 - DeepSeek V4.1 Flash is the current `deepseek-flash` endpoint and is inexpensive, but
@@ -128,10 +127,7 @@ Among eligible candidates:
 2. if candidates are within **1.0 percentage point**, prefer the lower combined
    provider-failure + invalid-structured-output rate;
 3. if still tied within **0.5 percentage points**, prefer lower p95 latency;
-4. cost is the final tie-breaker after quality/reliability/latency. Because Qwen's
-   published international price is in CNY while OpenAI/DeepSeek publish USD prices,
-   native-currency estimates are **not compared directly**. If the cost tie-break is
-   reached, freeze and record a contemporaneous CNY/USD conversion before deciding.
+4. cost is the final tie-breaker after quality/reliability/latency. All three current pricing snapshots are recorded in USD, so the benchmark may compare the measured aggregate USD estimates directly.
 
 No result from the frozen held-out suite may be used to reverse the development-pool
 provider choice.
@@ -174,7 +170,7 @@ Keys must remain environment variables and must never be committed.
 
 Run one candidate at a time:
 
-`python -m evaluation.provider_bakeoff --candidate openai-gpt-5.6-luna`
+`python -m evaluation.provider_bakeoff --candidate openai-gpt-6-luna`
 
 `python -m evaluation.provider_bakeoff --candidate qwen3.7-flash`
 
@@ -201,3 +197,8 @@ This becomes another **Evidence → decision → consequence** item:
 
 > development-pool multilingual extraction evidence → provider choice → frozen runtime
 > adapter/configuration before held-out evaluation.
+
+
+## Pre-run refresh — 2026-09-26
+
+Before any paid development-pool execution, official provider documentation was rechecked. This refresh replaces the stale GPT-5.6 Luna candidate with GPT-6 Luna and corrects the Qwen3.7-Flash Singapore international price units/rates. No development cases had been executed before this correction. The benchmark version is therefore `r3c-provider-bakeoff-v2`.
