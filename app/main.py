@@ -79,6 +79,11 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         response_model=list[DemoPersonaSummary],
     )
     def list_demo_personas() -> list[DemoPersonaSummary]:
+        if runtime().data_mode != "synthetic":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Public demo personas are available only in synthetic mode",
+            )
         return [
             DemoPersonaSummary(
                 persona_id=persona.persona_id,
@@ -97,6 +102,11 @@ def create_app(context: AppContext | None = None) -> FastAPI:
     def create_demo_session(
         request: DemoSessionCreateRequest,
     ) -> DemoSessionResponse:
+        if runtime().data_mode != "synthetic":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Public demo sessions are available only in synthetic mode",
+            )
         persona = runtime().personas.get(request.persona_id)
         if persona is None:
             raise HTTPException(
