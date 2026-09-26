@@ -126,7 +126,15 @@ class DeterministicDemoInterpretationProvider(StructuredInterpretationProvider):
         if any(term in message for term in ("estado", "status", "pendiente", "pendente")):
             return PolicyIntent.TRANSACTION_STATUS
         if has_transaction_id or any(
-            term in message for term in ("transaccion", "transacao", "movimiento", "lancamento")
+            term in message
+            for term in (
+                "transaccion",
+                "transacao",
+                "transacoes",
+                "movimiento",
+                "lancamento",
+                "lancamentos",
+            )
         ):
             return PolicyIntent.TRANSACTION_LOOKUP
         return PolicyIntent.UNKNOWN
