@@ -170,12 +170,16 @@ def test_direct_other_customer_transaction_id_is_not_accessible(
     assert bank.get_transaction("C001", "T900") is None
 
 
-def test_owner_can_retrieve_own_transaction(bank: BankRepository) -> None:
+def test_owner_can_retrieve_own_transaction_without_retrospective_fraud_fields(
+    bank: BankRepository,
+) -> None:
     transaction = bank.get_transaction("C002", "T900")
 
     assert transaction is not None
     assert transaction.transaction_id == "T900"
-    assert transaction.is_fraud is True
+    payload = transaction.model_dump()
+    assert "is_fraud" not in payload
+    assert "fraud_score" not in payload
 
 
 def test_query_limit_is_bounded(bank: BankRepository) -> None:

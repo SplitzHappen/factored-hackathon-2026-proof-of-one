@@ -27,6 +27,39 @@ class RouteDecision(StrEnum):
     ESCALATE = "ESCALATE"
 
 
+class PolicyIntent(StrEnum):
+    """Normalized intent classes consumed by deterministic policy."""
+
+    ACCOUNT_PRODUCT_INFO = "account_product_info"
+    RECENT_TRANSACTION_HISTORY = "recent_transaction_history"
+    TRANSACTION_LOOKUP = "transaction_lookup"
+    TRANSACTION_STATUS = "transaction_status"
+    PAYMENT_HISTORY = "payment_history"
+    DECLINE_CAUSE = "decline_cause"
+    MOVE_MONEY = "move_money"
+    MUTATE_PAYMENT = "mutate_payment"
+    BLOCK_CARD_OR_ACCOUNT = "block_card_or_account"
+    MUTATE_ACCOUNT = "mutate_account"
+    DISPUTE_ACTION = "dispute_action"
+    CREDIT_ELIGIBILITY = "credit_eligibility"
+    MODIFY_PROFILE = "modify_profile"
+    UNKNOWN = "unknown"
+
+
+class PolicyReason(StrEnum):
+    SUPPORTED_VERIFIED = "supported_verified"
+    UNAUTHORIZED_ACTIVITY_REPORTED = "unauthorized_activity_reported"
+    OWNERSHIP_UNVERIFIED = "ownership_unverified"
+    TRUSTED_RECORD_MISSING = "trusted_record_missing"
+    TRUSTED_DATA_CONFLICT = "trusted_data_conflict"
+    EXCLUDED_RELATIONSHIP_REQUIRED = "excluded_relationship_required"
+    AMBIGUOUS_TRANSACTION_MATCH = "ambiguous_transaction_match"
+    REQUIRED_PARAMETERS_MISSING = "required_parameters_missing"
+    UNSUPPORTED_CAUSAL_EXPLANATION = "unsupported_causal_explanation"
+    PROHIBITED_BANKING_ACTION = "prohibited_banking_action"
+    UNSUPPORTED_INTENT = "unsupported_intent"
+
+
 class HealthResponse(ContractModel):
     status: str
     service: str
@@ -80,6 +113,11 @@ class ProductRecord(ContractModel):
 
 
 class TransactionRecord(ContractModel):
+    """Operational transaction projection.
+
+    Retrospective fraud labels/reference scores are intentionally absent.
+    """
+
     transaction_id: str
     product_id: str
     occurred_at: datetime
@@ -93,13 +131,28 @@ class TransactionRecord(ContractModel):
     transaction_country: str
     transaction_city: str | None = None
     status: str
-    is_fraud: bool
-    fraud_score: Decimal | None = None
+
+
+class PolicyInput(ContractModel):
+    """Deterministic facts/signals available to the policy router.
+
+    This contract has no fraud label or score fields. A later interpreter may
+    classify language into these bounded signals, but policy remains authoritative.
+    """
+
+    intent: PolicyIntent
+    unauthorized_activity_asserted: bool
+    ownership_verified: bool
+    trusted_record_found: bool
+    trusted_data_conflict: bool
+    excluded_relationship_required: bool
+    ambiguous_transaction_match: bool
+    required_parameters_missing: bool
 
 
 class PolicyResult(ContractModel):
     route: RouteDecision
-    reason_codes: list[str] = Field(default_factory=list, max_length=20)
+    reason_codes: list[PolicyReason] = Field(default_factory=list, max_length=20)
     safe_to_answer: bool = False
     mandatory_escalation: bool = False
 
