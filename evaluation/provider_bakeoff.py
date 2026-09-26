@@ -39,6 +39,7 @@ from app.schemas import (
 )
 from evaluation.contracts import CaseCategory, DevelopmentAnswerKey, DevelopmentCase, StepExpectation
 from evaluation.portuguese_stress import PORTUGUESE_STRESS_CASES
+from evaluation.realistic_language import load_realistic_language_suite
 from evaluation.suite import load_jsonl
 
 
@@ -324,6 +325,8 @@ def candidate_eligibility_failures(summary: dict[str, object]) -> list[str]:
         failures.append("portuguese_stress_accuracy")
     if below("bilingual_unauthorized_stress_recall", 1.0):
         failures.append("bilingual_unauthorized_stress_recall")
+    if below("realistic_unauthorized_recall", 1.0):
+        failures.append("realistic_unauthorized_recall")
     return failures
 
 
@@ -431,6 +434,73 @@ def run_candidate_preflight(
             and parsed.unauthorized_activity_asserted == expected_unauthorized
         ):
             passed += 1
+
+    realistic_cases, realistic_manifest = load_realistic_language_suite()
+    realistic_correct = 0
+    realistic_es = 0
+    realistic_pt = 0
+    realistic_es_correct = 0
+    realistic_pt_correct = 0
+    realistic_unauthorized_positive = 0
+    realistic_unauthorized_detected = 0
+    realistic_provider_failures = 0
+    realistic_invalid_outputs = 0
+
+    for realistic_case in realistic_cases:
+        if realistic_case.language is SupportedLanguage.ES:
+            realistic_es += 1
+        else:
+            realistic_pt += 1
+        if realistic_case.unauthorized_activity_asserted:
+            realistic_unauthorized_positive += 1
+
+        adapter.last_telemetry = None
+        adapter.last_raw_content = None
+        request = ModelInterpretationRequest(
+            language=realistic_case.language,
+            message=realistic_case.message,
+            reference_date=date(2026, 9, 26),
+            previous_intent=None,
+        )
+        try:
+            raw = adapter.extract(
+                request,
+                system_prompt=INTERPRETATION_SYSTEM_PROMPT,
+                response_schema=ModelInterpretation.model_json_schema(),
+            )
+        except InterpretationProviderError:
+            realistic_provider_failures += 1
+            continue
+
+        try:
+            parsed = ModelInterpretation.model_validate_json(raw)
+        except (ValueError, TypeError):
+            realistic_invalid_outputs += 1
+            continue
+
+        if (
+            realistic_case.unauthorized_activity_asserted
+            and parsed.unauthorized_activity_asserted
+        ):
+            realistic_unauthorized_detected += 1
+
+        correct = (
+            parsed.unauthorized_activity_asserted
+            == realistic_case.unauthorized_activity_asserted
+        )
+        if realistic_case.score_intent:
+            correct = correct and parsed.intent.value in realistic_case.accepted_intents
+        if realistic_case.expected_transaction_id is not None:
+            correct = (
+                correct
+                and parsed.transaction_id == realistic_case.expected_transaction_id
+            )
+
+        realistic_correct += int(correct)
+        if realistic_case.language is SupportedLanguage.ES:
+            realistic_es_correct += int(correct)
+        else:
+            realistic_pt_correct += int(correct)
 
     candidate = CANDIDATES[candidate_id]
     summary: dict[str, object] = {
@@ -871,6 +941,36 @@ def run_candidate(
             len(BILINGUAL_UNAUTHORIZED_STRESS),
         ),
         "bilingual_unauthorized_stress_failures": bilingual_unauthorized_failures,
+        "realistic_language_suite_version": realistic_manifest.suite_version,
+        "realistic_language_cases_sha256": realistic_manifest.cases_sha256,
+        "realistic_language_case_count": realistic_manifest.case_count,
+        "realistic_language_accuracy": _safe_rate(
+            realistic_correct, realistic_manifest.case_count
+        ),
+        "realistic_spanish_accuracy": _safe_rate(
+            realistic_es_correct, realistic_es
+        ),
+        "realistic_portuguese_accuracy": _safe_rate(
+            realistic_pt_correct, realistic_pt
+        ),
+        "realistic_language_gap_percentage_points": (
+            None
+            if realistic_es == 0 or realistic_pt == 0
+            else abs(
+                realistic_es_correct / realistic_es
+                - realistic_pt_correct / realistic_pt
+            ) * 100
+        ),
+        "realistic_unauthorized_recall": _safe_rate(
+            realistic_unauthorized_detected,
+            realistic_unauthorized_positive,
+        ),
+        "realistic_provider_failures": realistic_provider_failures,
+        "realistic_invalid_outputs": realistic_invalid_outputs,
+        "realistic_organizer_data_used": realistic_manifest.organizer_data_used,
+        "realistic_portuguese_native_reviewed": (
+            realistic_manifest.portuguese_native_reviewed
+        ),
         "portuguese_stress_provider_failures": stress_failures,
         "portuguese_stress_invalid_outputs": stress_invalid,
         "portuguese_stress_latency_p95_ms": _percentile(stress_latencies, 0.95),
@@ -956,6 +1056,10 @@ def main() -> int:
         "spanish_core_accuracy",
         "portuguese_core_accuracy",
         "portuguese_stress_accuracy",
+        "realistic_language_accuracy",
+        "realistic_spanish_accuracy",
+        "realistic_portuguese_accuracy",
+        "realistic_unauthorized_recall",
         "language_gap_percentage_points",
         "latency_p50_ms",
         "latency_p95_ms",
