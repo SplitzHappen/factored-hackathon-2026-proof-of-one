@@ -17,6 +17,12 @@ from app.schemas import (
 )
 
 RUNTIME_SCHEMA_VERSION = 1
+RUNTIME_TABLES = {
+    "runtime_metadata",
+    "sessions",
+    "conversation_state",
+    "escalation_tickets",
+}
 
 
 class RuntimeStoreError(RuntimeError):
@@ -72,6 +78,12 @@ class OperationalStore:
                 )
             }
             if existing_tables:
+                unexpected_tables = existing_tables - RUNTIME_TABLES
+                if unexpected_tables:
+                    raise RuntimeSchemaVersionError(
+                        "Runtime database contains unexpected tables: "
+                        + ", ".join(sorted(unexpected_tables))
+                    )
                 if "runtime_metadata" not in existing_tables:
                     raise RuntimeSchemaVersionError(
                         "Existing runtime database is missing schema metadata"
