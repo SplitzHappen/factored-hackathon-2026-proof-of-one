@@ -18,6 +18,18 @@ This document is the public narrative layer. The underlying contracts, manifests
 
 ## 1. Data landscape and trusted serving layer
 
+The original read-only source audit covered:
+
+- **13 logical tables**
+- **7,671 CSV files**
+- approximately **4.98 GiB**
+- **23,495,188 parsed rows**
+- **0 unreadable files**
+- **0 malformed rows**
+- exactly **1 header schema variant per table**
+
+The observed row total was **24.41% higher** than the sum of the organizer's approximate per-table counts, largely because `digital_events` was substantially larger than documented. Proof of One therefore uses measured, reproducible denominators rather than documentation approximations.
+
 The judge-facing application does not query the complete organizer dataset directly.
 
 The current verified curated banking layer contains:
@@ -66,7 +78,9 @@ The runtime repository independently rechecks ownership when serving a transacti
 
 **Consequence:** cross-customer access, schema drift, unexpected tables, and broken ownership chains fail closed.
 
-> A broader raw-data landscape exhibit will be added only from versioned audit evidence. No row/file/table count will be promoted into the public story unless it can be traced to a frozen project artifact.
+The retrospective audit evidence has now been recovered and consolidated. High-consequence findings include: clean official primary keys across all 23.5M rows; 100% missing complaint origin-interaction linkage; effectively unusable customer/agent branch relationships; 0% customer-consistent complaint affected-product linkage; near-zero customer-consistent digital-event product context; strong transaction/product/customer and transcript/survey identity chains; explicit country/currency normalization requirements; and a material product-recency metadata inconsistency.
+
+For the detailed retrospective record—including exact missingness, duplicate/identifier, joinability, workflow-demand, outcome, temporal, modeling, and governance findings—see [ANALYTICAL_DECISION_LEDGER.md](ANALYTICAL_DECISION_LEDGER.md).
 
 ---
 

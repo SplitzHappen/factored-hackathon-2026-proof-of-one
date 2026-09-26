@@ -31,13 +31,14 @@ The governing pattern is:
 
 Current verified examples include:
 
+- a read-only source audit covering 13 logical tables, 7,671 CSV files, and 23,495,188 parsed rows with zero unreadable files or malformed rows;
 - a deterministic curated serving layer over 150,000 customers, 400,000 products, and 4,425,008 transactions;
 - a private 200-case held-out conversational suite frozen before provider/prompt optimization, plus a disjoint 100-case development pool;
 - a 26-feature point-in-time analytical surface with chronological splits and strict same-timestamp leakage prevention;
 - a supervised fraud-risk model that **failed** its pre-registered usefulness gate and was therefore **not deployed**;
 - a transparent descriptive behavioral-evidence fallback whose output is explicitly not a fraud probability or fraud determination.
 
-The full public narrative and evidence ledger are in [docs/DATA_EVIDENCE_SPINE.md](docs/DATA_EVIDENCE_SPINE.md).
+The concise public narrative is in [docs/DATA_EVIDENCE_SPINE.md](docs/DATA_EVIDENCE_SPINE.md). The detailed retrospective evidence → decision → consequence record is in [docs/ANALYTICAL_DECISION_LEDGER.md](docs/ANALYTICAL_DECISION_LEDGER.md).
 
 ## Safety architecture
 
