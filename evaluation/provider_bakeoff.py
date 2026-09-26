@@ -435,73 +435,6 @@ def run_candidate_preflight(
         ):
             passed += 1
 
-    realistic_cases, realistic_manifest = load_realistic_language_suite()
-    realistic_correct = 0
-    realistic_es = 0
-    realistic_pt = 0
-    realistic_es_correct = 0
-    realistic_pt_correct = 0
-    realistic_unauthorized_positive = 0
-    realistic_unauthorized_detected = 0
-    realistic_provider_failures = 0
-    realistic_invalid_outputs = 0
-
-    for realistic_case in realistic_cases:
-        if realistic_case.language is SupportedLanguage.ES:
-            realistic_es += 1
-        else:
-            realistic_pt += 1
-        if realistic_case.unauthorized_activity_asserted:
-            realistic_unauthorized_positive += 1
-
-        adapter.last_telemetry = None
-        adapter.last_raw_content = None
-        request = ModelInterpretationRequest(
-            language=realistic_case.language,
-            message=realistic_case.message,
-            reference_date=date(2026, 9, 26),
-            previous_intent=None,
-        )
-        try:
-            raw = adapter.extract(
-                request,
-                system_prompt=INTERPRETATION_SYSTEM_PROMPT,
-                response_schema=ModelInterpretation.model_json_schema(),
-            )
-        except InterpretationProviderError:
-            realistic_provider_failures += 1
-            continue
-
-        try:
-            parsed = ModelInterpretation.model_validate_json(raw)
-        except (ValueError, TypeError):
-            realistic_invalid_outputs += 1
-            continue
-
-        if (
-            realistic_case.unauthorized_activity_asserted
-            and parsed.unauthorized_activity_asserted
-        ):
-            realistic_unauthorized_detected += 1
-
-        correct = (
-            parsed.unauthorized_activity_asserted
-            == realistic_case.unauthorized_activity_asserted
-        )
-        if realistic_case.score_intent:
-            correct = correct and parsed.intent.value in realistic_case.accepted_intents
-        if realistic_case.expected_transaction_id is not None:
-            correct = (
-                correct
-                and parsed.transaction_id == realistic_case.expected_transaction_id
-            )
-
-        realistic_correct += int(correct)
-        if realistic_case.language is SupportedLanguage.ES:
-            realistic_es_correct += int(correct)
-        else:
-            realistic_pt_correct += int(correct)
-
     candidate = CANDIDATES[candidate_id]
     summary: dict[str, object] = {
         "preflight_version": "r3c-provider-preflight-v1",
@@ -870,6 +803,73 @@ def run_candidate(
         bilingual_unauthorized_detected += int(
             parsed.unauthorized_activity_asserted
         )
+
+    realistic_cases, realistic_manifest = load_realistic_language_suite()
+    realistic_correct = 0
+    realistic_es = 0
+    realistic_pt = 0
+    realistic_es_correct = 0
+    realistic_pt_correct = 0
+    realistic_unauthorized_positive = 0
+    realistic_unauthorized_detected = 0
+    realistic_provider_failures = 0
+    realistic_invalid_outputs = 0
+
+    for realistic_case in realistic_cases:
+        if realistic_case.language is SupportedLanguage.ES:
+            realistic_es += 1
+        else:
+            realistic_pt += 1
+        if realistic_case.unauthorized_activity_asserted:
+            realistic_unauthorized_positive += 1
+
+        adapter.last_telemetry = None
+        adapter.last_raw_content = None
+        request = ModelInterpretationRequest(
+            language=realistic_case.language,
+            message=realistic_case.message,
+            reference_date=date(2026, 9, 26),
+            previous_intent=None,
+        )
+        try:
+            raw = adapter.extract(
+                request,
+                system_prompt=INTERPRETATION_SYSTEM_PROMPT,
+                response_schema=ModelInterpretation.model_json_schema(),
+            )
+        except InterpretationProviderError:
+            realistic_provider_failures += 1
+            continue
+
+        try:
+            parsed = ModelInterpretation.model_validate_json(raw)
+        except (ValueError, TypeError):
+            realistic_invalid_outputs += 1
+            continue
+
+        if (
+            realistic_case.unauthorized_activity_asserted
+            and parsed.unauthorized_activity_asserted
+        ):
+            realistic_unauthorized_detected += 1
+
+        correct = (
+            parsed.unauthorized_activity_asserted
+            == realistic_case.unauthorized_activity_asserted
+        )
+        if realistic_case.score_intent:
+            correct = correct and parsed.intent.value in realistic_case.accepted_intents
+        if realistic_case.expected_transaction_id is not None:
+            correct = (
+                correct
+                and parsed.transaction_id == realistic_case.expected_transaction_id
+            )
+
+        realistic_correct += int(correct)
+        if realistic_case.language is SupportedLanguage.ES:
+            realistic_es_correct += int(correct)
+        else:
+            realistic_pt_correct += int(correct)
 
     candidate = CANDIDATES[candidate_id]
     summary: dict[str, object] = {
