@@ -136,3 +136,127 @@ class DevelopmentCase(ContractModel):
 class DevelopmentAnswerKey(ContractModel):
     case_id: str = Field(pattern=r"^DEV-[A-Z]{2}-\d{3}$")
     expectations: list[StepExpectation] = Field(min_length=1, max_length=6)
+
+
+
+class EvaluationSystem(StrEnum):
+    DETERMINISTIC_BASELINE = "deterministic_baseline"
+    SIMPLE_MODEL_BASELINE = "simple_model_baseline"
+    PROPOSED = "proposed"
+
+
+class ObservedFact(ContractModel):
+    field: str = Field(min_length=1, max_length=120)
+    value: str | int | Decimal
+
+
+class StepObservation(ContractModel):
+    route: RouteDecision
+    observed_facts: list[ObservedFact] = Field(max_length=50)
+    claim_codes: list[
+        Annotated[str, Field(min_length=1, max_length=120)]
+    ] = Field(max_length=50)
+    action_codes: list[
+        Annotated[str, Field(min_length=1, max_length=120)]
+    ] = Field(max_length=50)
+    safety_violations: list[SafetyAssertion] = Field(max_length=20)
+    factual_claim_count: int = Field(ge=0)
+    grounded_factual_claim_count: int = Field(ge=0)
+    critical_fact_claim_count: int = Field(ge=0)
+    critical_fact_error_count: int = Field(ge=0)
+    retrieval_correct: bool
+    tool_correct: bool
+    ownership_enforced: bool
+
+
+class CaseExecution(ContractModel):
+    suite_version: str = Field(pattern=r"^factored-heldout-v\d+$")
+    suite_combined_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    system: EvaluationSystem
+    system_version: str = Field(min_length=1, max_length=160)
+    case_id: str = Field(pattern=r"^HO-[A-Z]{2}-\d{3}$")
+    run_index: int = Field(ge=1, le=3)
+    observations: list[StepObservation] = Field(min_length=1, max_length=6)
+    latency_ms: int = Field(ge=0)
+    estimated_cost_usd: Decimal = Field(ge=0)
+    cold_start: bool = False
+    model_provider: str | None = Field(default=None, max_length=120)
+    model_name: str | None = Field(default=None, max_length=160)
+    model_config_id: str | None = Field(default=None, max_length=160)
+    prompt_version: str | None = Field(default=None, max_length=160)
+    deployment_version: str | None = Field(default=None, max_length=160)
+
+
+class StepScore(ContractModel):
+    route_correct: bool
+    required_facts_correct: bool
+    forbidden_claims_clear: bool
+    forbidden_actions_clear: bool
+    safety_assertions_clear: bool
+    correct: bool
+    safe: bool
+
+
+class CaseScore(ContractModel):
+    system: EvaluationSystem
+    case_id: str = Field(pattern=r"^HO-[A-Z]{2}-\d{3}$")
+    run_index: int = Field(ge=1, le=3)
+    correct: bool
+    safe: bool
+    automated_resolution: bool
+    expected_final_route: RouteDecision
+    observed_final_route: RouteDecision
+    step_scores: list[StepScore] = Field(min_length=1, max_length=6)
+    factual_claim_count: int = Field(ge=0)
+    grounded_factual_claim_count: int = Field(ge=0)
+    critical_fact_errors: int = Field(ge=0)
+    retrieval_correct: bool
+    tool_correct: bool
+    ownership_enforced: bool
+    latency_ms: int = Field(ge=0)
+    estimated_cost_usd: Decimal = Field(ge=0)
+
+
+class AggregateMetrics(ContractModel):
+    suite_version: str = Field(pattern=r"^factored-heldout-v\d+$")
+    suite_combined_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    system: EvaluationSystem
+    system_version: str
+    semantic_case_count: int = Field(ge=0)
+    overall_correct_rate: float = Field(ge=0, le=1)
+    safe_automated_resolution_rate: float | None = Field(default=None, ge=0, le=1)
+    clarification_abstention_correct_rate: float | None = Field(default=None, ge=0, le=1)
+    escalation_correct_rate: float | None = Field(default=None, ge=0, le=1)
+    mandatory_fraud_escalation_rate: float | None = Field(default=None, ge=0, le=1)
+    groundedness_rate: float | None = Field(default=None, ge=0, le=1)
+    critical_fact_accuracy: float | None = Field(default=None, ge=0, le=1)
+    retrieval_tool_correctness_rate: float = Field(ge=0, le=1)
+    ownership_enforcement_rate: float = Field(ge=0, le=1)
+    spanish_correct_rate: float | None = Field(default=None, ge=0, le=1)
+    portuguese_correct_rate: float | None = Field(default=None, ge=0, le=1)
+    language_gap_percentage_points: float | None = Field(default=None, ge=0)
+    automation_rate: float = Field(ge=0, le=1)
+    escalation_rate: float = Field(ge=0, le=1)
+    latency_p50_ms: float | None = Field(default=None, ge=0)
+    latency_p95_ms: float | None = Field(default=None, ge=0)
+    average_cost_usd: Decimal | None = Field(default=None, ge=0)
+    p95_cost_usd: Decimal | None = Field(default=None, ge=0)
+    cost_per_safe_automated_resolution_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+    )
+    high_risk_execution_count: int = Field(ge=0)
+    high_risk_unsafe_outcomes: int = Field(ge=0)
+    zero_failure_one_sided_upper_95: float | None = Field(default=None, ge=0, le=1)
+    country_correct_rates: dict[str, float] = Field(default_factory=dict)
+
+
+class PairedDifference(ContractModel):
+    metric_name: str = Field(min_length=1, max_length=120)
+    baseline_system: EvaluationSystem
+    proposed_system: EvaluationSystem
+    paired_case_count: int = Field(ge=1)
+    point_difference: float
+    ci95_low: float
+    ci95_high: float
+    bootstrap_iterations: int = Field(ge=100)
