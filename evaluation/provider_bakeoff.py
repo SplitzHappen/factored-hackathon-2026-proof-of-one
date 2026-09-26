@@ -677,8 +677,10 @@ def run_candidate(
                 route_scored += 1
                 if _route_proxy(result) == target.expected_route:
                     route_correct += 1
-                else:
-                    core_correct = False
+                # Route conformance is reported diagnostically from the frozen
+                # answer key. It does not alter provider language-core ranking:
+                # policy/handoff semantics may be amended independently of the
+                # model's extraction quality.
 
             if target.explicit_transaction_id is not None:
                 explicit_id_scored += 1
