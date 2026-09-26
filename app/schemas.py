@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -57,7 +58,9 @@ class ConversationState(ContractModel):
     language: SupportedLanguage
     previous_intent: str | None = Field(default=None, max_length=120)
     pending_query: TransactionQuery | None = None
-    candidate_transaction_ids: list[str] = Field(default_factory=list, max_length=50)
+    candidate_transaction_ids: list[
+        Annotated[str, Field(min_length=1, max_length=128)]
+    ] = Field(default_factory=list, max_length=50)
     clarification_required: bool = False
 
 
@@ -103,7 +106,7 @@ class PolicyResult(ContractModel):
 
 class EscalationRequest(ContractModel):
     session_id: UUID
-    transaction_id: str | None = None
+    transaction_id: str | None = Field(default=None, min_length=1, max_length=128)
     reason_code: str = Field(min_length=1, max_length=80)
     summary: str = Field(min_length=1, max_length=500)
 
