@@ -33,8 +33,8 @@ def route_policy(policy_input: PolicyInput) -> PolicyResult:
 
     Precedence is intentional:
     1. hard safety/escalation conditions;
-    2. clarification conditions;
-    3. prohibited/unsupported requests;
+    2. prohibited/unsupported requests;
+    3. clarification for supported requests;
     4. verified supported answer.
     """
 
@@ -64,20 +64,6 @@ def route_policy(policy_input: PolicyInput) -> PolicyResult:
             mandatory_escalation=True,
         )
 
-    clarification_reasons: list[PolicyReason] = []
-    if policy_input.ambiguous_transaction_match:
-        clarification_reasons.append(PolicyReason.AMBIGUOUS_TRANSACTION_MATCH)
-    if policy_input.required_parameters_missing:
-        clarification_reasons.append(PolicyReason.REQUIRED_PARAMETERS_MISSING)
-
-    if clarification_reasons:
-        return PolicyResult(
-            route=RouteDecision.CLARIFY,
-            reason_codes=clarification_reasons,
-            safe_to_answer=False,
-            mandatory_escalation=False,
-        )
-
     if policy_input.intent is PolicyIntent.DECLINE_CAUSE:
         return PolicyResult(
             route=RouteDecision.ABSTAIN,
@@ -98,6 +84,20 @@ def route_policy(policy_input: PolicyInput) -> PolicyResult:
         return PolicyResult(
             route=RouteDecision.ABSTAIN,
             reason_codes=[PolicyReason.UNSUPPORTED_INTENT],
+            safe_to_answer=False,
+            mandatory_escalation=False,
+        )
+
+    clarification_reasons: list[PolicyReason] = []
+    if policy_input.ambiguous_transaction_match:
+        clarification_reasons.append(PolicyReason.AMBIGUOUS_TRANSACTION_MATCH)
+    if policy_input.required_parameters_missing:
+        clarification_reasons.append(PolicyReason.REQUIRED_PARAMETERS_MISSING)
+
+    if clarification_reasons:
+        return PolicyResult(
+            route=RouteDecision.CLARIFY,
+            reason_codes=clarification_reasons,
             safe_to_answer=False,
             mandatory_escalation=False,
         )
