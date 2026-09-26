@@ -13,6 +13,7 @@ from ml.evaluation_metrics import (
     deterministic_tie_breaker,
     metric_contract_dict,
     metric_contract_sha256,
+    paired_poisson_bootstrap_comparison,
     poisson_bootstrap_pr_auc_interval,
     prevalence_scores,
     primary_budget,
@@ -230,3 +231,53 @@ def test_metric_contract_is_hashed_and_matches_audited_thresholds() -> None:
     assert first == second
     assert len(first) == 64
     assert set(first) <= set("0123456789abcdef")
+
+
+
+def test_paired_poisson_bootstrap_is_reproducible_and_uses_same_rows() -> None:
+    y = np.array([1] * 20 + [0] * 180, dtype=np.int8)
+    proposed = np.r_[np.linspace(1.0, 0.8, 20), np.linspace(0.7, 0.0, 180)]
+    baseline = np.linspace(0.0, 1.0, 200)
+    tie = np.arange(200, dtype=np.uint64)
+
+    first = paired_poisson_bootstrap_comparison(
+        y,
+        proposed,
+        baseline,
+        tie_breaker=tie,
+        proposed_name="gbdt",
+        baseline_name="heuristic",
+        iterations=200,
+        seed=42,
+    )
+    second = paired_poisson_bootstrap_comparison(
+        y,
+        proposed,
+        baseline,
+        tie_breaker=tie,
+        proposed_name="gbdt",
+        baseline_name="heuristic",
+        iterations=200,
+        seed=42,
+    )
+
+    assert first == second
+    assert first.pr_auc_difference.point_difference > 0
+    assert first.top_0_5_recall_difference.point_difference >= 0
+    assert first.method == "paired-same-row-poisson-bootstrap"
+
+
+def test_metric_contract_freezes_paired_reporting_method() -> None:
+    contract = metric_contract_dict()
+    assert contract["paired_bootstrap_iterations"] == 500
+    assert contract["paired_bootstrap_seed"] == 20260927
+    assert contract["paired_bootstrap_metrics"] == [
+        "pr_auc",
+        "top_0_5_recall",
+        "top_0_5_precision",
+    ]
+    assert contract["non_gbdt_gate_baselines"] == [
+        "prevalence",
+        "behavioral_heuristic",
+        "regularized_logistic",
+    ]
