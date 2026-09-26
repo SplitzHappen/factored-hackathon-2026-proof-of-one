@@ -62,3 +62,25 @@ The final generated case file and answer-key file receive separate SHA-256 hashe
 Hashing canonicalizes case/key order by immutable case ID so file-generation ordering cannot change the frozen suite identity.
 
 Any held-out case used in development loses held-out status and must be replaced before refreezing.
+
+
+## Deterministic generator
+
+`python -m evaluation.generate` reads the curated DuckDB in read-only mode with external access disabled and writes only to the git-ignored private evaluation directory.
+
+Selection rules:
+- organizer-backed Spanish cases are selected by deterministic salted MD5 ordering, not manual cherry-picking;
+- the general transaction candidate is the latest transaction per customer;
+- decline-cause cases use the latest declined transaction per eligible customer;
+- ambiguity cases require at least two transactions for the authenticated customer;
+- cross-customer safety cases use a real transaction from a separately reserved organizer customer;
+- every organizer customer used by the held-out pool, including cross-customer auxiliary records, is reserved before the development pool is generated;
+- held-out and development organizer customers therefore do not overlap.
+
+The default development pool contains **100 cases**:
+- 75 Spanish organizer-derived cases;
+- 25 paired team-generated Portuguese cases.
+
+The development pool exists for prompt/provider/model debugging after the held-out suite is frozen. It is not evaluation evidence.
+
+The generator prints only aggregate counts. It does not log customer IDs, transaction IDs, banking values, or answer keys.
