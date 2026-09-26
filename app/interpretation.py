@@ -5,6 +5,7 @@ import json
 import re
 import unicodedata
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Protocol
 
 from pydantic import ValidationError
@@ -21,19 +22,24 @@ from app.schemas import (
     PolicyIntent,
     TransactionQuery,
     TransactionReferenceStatus,
+    TransactionStatusFilter,
+    TransactionTypeFilter,
     VerifiedInterpretation,
 )
 
-INTERPRETATION_CONTRACT_VERSION = "r3c-v1"
+INTERPRETATION_CONTRACT_VERSION = "r3c-v2"
 
 INTERPRETATION_SYSTEM_PROMPT = """You are a multilingual banking-support interpreter.
 Return only one JSON object conforming exactly to the supplied response schema.
 
 Interpret the customer's message in the expected Spanish or Portuguese session language.
 Use only the supplied reference_date when resolving relative dates such as "ayer" or "ontem".
-Map the explicit request to the provided intent enum. Do not invent transaction IDs, dates,
-amounts, transaction types, or statuses. Extract transaction filters only when the customer
-actually supplied them. Set unauthorized_activity_asserted=true only when the customer
+Map the explicit request to the provided intent enum. For transaction_query.transaction_type
+and transaction_query.status, use only the canonical English enum values supplied in the JSON
+schema even when the customer speaks Spanish or Portuguese. Do not invent transaction IDs,
+dates, amounts, transaction types, or statuses. Extract transaction filters only when the
+customer actually supplied them. The server will reject filters without message provenance.
+Set unauthorized_activity_asserted=true only when the customer
 explicitly says an activity was not theirs, was not authorized by them, or is not recognized.
 Do not infer unauthorized activity merely from surprise, a decline, unusualness, or a request
 for information.
@@ -49,21 +55,79 @@ _REFERENCE_REQUIRED_INTENTS = {
     PolicyIntent.TRANSACTION_STATUS,
 }
 
-_ES_UNAUTHORIZED_PATTERNS = (
+_UNAUTHORIZED_PATTERNS = (
+    # Spanish
     re.compile(r"\bno reconozco\b"),
     re.compile(r"\bno reconoci\b"),
+    re.compile(r"\bdesconozco\b"),
     re.compile(r"\bno fui yo\b"),
     re.compile(r"\byo no (?:hice|realice|autorice)\b"),
     re.compile(r"\bno (?:lo|la) autorice\b"),
-    re.compile(r"\besa compra no es mia\b"),
-)
-
-_PT_UNAUTHORIZED_PATTERNS = (
+    re.compile(r"\bno autorice\b"),
+    re.compile(r"\b(?:esa|esta) (?:compra|transaccion) no es mia\b"),
+    re.compile(r"\byo no hice (?:esa|esta) (?:compra|transaccion)\b"),
+    # Portuguese
     re.compile(r"\bnao reconheco\b"),
+    re.compile(r"\bdesconheco\b"),
     re.compile(r"\bnao fui eu\b"),
     re.compile(r"\beu nao (?:fiz|realizei|autorizei)\b"),
     re.compile(r"\bnao autorizei\b"),
-    re.compile(r"\bessa compra nao e minha\b"),
+    re.compile(r"\b(?:essa|esta) (?:compra|transacao) nao e minha\b"),
+)
+
+_TRANSACTION_TYPE_CUES: dict[TransactionTypeFilter, tuple[str, ...]] = {
+    TransactionTypeFilter.PURCHASE: ("compra", "compras", "purchase"),
+    TransactionTypeFilter.WITHDRAWAL: ("retiro", "retiros", "saque", "saques", "withdrawal"),
+    TransactionTypeFilter.TRANSFER: ("transferencia", "transferencias", "transfer"),
+    TransactionTypeFilter.PAYMENT: ("pago", "pagos", "pagamento", "pagamentos", "payment"),
+    TransactionTypeFilter.DEPOSIT: ("deposito", "depositos", "deposit"),
+    TransactionTypeFilter.ADJUSTMENT: ("ajuste", "ajustes", "adjustment"),
+}
+
+_TRANSACTION_STATUS_CUES: dict[TransactionStatusFilter, tuple[str, ...]] = {
+    TransactionStatusFilter.APPROVED: ("aprobada", "aprobado", "aprovada", "aprovado", "approved"),
+    TransactionStatusFilter.DECLINED: ("rechazada", "rechazado", "recusada", "recusado", "declined"),
+    TransactionStatusFilter.PENDING: ("pendiente", "pendente", "pending"),
+    TransactionStatusFilter.REVERSED: ("revertida", "revertido", "estornada", "estornado", "reversed"),
+}
+
+_DATE_CUES = (
+    "ayer",
+    "hoy",
+    "manana",
+    "ontem",
+    "hoje",
+    "amanha",
+    "desde",
+    "hasta",
+    "entre",
+    "antes",
+    "despues",
+    "depois",
+    "semana",
+    "mes",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+    "janeiro",
+    "fevereiro",
+    "marco",
+    "maio",
+    "junho",
+    "julho",
+    "setembro",
+    "outubro",
+    "novembro",
+    "dezembro",
 )
 
 
@@ -175,14 +239,19 @@ class InterpretationService:
 
             if (
                 extraction.transaction_id is not None
-                and extraction.transaction_id.casefold()
-                not in request.message.casefold()
+                and not self._message_contains_transaction_id(
+                    request.message,
+                    extraction.transaction_id,
+                )
             ):
                 last_failure = InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
                 continue
 
             query = self._normalized_query(extraction.transaction_query)
-            if query is not None and not self._query_semantics_valid(query):
+            if query is not None and (
+                not self._query_semantics_valid(query)
+                or not self._query_supported_by_message(query, request.message)
+            ):
                 last_failure = InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
                 continue
 
@@ -253,8 +322,16 @@ class InterpretationService:
                 date_from=normalized_query.date_from,
                 date_to=normalized_query.date_to,
                 amount=normalized_query.amount,
-                transaction_type=normalized_query.transaction_type,
-                status=normalized_query.status,
+                transaction_type=(
+                    normalized_query.transaction_type.value
+                    if normalized_query.transaction_type is not None
+                    else None
+                ),
+                status=(
+                    normalized_query.status.value
+                    if normalized_query.status is not None
+                    else None
+                ),
                 limit=50,
             )
             matches = self.bank.find_transactions(session.customer_id, server_query)
@@ -317,14 +394,73 @@ class InterpretationService:
         return True
 
     @staticmethod
-    def _lexical_unauthorized_assertion(message: str, language: str) -> bool:
+    def _normalize_message(message: str) -> str:
         normalized = unicodedata.normalize("NFKD", message.casefold())
-        normalized = "".join(
+        return "".join(
             char for char in normalized if not unicodedata.combining(char)
         )
-        patterns = (
-            _ES_UNAUTHORIZED_PATTERNS
-            if language == "es"
-            else _PT_UNAUTHORIZED_PATTERNS
+
+    @classmethod
+    def _message_contains_transaction_id(cls, message: str, transaction_id: str) -> bool:
+        normalized_message = cls._normalize_message(message)
+        normalized_id = cls._normalize_message(transaction_id)
+        return bool(
+            re.search(
+                rf"(?<![A-Za-z0-9]){re.escape(normalized_id)}(?![A-Za-z0-9])",
+                normalized_message,
+            )
         )
-        return any(pattern.search(normalized) for pattern in patterns)
+
+    @classmethod
+    def _query_supported_by_message(
+        cls,
+        query: InterpretedTransactionQuery,
+        message: str,
+    ) -> bool:
+        normalized = cls._normalize_message(message)
+
+        if query.amount is not None:
+            numeric_tokens = re.findall(r"(?<!\w)\d+(?:[.,]\d+)?(?!\w)", normalized)
+            observed_amounts: set[Decimal] = set()
+            for token in numeric_tokens:
+                try:
+                    observed_amounts.add(Decimal(token.replace(",", ".")))
+                except InvalidOperation:
+                    continue
+            if query.amount not in observed_amounts:
+                return False
+
+        if query.transaction_type is not None:
+            cues = _TRANSACTION_TYPE_CUES[query.transaction_type]
+            if not any(re.search(rf"\b{re.escape(cue)}\b", normalized) for cue in cues):
+                return False
+
+        if query.status is not None:
+            cues = _TRANSACTION_STATUS_CUES[query.status]
+            if not any(re.search(rf"\b{re.escape(cue)}\b", normalized) for cue in cues):
+                return False
+
+        if query.date_from is not None or query.date_to is not None:
+            has_numeric_date = bool(
+                re.search(
+                    r"\b(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}(?:[-/]\d{2,4})?)\b",
+                    normalized,
+                )
+            )
+            has_date_cue = any(
+                re.search(rf"\b{re.escape(cue)}\b", normalized)
+                for cue in _DATE_CUES
+            )
+            if not (has_numeric_date or has_date_cue):
+                return False
+
+        return True
+
+    @classmethod
+    def _lexical_unauthorized_assertion(cls, message: str, language: str) -> bool:
+        # Intentionally scan both supported-language vocabularies. A customer may
+        # code-switch, and prompt-injection text must not disable a genuine first-
+        # person unauthorized assertion merely because the session language differs.
+        del language
+        normalized = cls._normalize_message(message)
+        return any(pattern.search(normalized) for pattern in _UNAUTHORIZED_PATTERNS)
