@@ -21,7 +21,7 @@ from sklearn.preprocessing import OrdinalEncoder
 
 
 PROBE_VERSION = "factored-r4a-signal-probe-v1"
-SAMPLE_MODULUS = 5
+SAMPLE_MODULUS = 4
 SAMPLE_REMAINDER = 0
 INTERNAL_TRAIN_FRACTION = 0.80
 FULL_FEATURE_MIN_POSITIVES = 100
