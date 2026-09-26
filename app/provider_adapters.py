@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 import time
@@ -99,6 +100,33 @@ CANDIDATES: dict[str, ProviderCandidate] = {
         ),
     ),
 }
+
+
+def _strict_provider_schema(schema: dict[str, object]) -> dict[str, object]:
+    """Normalize Pydantic JSON Schema for strict structured-output providers.
+
+    Nullable fields remain nullable, but every declared object property is required.
+    This avoids provider-specific handling of omitted optional fields while preserving
+    the exact Pydantic validation contract after return.
+    """
+
+    normalized: dict[str, object] = copy.deepcopy(schema)
+
+    def visit(node: object) -> None:
+        if isinstance(node, dict):
+            properties = node.get("properties")
+            if isinstance(properties, dict):
+                node["required"] = list(properties)
+                node["additionalProperties"] = False
+            node.pop("default", None)
+            for value in list(node.values()):
+                visit(value)
+        elif isinstance(node, list):
+            for value in node:
+                visit(value)
+
+    visit(normalized)
+    return normalized
 
 
 def _estimated_cost(
@@ -212,6 +240,7 @@ class CandidateProviderAdapter:
             ensure_ascii=False,
             separators=(",", ":"),
         )
+        strict_schema = _strict_provider_schema(response_schema)
 
         if self.candidate.api_style == "openai_responses":
             envelope, latency_ms = _post_json(
@@ -231,7 +260,7 @@ class CandidateProviderAdapter:
                             "type": "json_schema",
                             "name": "model_interpretation",
                             "strict": True,
-                            "schema": response_schema,
+                            "schema": strict_schema,
                         }
                     },
                 },
