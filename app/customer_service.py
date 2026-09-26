@@ -169,6 +169,31 @@ class CustomerResolutionService:
         return "El cliente informó actividad que no reconoce; derivación humana verificada."
 
     @staticmethod
+    def _localized_status(
+        status: str,
+        language: SupportedLanguage,
+    ) -> str:
+        labels = {
+            "Approved": {
+                SupportedLanguage.ES: "aprobada",
+                SupportedLanguage.PT: "aprovada",
+            },
+            "Pending": {
+                SupportedLanguage.ES: "pendiente",
+                SupportedLanguage.PT: "pendente",
+            },
+            "Declined": {
+                SupportedLanguage.ES: "rechazada",
+                SupportedLanguage.PT: "recusada",
+            },
+            "Reversed": {
+                SupportedLanguage.ES: "revertida",
+                SupportedLanguage.PT: "estornada",
+            },
+        }
+        return labels.get(status, {}).get(language, status)
+
+    @staticmethod
     def _response_text(
         *,
         language: SupportedLanguage,
@@ -181,13 +206,17 @@ class CustomerResolutionService:
         if route is RouteDecision.ANSWER:
             if len(transactions) == 1:
                 tx = transactions[0]
+                localized_status = CustomerResolutionService._localized_status(
+                    tx.status,
+                    language,
+                )
                 if pt:
                     return (
-                        f"A transação {tx.transaction_id} está {tx.status}. "
+                        f"A transação {tx.transaction_id} está {localized_status}. "
                         f"Valor registrado: {tx.amount} {tx.currency}."
                     )
                 return (
-                    f"La transacción {tx.transaction_id} está {tx.status}. "
+                    f"La transacción {tx.transaction_id} está {localized_status}. "
                     f"Importe registrado: {tx.amount} {tx.currency}."
                 )
             if transactions:
