@@ -16,6 +16,7 @@ The provider request contains only:
 
 - expected session language;
 - customer message;
+- server-supplied reference date for deterministic relative-date interpretation;
 - optional prior normalized intent.
 
 It contains no customer ID, session ID, product/account record, transaction record,
@@ -50,7 +51,9 @@ or banking fact.
 Model output is not banking truth.
 
 - The exact persisted server session is verified before any provider call.
-- A model-returned transaction ID is ownership-checked through the read-only banking
+- A model-returned transaction ID must first appear in the actual customer message;
+  an invented ID is rejected before banking lookup.
+- A model-returned transaction ID is then ownership-checked through the read-only banking
   repository.
 - An unowned/nonexistent transaction ID is never surfaced as a verified transaction ID.
 - Model-extracted transaction filters are executed only against the authenticated
@@ -60,6 +63,8 @@ Model output is not banking truth.
 - Multiple owned matches remain `AMBIGUOUS`.
 - An empty model query is normalized to no query.
 - Inverted date ranges are rejected as invalid structured output before banking lookup.
+- Relative dates are anchored to an explicit server-supplied reference date, not provider
+  clock assumptions.
 
 The service does not create policy outcomes, tickets, banking actions, or behavioral
 evidence. R3D will compose the post-checked interpretation with deterministic retrieval
