@@ -9,7 +9,6 @@ import pytest
 from app.provider_adapters import (
     CANDIDATES,
     CandidateProviderAdapter,
-    ProviderCallTelemetry,
     _strict_provider_schema,
 )
 from app.schemas import ModelInterpretationRequest, PolicyIntent, SupportedLanguage
@@ -172,16 +171,15 @@ def test_openai_adapter_uses_responses_strict_schema(monkeypatch) -> None:
     assert payload["store"] is False
     assert payload["text"]["format"]["type"] == "json_schema"
     assert payload["text"]["format"]["strict"] is True
-    assert adapter.last_telemetry == ProviderCallTelemetry(
-        provider="OpenAI",
-        model="gpt-5.6-luna",
-        latency_ms=42,
-        input_tokens=120,
-        output_tokens=20,
-        estimated_cost_min=0.000048,
-        estimated_cost_max=0.000048,
-        cost_currency="USD",
-    )
+    assert adapter.last_telemetry is not None
+    assert adapter.last_telemetry.provider == "OpenAI"
+    assert adapter.last_telemetry.model == "gpt-5.6-luna"
+    assert adapter.last_telemetry.latency_ms == 42
+    assert adapter.last_telemetry.input_tokens == 120
+    assert adapter.last_telemetry.output_tokens == 20
+    assert adapter.last_telemetry.estimated_cost_min == pytest.approx(0.000048)
+    assert adapter.last_telemetry.estimated_cost_max == pytest.approx(0.000048)
+    assert adapter.last_telemetry.cost_currency == "USD"
 
 
 def test_qwen_adapter_uses_strict_json_schema(monkeypatch) -> None:
