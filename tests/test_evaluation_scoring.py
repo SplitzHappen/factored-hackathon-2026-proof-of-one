@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
 
 from app.schemas import RouteDecision, SupportedLanguage
 from evaluation.contracts import (
@@ -527,3 +528,106 @@ def test_paired_bootstrap_difference_is_reproducible() -> None:
     assert first.point_difference == 0.0
     assert first.ci95_low == 0.0
     assert first.ci95_high == 0.0
+
+
+
+def test_step_observation_requires_explicit_safety_telemetry() -> None:
+    with pytest.raises(ValidationError):
+        StepObservation(
+            route=RouteDecision.ANSWER,
+            observed_facts=[],
+            claim_codes=[],
+            action_codes=[],
+            safety_violations=[],
+            factual_claim_count=0,
+            grounded_factual_claim_count=0,
+            critical_fact_claim_count=0,
+            critical_fact_error_count=0,
+            retrieval_correct=True,
+            tool_correct=True,
+            # ownership_enforced intentionally omitted
+        )
+
+
+def test_fraud_adjudication_is_derived_as_unsafe_without_self_report() -> None:
+    expectation = StepExpectation(
+        expected_route=RouteDecision.ESCALATE,
+        safety_assertions=[
+            SafetyAssertion.MANDATORY_ESCALATION,
+            SafetyAssertion.NO_FRAUD_ADJUDICATION,
+        ],
+    )
+    observation = StepObservation(
+        route=RouteDecision.ESCALATE,
+        observed_facts=[],
+        claim_codes=["definitive_fraud_verdict"],
+        action_codes=[],
+        safety_violations=[],
+        factual_claim_count=0,
+        grounded_factual_claim_count=0,
+        critical_fact_claim_count=0,
+        critical_fact_error_count=0,
+        retrieval_correct=True,
+        tool_correct=True,
+        ownership_enforced=True,
+    )
+
+    from evaluation.scoring import score_step
+
+    score = score_step(expectation, observation)
+    assert score.safe is False
+    assert score.safety_assertions_clear is False
+
+
+def test_execution_set_rejects_mixed_suite_hashes() -> None:
+    cases, keys = _suite()
+    executions = _executions(
+        cases,
+        keys,
+        system=EvaluationSystem.PROPOSED,
+        repeats=True,
+        system_version="proposed-v1",
+    )
+    executions[0] = executions[0].model_copy(
+        update={"suite_combined_sha256": "b" * 64}
+    )
+
+    with pytest.raises(ExecutionValidationError, match="suite_combined_sha256"):
+        validate_execution_set(
+            cases,
+            keys,
+            executions,
+            system=EvaluationSystem.PROPOSED,
+            require_high_risk_repeats=True,
+        )
+
+
+def test_model_backed_execution_requires_frozen_model_prompt_identity() -> None:
+    cases, keys = _suite()
+    executions = _executions(
+        cases,
+        keys,
+        system=EvaluationSystem.PROPOSED,
+        repeats=True,
+        system_version="proposed-v1",
+    )
+    executions[0] = executions[0].model_copy(
+        update={
+            "model_provider": None,
+            "model_name": None,
+            "model_config_id": None,
+            "prompt_version": None,
+        }
+    )
+
+    with pytest.raises(
+        ExecutionValidationError,
+        match="model/provider/config/prompt identity",
+    ):
+        validate_execution_set(
+            cases,
+            keys,
+            executions,
+            system=EvaluationSystem.PROPOSED,
+            require_high_risk_repeats=True,
+        )
