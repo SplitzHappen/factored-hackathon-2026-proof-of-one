@@ -118,6 +118,29 @@ def _validate_curated_metadata(
             "Curated database builder version disagrees with build manifest."
         )
 
+    row_counts = curated_manifest.get("row_counts")
+    if not isinstance(row_counts, dict):
+        raise FreezeError("Curated build manifest row_counts is invalid.")
+
+    con = duckdb.connect(
+        str(database_path),
+        read_only=True,
+        config={"enable_external_access": "false"},
+    )
+    try:
+        actual_counts = {
+            table: int(con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+            for table in ("customers", "products", "transactions")
+        }
+    finally:
+        con.close()
+
+    for table, actual in actual_counts.items():
+        if actual != int(row_counts[table]):
+            raise FreezeError(
+                f"Curated database {table} row count disagrees with build manifest."
+            )
+
 
 def _validate_development_pool(
     cases: list[DevelopmentCase],
@@ -483,6 +506,13 @@ def verify_frozen_evaluation(
     manifest = FrozenEvaluationManifest.model_validate_json(
         manifest_path.read_text(encoding="utf-8")
     )
+    if manifest.freeze_version != FREEZE_VERSION:
+        raise FreezeError(
+            f"Frozen evaluation version {manifest.freeze_version!r} is unsupported; "
+            f"expected {FREEZE_VERSION!r}."
+        )
+    if manifest.generator_seed != DEFAULT_SEED:
+        raise FreezeError("Frozen evaluation generator seed is not the canonical seed.")
 
     heldout_cases = load_jsonl(
         frozen_dir / "heldout_cases.jsonl",
