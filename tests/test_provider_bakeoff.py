@@ -10,6 +10,7 @@ from app.provider_adapters import (
     CANDIDATES,
     CandidateProviderAdapter,
     ProviderCallTelemetry,
+    _strict_provider_schema,
 )
 from app.schemas import ModelInterpretationRequest, PolicyIntent, SupportedLanguage
 from evaluation.contracts import (
@@ -82,6 +83,27 @@ def _case(
         steps=[EvaluationStep(user_utterance=text)],
         source_pair_id="DEV-ES-001" if language is SupportedLanguage.PT else None,
     )
+
+
+def test_strict_schema_requires_nullable_fields_without_removing_nullability() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "required_text": {"type": "string"},
+            "optional_text": {
+                "anyOf": [{"type": "string"}, {"type": "null"}],
+                "default": None,
+            },
+        },
+        "required": ["required_text"],
+        "additionalProperties": False,
+    }
+
+    normalized = _strict_provider_schema(schema)
+
+    assert normalized["required"] == ["required_text", "optional_text"]
+    assert "default" not in normalized["properties"]["optional_text"]
+    assert {"type": "null"} in normalized["properties"]["optional_text"]["anyOf"]
 
 
 def test_candidate_registry_freezes_exact_r3c_b_starting_candidates() -> None:
