@@ -6,7 +6,7 @@ from typing import Annotated
 
 from pydantic import Field
 
-from app.schemas import ContractModel, RouteDecision, SupportedLanguage
+from app.schemas import ContractModel, PolicyIntent, RouteDecision, SupportedLanguage
 
 
 class CaseCategory(StrEnum):
@@ -146,7 +146,7 @@ class RealisticLanguageCase(ContractModel):
     language: SupportedLanguage
     language_provenance: LanguageProvenance
     message: str = Field(min_length=1, max_length=1000)
-    accepted_intents: list[str] = Field(min_length=1, max_length=8)
+    accepted_intents: list[PolicyIntent] = Field(min_length=1, max_length=8)
     unauthorized_activity_asserted: bool
     expected_transaction_id: str | None = Field(default=None, max_length=128)
     score_intent: bool = True
