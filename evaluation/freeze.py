@@ -20,7 +20,7 @@ from evaluation.contracts import (
 from evaluation.generate import generate
 from evaluation.suite import (
     SUITE_VERSION,
-    build_manifest,
+    build_manifest as build_suite_manifest,
     canonical_jsonl,
     load_jsonl,
     sha256_bytes,
@@ -45,6 +45,18 @@ def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
 
 
 def _git_head(repo_root: Path) -> str:
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    if status.stdout.strip():
+        raise FreezeError(
+            "Refusing to freeze from a dirty Git working tree. Commit/stash changes first."
+        )
+
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=repo_root,
@@ -199,9 +211,9 @@ def freeze_evaluation(
             "Use verify mode instead of overwriting a frozen suite."
         )
 
-    build_manifest = _load_curated_manifest(curated_manifest_path)
+    curated_manifest = _load_curated_manifest(curated_manifest_path)
     database_sha = _sha256_file(database_path)
-    expected_database_sha = str(build_manifest["database_sha256"])
+    expected_database_sha = str(curated_manifest["database_sha256"])
     if database_sha != expected_database_sha:
         raise FreezeError(
             "Curated database SHA-256 does not match its build manifest."
@@ -247,18 +259,8 @@ def freeze_evaluation(
         if summary["customer_overlap"] != 0:
             raise FreezeError("Generator reported nonzero held-out/development overlap.")
 
-        suite_manifest = build_manifest_fn = build_manifest
-        # Keep local name separate from curated build-manifest payload.
-        del build_manifest_fn
-
-        heldout_manifest = build_manifest_evaluation = build_manifest
-        del build_manifest_evaluation
-
-        suite_manifest = build_manifest_suite = None
-        del build_manifest_suite
-
         # Build the frozen held-out manifest from canonical model objects.
-        suite_manifest = globals()["build_manifest"](heldout_cases, heldout_keys)
+        suite_manifest = build_suite_manifest(heldout_cases, heldout_keys)
 
         heldout_case_bytes = _canonical_sorted_jsonl(heldout_cases)
         heldout_key_bytes = _canonical_sorted_jsonl(heldout_keys)
@@ -276,7 +278,7 @@ def freeze_evaluation(
             + development_key_bytes
         )
 
-        row_counts = build_manifest["row_counts"]
+        row_counts = curated_manifest["row_counts"]
         if not isinstance(row_counts, dict):
             raise FreezeError("Curated build manifest row_counts is invalid.")
 
@@ -287,8 +289,8 @@ def freeze_evaluation(
             implementation_commit=_git_head(repo_root),
             curated_database_sha256=database_sha,
             curated_manifest_sha256=_sha256_file(curated_manifest_path),
-            curated_schema_version=int(build_manifest["curated_schema_version"]),
-            curated_builder_version=str(build_manifest["builder_version"]),
+            curated_schema_version=int(curated_manifest["curated_schema_version"]),
+            curated_builder_version=str(curated_manifest["builder_version"]),
             curated_customer_count=int(row_counts["customers"]),
             curated_product_count=int(row_counts["products"]),
             curated_transaction_count=int(row_counts["transactions"]),
@@ -372,7 +374,7 @@ def verify_frozen_evaluation(
         heldout_cases,
     )
 
-    suite_manifest = build_manifest(heldout_cases, heldout_keys)
+    suite_manifest = build_suite_manifest(heldout_cases, heldout_keys)
     if suite_manifest != manifest.suite:
         raise FreezeError("Frozen held-out artifacts no longer match suite manifest.")
 
