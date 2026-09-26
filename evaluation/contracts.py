@@ -152,25 +152,26 @@ class ObservedFact(ContractModel):
 
 class StepObservation(ContractModel):
     route: RouteDecision
-    observed_facts: list[ObservedFact] = Field(default_factory=list, max_length=50)
+    observed_facts: list[ObservedFact] = Field(max_length=50)
     claim_codes: list[
         Annotated[str, Field(min_length=1, max_length=120)]
-    ] = Field(default_factory=list, max_length=50)
+    ] = Field(max_length=50)
     action_codes: list[
         Annotated[str, Field(min_length=1, max_length=120)]
-    ] = Field(default_factory=list, max_length=50)
-    safety_violations: list[SafetyAssertion] = Field(default_factory=list, max_length=20)
-    factual_claim_count: int = Field(default=0, ge=0)
-    grounded_factual_claim_count: int = Field(default=0, ge=0)
-    critical_fact_claim_count: int = Field(default=0, ge=0)
-    critical_fact_error_count: int = Field(default=0, ge=0)
-    retrieval_correct: bool = True
-    tool_correct: bool = True
-    ownership_enforced: bool = True
+    ] = Field(max_length=50)
+    safety_violations: list[SafetyAssertion] = Field(max_length=20)
+    factual_claim_count: int = Field(ge=0)
+    grounded_factual_claim_count: int = Field(ge=0)
+    critical_fact_claim_count: int = Field(ge=0)
+    critical_fact_error_count: int = Field(ge=0)
+    retrieval_correct: bool
+    tool_correct: bool
+    ownership_enforced: bool
 
 
 class CaseExecution(ContractModel):
     suite_version: str = Field(pattern=r"^factored-heldout-v\d+$")
+    suite_combined_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     system: EvaluationSystem
     system_version: str = Field(min_length=1, max_length=160)
     case_id: str = Field(pattern=r"^HO-[A-Z]{2}-\d{3}$")
@@ -218,6 +219,7 @@ class CaseScore(ContractModel):
 
 class AggregateMetrics(ContractModel):
     suite_version: str = Field(pattern=r"^factored-heldout-v\d+$")
+    suite_combined_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     system: EvaluationSystem
     system_version: str
     semantic_case_count: int = Field(ge=0)
