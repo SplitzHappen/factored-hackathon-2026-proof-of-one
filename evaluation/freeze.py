@@ -9,6 +9,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+import duckdb
+
 from app.schemas import SupportedLanguage
 from evaluation.contracts import (
     DevelopmentAnswerKey,
@@ -157,6 +159,90 @@ def _validate_development_pool(
         raise FreezeError("\n".join(errors))
 
 
+
+def _verify_locator_integrity(
+    *,
+    database_path: Path,
+    heldout_cases: list[HeldoutCase],
+    development_cases: list[DevelopmentCase],
+) -> None:
+    """Independently verify frozen locator ownership and pool separation."""
+
+    con = duckdb.connect(
+        str(database_path),
+        read_only=True,
+        config={"enable_external_access": "false"},
+    )
+    try:
+        metadata = con.execute(
+            "SELECT schema_version FROM build_metadata LIMIT 1"
+        ).fetchone()
+        if metadata is None:
+            raise FreezeError("Curated database is missing build metadata.")
+
+        def owners_for_pool(
+            cases: list[HeldoutCase] | list[DevelopmentCase],
+        ) -> set[str]:
+            referenced_owners: set[str] = set()
+            for case in cases:
+                customer_exists = con.execute(
+                    "SELECT 1 FROM customers WHERE customer_id = ? LIMIT 1",
+                    [case.locator.customer_id],
+                ).fetchone()
+                if customer_exists is None:
+                    raise FreezeError("Evaluation locator references an unknown customer.")
+
+                referenced_owners.add(case.locator.customer_id)
+
+                for product_id in case.locator.product_ids:
+                    row = con.execute(
+                        "SELECT customer_id FROM products WHERE product_id = ? LIMIT 1",
+                        [product_id],
+                    ).fetchone()
+                    if row is None:
+                        raise FreezeError("Evaluation locator references an unknown product.")
+                    if str(row[0]) != case.locator.customer_id:
+                        raise FreezeError(
+                            "Evaluation primary product does not belong to locator customer."
+                        )
+                    referenced_owners.add(str(row[0]))
+
+                transaction_owners: list[str] = []
+                for transaction_id in case.locator.transaction_ids:
+                    row = con.execute(
+                        "SELECT customer_id FROM transactions "
+                        "WHERE transaction_id = ? LIMIT 1",
+                        [transaction_id],
+                    ).fetchone()
+                    if row is None:
+                        raise FreezeError(
+                            "Evaluation locator references an unknown transaction."
+                        )
+                    owner = str(row[0])
+                    transaction_owners.append(owner)
+                    referenced_owners.add(owner)
+
+                if (
+                    transaction_owners
+                    and transaction_owners[0] != case.locator.customer_id
+                ):
+                    raise FreezeError(
+                        "Evaluation primary transaction does not belong to "
+                        "locator customer."
+                    )
+
+            return referenced_owners
+
+        heldout_owners = owners_for_pool(heldout_cases)
+        development_owners = owners_for_pool(development_cases)
+        if heldout_owners & development_owners:
+            raise FreezeError(
+                "Held-out and development pools share organizer customers."
+            )
+    finally:
+        con.close()
+
+
 def _atomic_write(path: Path, payload: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
@@ -254,6 +340,11 @@ def freeze_evaluation(
             development_cases,
             development_keys,
             heldout_cases,
+        )
+        _verify_locator_integrity(
+            database_path=database_path,
+            heldout_cases=heldout_cases,
+            development_cases=development_cases,
         )
 
         if summary["customer_overlap"] != 0:
@@ -373,6 +464,11 @@ def verify_frozen_evaluation(
         development_keys,
         heldout_cases,
     )
+    _verify_locator_integrity(
+        database_path=database_path.resolve(),
+        heldout_cases=heldout_cases,
+        development_cases=development_cases,
+    )
 
     suite_manifest = build_suite_manifest(heldout_cases, heldout_keys)
     if suite_manifest != manifest.suite:
@@ -414,6 +510,7 @@ def _safe_summary(manifest: FrozenEvaluationManifest) -> dict[str, object]:
         "freeze_version": manifest.freeze_version,
         "implementation_commit": manifest.implementation_commit,
         "curated_database_sha256": manifest.curated_database_sha256,
+        "curated_manifest_sha256": manifest.curated_manifest_sha256,
         "curated_customer_count": manifest.curated_customer_count,
         "curated_product_count": manifest.curated_product_count,
         "curated_transaction_count": manifest.curated_transaction_count,
