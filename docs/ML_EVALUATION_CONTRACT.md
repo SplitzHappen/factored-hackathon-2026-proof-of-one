@@ -67,6 +67,8 @@ The implementation groups identical score thresholds and samples positive/negati
 
 The point estimate remains scikit-learn average precision.
 
+For final baseline comparisons, use a **500-iteration paired same-row Poisson bootstrap** with seed `20260927`. Each replicate applies the same Poisson row multiplicities to the proposed model and comparator. Report proposed-minus-baseline 95% intervals for PR-AUC, top-0.5% recall, and top-0.5% precision. Score ordering and target-blind tie-breaking are precomputed once per model and reused across replicates.
+
 ## Frozen calibration/usefulness gate
 
 On the calibration/gate segment, the GBDT proceeds to untouched test only if **all** hold:
