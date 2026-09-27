@@ -493,3 +493,8 @@ def test_p8_postnominal_customer_possession_is_supported() -> None:
 
     assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in es
     assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in pt
+
+def test_p8_accented_third_person_predicate_remains_positive() -> None:
+    propositions = _families("Clonó mi tarjeta.", "es")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in propositions
