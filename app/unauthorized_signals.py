@@ -138,12 +138,12 @@ _CORE_ASSERTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(rf"\b{_ES_ACTIVITY}(?: [a-z0-9-]+)? no autorizad[oa]s?\b"),
     re.compile(
         rf"\b{_ES_ACTIVITY}\b.{{0,100}}\b"
-        r"no (?:fue )?autorizad[oa](?: por mi)?\b"
+        r"no (?:(?:fue|fueron) )?autorizad[oa]s?(?: por mi)?\b"
     ),
     re.compile(rf"\b{_PT_ACTIVITY}(?: [a-z0-9-]+)? nao autorizad[oa]s?\b"),
     re.compile(
         rf"\b{_PT_ACTIVITY}\b.{{0,100}}\b"
-        r"nao (?:foi )?autorizad[oa](?: por mim)?\b"
+        r"nao (?:(?:foi|foram) )?autorizad[oa]s?(?: por mim)?\b"
     ),
     # Third-party use / account access.
     re.compile(r"\balguien (?:mas )?(?:uso|utilizo|entro|accedio)\b"),
@@ -230,24 +230,28 @@ _SCOPE_EXCLUSION_PATTERNS: tuple[re.Pattern[str], ...] = (
     # Security-information / policy questions rather than event assertions.
     re.compile(r"^[¿?]?\s*como (?:puedo|podria) (?:protegerme|evitar)\b"),
     re.compile(r"^quais cuidados\b"),
-    re.compile(r"\btem protecao caso\b"),
+    re.compile(r"^(?!.*\bnao autorizad[oa]s?\b).{0,100}\btem protecao caso\b"),
     re.compile(r"\b(?:seguro|protecao|proteccion) contra \b"),
     # Merchant/descriptor clarification, not transaction disowning.
     re.compile(
-        r"\bno reconozco (?:el |la )?(?:nombre|comercio|descriptor|descripcion)\b"
+        r"^no reconozco (?:el |la )?(?:nombre|comercio|descriptor|descripcion)\b"
+        r".{0,140}\b(?:que comercio es|que establecimiento es|"
+        r"a que comercio corresponde)\b"
     ),
     re.compile(
-        r"\bnao reconheco (?:o |a )?(?:nome|comercio|descritor|descricao)\b"
+        r"^nao reconheco (?:o |a )?(?:nome|comercio|descritor|descricao)\b"
+        r".{0,140}\b(?:qual estabelecimento|a qual estabelecimento|"
+        r"que comercio e|a que comercio corresponde)\b"
     ),
     # Same-message retraction / explicit correction.
     re.compile(
         r"\b(?:pense|crei)\b.{0,120}\b(?:pero|mas)\b.{0,120}\b"
-        r"(?:si (?:lo |la )?hice|fui yo|era (?:mio|mia)|me acorde)\b"
+        r"(?:si (?:lo |la )?hice|fui yo|era (?:mio|mia)|me acorde)\b.{0,60}$"
     ),
     re.compile(
         r"\b(?:eu )?(?:ia dizer|pensei|achei)\b.{0,120}\b"
         r"(?:mas|porem)\b.{0,120}\b"
-        r"(?:fui eu|eu mesmo|era (?:meu|minha)|lembrei)\b"
+        r"(?:fui eu|eu mesmo|era (?:meu|minha)|lembrei)\b.{0,60}$"
     ),
     # Explicitly negating the denial itself.
     re.compile(r"\bno digo que no (?:sea|es) (?:mio|mia)\b"),
