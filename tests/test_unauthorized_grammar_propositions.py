@@ -76,3 +76,10 @@ def test_proposition_debug_dump_preserves_original_text_evidence() -> None:
     assert dump[0]["rule"] == "P1"
     assert dump[0]["source"] in text
     assert dump[0]["mode"] == "unresolved"
+
+def test_portuguese_no_contraction_does_not_create_p2_denial() -> None:
+    propositions = build_positive_propositions("No meu cartão, eu fiz o Pix.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in {
+        item.family for item in propositions
+    }
