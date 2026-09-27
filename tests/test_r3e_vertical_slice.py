@@ -97,7 +97,7 @@ def test_r3e_normal_verified_answer_is_bilingual(
         ),
     ],
 )
-def test_r3e_multi_turn_ambiguity_resolves_to_verified_owned_record(
+def test_r3e_followup_explicit_id_is_fresh_reverified_lookup(
     tmp_path,
     persona_id: str,
     first_message: str,
@@ -147,6 +147,62 @@ def test_r3e_multi_turn_ambiguity_resolves_to_verified_owned_record(
     assert second_state is not None
     assert second_state.clarification_required is False
     assert second_state.candidate_transaction_ids == [selected_id]
+
+
+def test_followup_explicit_owned_id_need_not_be_in_prior_candidate_set(
+    tmp_path,
+) -> None:
+    client, _ = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    first = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Busca las transacciones de 54000."},
+    )
+    assert first.status_code == 200
+    assert first.json()["clarification_transaction_ids"] == [
+        "DEMO-ES-1003",
+        "DEMO-ES-1004",
+    ]
+
+    second = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Quiero la transacción DEMO-ES-1001."},
+    )
+
+    assert second.status_code == 200
+    body = second.json()
+    assert body["route"] == "ANSWER"
+    assert [tx["transaction_id"] for tx in body["transactions"]] == [
+        "DEMO-ES-1001"
+    ]
+
+
+def test_ordinal_followup_is_not_claimed_as_candidate_bound_selection(tmp_path) -> None:
+    client, _ = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    first = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Busca las transacciones de 54000."},
+    )
+    assert first.status_code == 200
+    assert first.json()["route"] == "CLARIFY"
+
+    second = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "La segunda."},
+    )
+
+    assert second.status_code == 200
+    body = second.json()
+    assert body["route"] == "ABSTAIN"
+    assert body["intent"] == "unknown"
+    assert body["transactions"] == []
 
 
 @pytest.mark.parametrize(
