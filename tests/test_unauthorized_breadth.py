@@ -107,10 +107,12 @@ def test_http_unauthorized_paraphrases_escalate_without_cross_customer_disclosur
         "Ese pago me preocupa y quiero revisarlo.",
         "La compra se ve rara, ¿qué pasó?",
         "¿Esto podría ser fraude?",
+        "¿Es de otra persona?",
         "No sé si yo autoricé esa compra.",
         "Esse pagamento está estranho e quero conferir.",
         "Essa compra me preocupa; o que aconteceu?",
         "Isso pode ser fraude?",
+        "É de outra pessoa?",
         "Não lembro se eu autorizei essa compra.",
     ],
 )
