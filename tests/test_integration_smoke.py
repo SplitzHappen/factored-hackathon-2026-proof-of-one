@@ -83,11 +83,10 @@ def test_locked_runtime_store_returns_generic_503(tmp_path) -> None:
 
 def test_wal_supports_concurrent_isolated_customer_requests(tmp_path) -> None:
     context = _context(tmp_path)
-    app = create_app(context)
 
     def worker(index: int) -> tuple[str, list[str]]:
         persona_id = "lucia" if index % 2 == 0 else "rafael"
-        with TestClient(app) as client:
+        with TestClient(create_app(context)) as client:
             session = _session(client, persona_id)
             response = client.post(
                 "/api/customer/turn",
