@@ -12,7 +12,7 @@ the deterministic authority boundary.
 |---|---:|---:|---|
 | Verified normal answer | yes | yes | `ANSWER` |
 | Genuine same-customer ambiguity | yes | yes | `CLARIFY` |
-| Multi-turn selection of one candidate | yes | yes | `ANSWER` |
+| Explicit follow-up lookup after clarification | yes | yes | `ANSWER` |
 | Prohibited banking action | yes | yes | `ABSTAIN` + human handoff available |
 | Explicit unauthorized/non-recognition | yes | yes | `ESCALATE` + verified ticket |
 | Cross-customer reference | yes | yes | `CLARIFY`, no record/candidate disclosure |
@@ -34,14 +34,18 @@ whether the query has zero, one, or multiple owned matches.
 For multiple matches:
 
 1. policy returns `CLARIFY`;
-2. the response exposes at most ten **owned, verified transaction IDs only**;
-3. those IDs are persisted in bounded conversation state;
-4. the customer selects one explicit ID in the next turn;
-5. the existing interpretation post-check re-verifies that ID against the authenticated
-   customer before any answer;
-6. conversation state transitions from `clarification_required=true` to `false`.
+2. the response exposes at most ten **owned, re-verified candidate transactions**, with
+   explicit ID, date, localized amount, and merchant/type context;
+3. if more than ten candidates exist, the response states how many of the total are shown;
+4. the full candidate-ID set is persisted as informational conversation state;
+5. each later turn is nevertheless interpreted independently: an explicit transaction ID
+   is treated as a fresh lookup and re-verified against the authenticated customer before
+   any answer, whether or not it appeared in the prior candidate set;
+6. ordinal follow-ups such as "the second one" are not implemented as candidate-bound state
+   transitions and therefore do not resolve a prior candidate automatically.
 
-No model or deterministic interpreter receives the candidate list.
+No model or deterministic interpreter receives the candidate list. Persisted clarification
+state records prior context but does not authorize or constrain a later explicit lookup.
 
 ## Cross-customer boundary
 
@@ -93,7 +97,8 @@ R3E is a deterministic synthetic integration proof. It does **not** establish:
 - held-out performance;
 - production-scale concurrency;
 - final abuse/rate/session-expiry controls;
-- analyst Workbench/Intelligence behavior.
+- analyst Workbench/Intelligence behavior;
+- candidate-bound ordinal selection or stale-state expiry semantics.
 
 Those claims remain governed by their separate evaluation and audit gates.
 
