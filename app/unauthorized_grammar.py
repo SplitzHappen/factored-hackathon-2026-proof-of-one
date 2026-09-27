@@ -1692,6 +1692,7 @@ def _bound_self_evidence(
                 and other.token_end == predicate.token_end
             )
             and other.form.person is not None
+            and not other.accent_ambiguous
             for other in analysis.predicates
             if _in_clause(other.token_start, other.token_end, clause)
         )
@@ -1804,6 +1805,7 @@ def _explicit_self_subject_binds(
                 and other.token_end == predicate.token_end
             )
             and other.form.person is not None
+            and not other.accent_ambiguous
             for other in analysis.predicates
             if _in_clause(other.token_start, other.token_end, clause)
         ):
