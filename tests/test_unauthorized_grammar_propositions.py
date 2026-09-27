@@ -303,3 +303,90 @@ def test_p6_copular_predication_does_not_jump_to_later_non_activity_head() -> No
 
     assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
     assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+def test_p7_nonrecognition_targets_activity_in_both_languages() -> None:
+    es = _families("No reconozco este cargo.", "es")
+    pt = _families("Não reconheço este Pix.", "pt")
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION in pt
+
+
+def test_p7_descriptor_target_remains_informational() -> None:
+    es = _families("No reconozco el comercio.", "es")
+    pt = _families("Não reconheço o nome do estabelecimento.", "pt")
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in pt
+
+
+def test_p7_descriptor_head_beats_embedded_activity_reference() -> None:
+    es = _families("No reconozco el comercio de esta compra.", "es")
+    pt = _families("Não reconheço o estabelecimento desta compra.", "pt")
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in pt
+
+
+def test_p7_preposed_activity_can_be_targeted_by_clitic() -> None:
+    es = _families("Esta compra no la reconozco.", "es")
+    pt = _families("Este Pix, não o reconheço.", "pt")
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION in pt
+
+
+def test_p7_r3_activity_anaphora_links_nearest_prior_activity() -> None:
+    propositions = build_positive_propositions(
+        "Este cargo apareció ayer; no lo reconozco.",
+        "es",
+    )
+
+    linked = next(
+        item
+        for item in propositions
+        if item.family is PropositionFamily.ACTIVITY_NONRECOGNITION
+    )
+    assert linked.rule == "P7-R3-activity-anaphora"
+    assert linked.activity_ref == "linked_prior_activity"
+    assert linked.activity_token_span is not None
+
+
+def test_p7_r3_activity_anaphora_can_link_prior_transaction_id() -> None:
+    propositions = build_positive_propositions(
+        "DEMO-ES-1001; no lo reconozco.",
+        "es",
+    )
+
+    linked = next(
+        item
+        for item in propositions
+        if item.family is PropositionFamily.ACTIVITY_NONRECOGNITION
+    )
+    assert linked.rule == "P7-R3-activity-anaphora"
+    assert linked.activity_ref == "linked_prior_txid"
+
+
+def test_p7_argumentless_first_person_nonrecognition_uses_topic_default() -> None:
+    es = build_positive_propositions("No reconozco.", "es")
+    pt = build_positive_propositions("Não reconheço.", "pt")
+
+    es_item = next(
+        item for item in es
+        if item.family is PropositionFamily.ACTIVITY_NONRECOGNITION
+    )
+    pt_item = next(
+        item for item in pt
+        if item.family is PropositionFamily.ACTIVITY_NONRECOGNITION
+    )
+
+    assert es_item.activity_ref == "topic_transaction"
+    assert pt_item.activity_ref == "topic_transaction"
+
+
+def test_p7_generic_activity_category_is_not_specific_transaction_target() -> None:
+    es = _families("No reconozco cargos internacionales.", "es")
+    pt = _families("Não reconheço cobranças internacionais.", "pt")
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in pt
