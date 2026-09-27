@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import datetime
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -22,6 +23,16 @@ from app.schemas import (
 
 
 def create_app(context: AppContext | None = None) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Production initialization happens before the app accepts requests. Tests
+        # may inject an already-built context without changing this lifecycle.
+        if context is None:
+            app.state.context = build_app_context()
+        else:
+            app.state.context = context
+        yield
+
     app = FastAPI(
         title="Proof of One",
         description=(
@@ -29,14 +40,21 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             "Factored AI & Data Hackathon 2026."
         ),
         version="0.2.0",
+        lifespan=lifespan,
     )
-    cached_context = context
+    if context is not None:
+        # Preserve deterministic injected-context unit tests even when they do not
+        # enter TestClient's lifespan context manager.
+        app.state.context = context
 
     def runtime() -> AppContext:
-        nonlocal cached_context
-        if cached_context is None:
-            cached_context = build_app_context()
-        return cached_context
+        runtime_context = getattr(app.state, "context", None)
+        if runtime_context is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Application runtime is not initialized",
+            )
+        return runtime_context
 
     def customer_session(
         x_demo_session: str = Header(alias="X-Demo-Session"),
