@@ -1263,7 +1263,8 @@ _PT_ALIENATION_PHRASES = (
     ("de", "terceiros"),
 )
 
-_DENIAL_WORDS = frozenset({"no", "nao", "nunca", "jamas", "jamais"})
+_ES_DENIAL_WORDS = frozenset({"no", "nunca", "jamas"})
+_PT_DENIAL_WORDS = frozenset({"nao", "nunca", "jamais"})
 
 
 def _in_clause(span_start: int, span_end: int, clause: ClauseSegment) -> bool:
@@ -1273,10 +1274,12 @@ def _in_clause(span_start: int, span_end: int, clause: ClauseSegment) -> bool:
 def _negative_indices(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
+    language: str,
 ) -> tuple[int, ...]:
+    denial_words = _ES_DENIAL_WORDS if language == "es" else _PT_DENIAL_WORDS
     indices: list[int] = []
     for index in range(clause.token_start, clause.token_end):
-        if analysis.tokens[index].normalized in _DENIAL_WORDS:
+        if analysis.tokens[index].normalized in denial_words:
             indices.append(index)
             continue
         if analysis.tags[index] & {
@@ -1333,8 +1336,9 @@ def _predicate_has_denial(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     predicate: PredicateMatch,
+    language: str,
 ) -> bool:
-    for index in _negative_indices(analysis, clause):
+    for index in _negative_indices(analysis, clause, language):
         if index <= predicate.token_start and predicate.token_start - index <= 5:
             return True
         if index >= predicate.token_end and index - predicate.token_end <= 2:
@@ -1413,7 +1417,7 @@ def _ownership_denials(
         for index in range(clause.token_start, clause.token_end)
         if LexicalTag.OWNERSHIP in analysis.tags[index]
     ]
-    negatives = _negative_indices(analysis, clause)
+    negatives = _negative_indices(analysis, clause, language)
     output: list[PositiveProposition] = []
 
     for copula_index in range(clause.token_start, clause.token_end):
@@ -1545,11 +1549,11 @@ def _predicate_denials(
             continue
         if predicate.form.family is not predicate_family:
             continue
-        if not _predicate_has_denial(analysis, clause, predicate):
+        if not _predicate_has_denial(analysis, clause, predicate, language):
             continue
 
         activity_span = _nearest_activity_span(analysis, clause, predicate)
-        negatives = _negative_indices(analysis, clause)
+        negatives = _negative_indices(analysis, clause, language)
         denial_span = min(
             ((index, index + 1) for index in negatives),
             key=lambda span: min(
