@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.artifact_identity import BankArtifactIdentityError, identify_bank_artifact_mode
 from app.bank import BankRepository
 from app.customer_service import CustomerResolutionService
 from app.demo_data import DEMO_PERSONAS, DemoPersona, ensure_synthetic_demo_bank
@@ -26,9 +27,16 @@ def build_app_context(settings: Settings = default_settings) -> AppContext:
     if settings.data_mode == "synthetic":
         ensure_synthetic_demo_bank(settings.bank_db_path)
 
+    artifact_mode = identify_bank_artifact_mode(settings.bank_db_path)
+    if artifact_mode != settings.data_mode:
+        raise BankArtifactIdentityError(
+            "Configured DATA_MODE does not match the banking artifact identity: "
+            f"configured={settings.data_mode!r}, artifact={artifact_mode!r}."
+        )
+
     bank = BankRepository(settings.bank_db_path)
     store = OperationalStore(settings.runtime_db_path)
-    store.initialize()
+    store.initialize(data_mode=artifact_mode)
 
     provider = DeterministicDemoInterpretationProvider()
     interpreter = InterpretationService(
@@ -41,12 +49,12 @@ def build_app_context(settings: Settings = default_settings) -> AppContext:
         bank=bank,
         store=store,
         interpreter=interpreter,
-        synthetic_data=settings.data_mode == "synthetic",
+        synthetic_data=artifact_mode == "synthetic",
     )
     return AppContext(
         bank=bank,
         store=store,
         customer_service=service,
         personas=dict(DEMO_PERSONAS),
-        data_mode=settings.data_mode,
+        data_mode=artifact_mode,
     )
