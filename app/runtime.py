@@ -79,6 +79,9 @@ class OperationalStore:
     def initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
+            # Serialize schema inspection/creation so simultaneous startup attempts
+            # cannot both conclude that metadata is absent and race to initialize it.
+            connection.execute("BEGIN IMMEDIATE")
             existing_tables = {
                 row["name"]
                 for row in connection.execute(
@@ -108,13 +111,14 @@ class OperationalStore:
                         f"Unsupported runtime schema version: {version}"
                     )
 
-            connection.executescript(
+            ddl_statements = (
                 """
                 CREATE TABLE IF NOT EXISTS runtime_metadata (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
-                );
-
+                )
+                """,
+                """
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,
                     tenant_id TEXT NOT NULL
@@ -127,8 +131,9 @@ class OperationalStore:
                     language TEXT NOT NULL CHECK(language IN ('es', 'pt')),
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
-                );
-
+                )
+                """,
+                """
                 CREATE TABLE IF NOT EXISTS conversation_state (
                     session_id TEXT PRIMARY KEY
                         REFERENCES sessions(session_id) ON DELETE CASCADE,
@@ -142,8 +147,9 @@ class OperationalStore:
                     clarification_required INTEGER NOT NULL
                         CHECK(clarification_required IN (0, 1)),
                     updated_at TEXT NOT NULL
-                );
-
+                )
+                """,
+                """
                 CREATE TABLE IF NOT EXISTS escalation_tickets (
                     ticket_id TEXT PRIMARY KEY,
                     session_id TEXT NOT NULL
@@ -156,9 +162,11 @@ class OperationalStore:
                         CHECK(length(summary) BETWEEN 1 AND 500),
                     created_at TEXT NOT NULL,
                     verified_at TEXT
-                );
-                """
+                )
+                """,
             )
+            for statement in ddl_statements:
+                connection.execute(statement)
             if not existing_tables:
                 connection.execute(
                     "INSERT INTO runtime_metadata(key, value) VALUES ('schema_version', ?)",
