@@ -79,6 +79,9 @@ class OperationalStore:
     def initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
+            # Serialize schema inspection/creation so simultaneous startup attempts
+            # cannot both conclude that metadata is absent and race to initialize it.
+            connection.execute("BEGIN IMMEDIATE")
             existing_tables = {
                 row["name"]
                 for row in connection.execute(
