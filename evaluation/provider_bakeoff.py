@@ -34,6 +34,7 @@ from app.schemas import (
     PolicyInput,
     PolicyIntent,
     RouteDecision,
+    SessionRole,
     SupportedLanguage,
     TransactionReferenceStatus,
 )
@@ -579,6 +580,8 @@ def run_candidate(
             raise ProviderBakeoffError("development step/expectation mismatch")
         session = AuthenticatedSession(
             session_id=uuid5(NAMESPACE_URL, f"proof-of-one-r3c-b:{candidate_id}:{case.case_id}"),
+            tenant_id=f"provider-bakeoff-{candidate_id}",
+            role=SessionRole.CUSTOMER,
             demo_persona_id=f"dev-{case.case_id}",
             customer_id=case.locator.customer_id,
             language=case.language,
