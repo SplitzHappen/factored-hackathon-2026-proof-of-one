@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.bootstrap import build_app_context
 from app.main import create_app
-from app.runtime import TicketLimitExceededError
+from app.runtime import OperationalStore, RateLimitExceededError, TicketLimitExceededError
 from app.schemas import EscalationRequest
 from app.settings import Settings
 
@@ -91,6 +91,44 @@ def test_customer_can_revoke_own_demo_session(tmp_path) -> None:
         json={"message": "Muéstrame mis últimos movimientos."},
     )
     assert turn.status_code == 401
+
+
+def test_unknown_persona_does_not_consume_session_creation_quota(tmp_path) -> None:
+    client, context = _client(tmp_path)
+    context.store.session_creation_limit = 1
+
+    unknown = client.post(
+        "/api/demo/sessions",
+        json={"persona_id": "does-not-exist"},
+    )
+    assert unknown.status_code == 404
+
+    created = client.post(
+        "/api/demo/sessions",
+        json={"persona_id": "lucia"},
+    )
+    assert created.status_code == 201
+
+    limited = client.post(
+        "/api/demo/sessions",
+        json={"persona_id": "rafael"},
+    )
+    assert limited.status_code == 429
+
+
+def test_rate_limit_state_survives_store_reopen(tmp_path) -> None:
+    _, context = _client(tmp_path)
+    context.store.session_creation_limit = 1
+    context.store.enforce_session_creation_rate("peer-a")
+
+    reopened = OperationalStore(
+        context.store.path,
+        session_creation_limit=1,
+    )
+    reopened.initialize(data_mode="synthetic")
+
+    with pytest.raises(RateLimitExceededError):
+        reopened.enforce_session_creation_rate("peer-a")
 
 
 def test_session_creation_rate_limit_returns_429(tmp_path) -> None:
