@@ -32,6 +32,54 @@ jobs:
       - name: Build container
         run: docker build -t proof-of-one:test .
 
+      - name: Smoke production container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name proof-of-one-smoke -p 18000:8000 proof-of-one:test
+          trap 'docker logs proof-of-one-smoke || true; docker rm -f proof-of-one-smoke >/dev/null 2>&1 || true' EXIT
+          sleep 3
+          python - <<'PY'
+          import json
+          import urllib.request
+
+          def request(path, *, payload=None, headers=None):
+              data = None
+              request_headers = dict(headers or {})
+              if payload is not None:
+                  data = json.dumps(payload).encode("utf-8")
+                  request_headers["Content-Type"] = "application/json"
+              req = urllib.request.Request(
+                  "http://127.0.0.1:18000" + path,
+                  data=data,
+                  headers=request_headers,
+                  method="POST" if payload is not None else "GET",
+              )
+              with urllib.request.urlopen(req, timeout=3) as response:
+                  return response.status, json.loads(response.read())
+
+          status, ready = request("/ready")
+          assert status == 200
+          assert ready["status"] == "ready"
+          assert ready["data_mode"] == "synthetic"
+          assert ready["synthetic_data"] is True
+
+          status, session = request(
+              "/api/demo/sessions",
+              payload={"persona_id": "lucia"},
+          )
+          assert status == 201
+
+          status, turn = request(
+              "/api/customer/turn",
+              payload={"message": "¿Cuál es el estado de la transacción DEMO-ES-1001?"},
+              headers={"X-Demo-Session": session["session_id"]},
+          )
+          assert status == 200
+          assert turn["route"] == "ANSWER"
+          assert [tx["transaction_id"] for tx in turn["transactions"]] == ["DEMO-ES-1001"]
+          PY
+
   windows-test:
     runs-on: windows-latest
     timeout-minutes: 30
