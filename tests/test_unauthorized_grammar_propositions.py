@@ -478,3 +478,18 @@ def test_p8_known_actor_theft_of_customer_instrument_remains_positive() -> None:
 
     assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in es
     assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in pt
+
+def test_p8_possessive_on_other_noun_cannot_anchor_instrument() -> None:
+    es = _families("Mi hermano dijo que clonaron la tarjeta.", "es")
+    pt = _families("Meu irmão disse que clonaram o cartão.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in pt
+
+
+def test_p8_postnominal_customer_possession_is_supported() -> None:
+    es = _families("Clonaron la tarjeta mía.", "es")
+    pt = _families("Hackearam a conta minha.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in pt
