@@ -109,12 +109,21 @@ class CustomerResolutionService:
             safe_to_answer=policy.safe_to_answer,
         )
 
-        clarification_ids = (
-            interpretation.candidate_transaction_ids[:10]
-            if policy.route is RouteDecision.CLARIFY
+        clarification_candidates: list[TransactionRecord] = []
+        if (
+            policy.route is RouteDecision.CLARIFY
             and reference_status is TransactionReferenceStatus.AMBIGUOUS
-            else []
-        )
+        ):
+            for candidate_id in interpretation.candidate_transaction_ids[:10]:
+                candidate = self.bank.get_transaction(
+                    session.customer_id,
+                    candidate_id,
+                )
+                if candidate is not None:
+                    clarification_candidates.append(candidate)
+        clarification_ids = [
+            candidate.transaction_id for candidate in clarification_candidates
+        ]
 
         ticket_id = None
         if policy.route is RouteDecision.ESCALATE:
@@ -155,7 +164,10 @@ class CustomerResolutionService:
                 reason_codes=policy.reason_codes,
                 products=products,
                 transactions=transactions,
-                clarification_transaction_ids=clarification_ids,
+                clarification_transactions=clarification_candidates,
+                clarification_total_count=len(
+                    interpretation.candidate_transaction_ids
+                ),
             ),
             reason_codes=policy.reason_codes,
             products=products,
@@ -298,7 +310,8 @@ class CustomerResolutionService:
         reason_codes: list[PolicyReason],
         products: list[ProductRecord],
         transactions: list[TransactionRecord],
-        clarification_transaction_ids: list[str],
+        clarification_transactions: list[TransactionRecord],
+        clarification_total_count: int,
     ) -> str:
         pt = language is SupportedLanguage.PT
 
@@ -388,11 +401,23 @@ class CustomerResolutionService:
                         "Não consegui vincular essa referência a um registro verificável da "
                         "sua conta. Confira a referência ou solicite uma revisão humana neste demo."
                     )
-                if clarification_transaction_ids:
-                    options = ", ".join(clarification_transaction_ids)
+                if clarification_transactions:
+                    options = "; ".join(
+                        f"{tx.transaction_id} — {tx.occurred_at.date().isoformat()} — "
+                        f"{format_locale_amount(tx.amount, tx.currency, language)} — "
+                        f"{tx.merchant_name or tx.transaction_type}"
+                        for tx in clarification_transactions
+                    )
+                    shown = len(clarification_transactions)
+                    count_note = (
+                        f" Mostrando {shown} de {clarification_total_count} resultados."
+                        if clarification_total_count > shown
+                        else ""
+                    )
                     return (
-                        "Encontrei mais de uma possibilidade. Escolha uma destas referências: "
-                        f"{options}."
+                        "Encontrei mais de uma possibilidade verificada na sua conta. "
+                        f"{options}.{count_note} Envie uma referência explícita para uma nova "
+                        "verificação."
                     )
                 return "Preciso de mais detalhes para identificar o lançamento com segurança."
             if missing_record:
@@ -400,11 +425,23 @@ class CustomerResolutionService:
                     "No pude vincular esa referencia a un registro verificable de tu cuenta. "
                     "Revisa la referencia o solicita una revisión humana en este demo."
                 )
-            if clarification_transaction_ids:
-                options = ", ".join(clarification_transaction_ids)
+            if clarification_transactions:
+                options = "; ".join(
+                    f"{tx.transaction_id} — {tx.occurred_at.date().isoformat()} — "
+                    f"{format_locale_amount(tx.amount, tx.currency, language)} — "
+                    f"{tx.merchant_name or tx.transaction_type}"
+                    for tx in clarification_transactions
+                )
+                shown = len(clarification_transactions)
+                count_note = (
+                    f" Mostrando {shown} de {clarification_total_count} resultados."
+                    if clarification_total_count > shown
+                    else ""
+                )
                 return (
-                    "Encontré más de una posibilidad. Elige una de estas referencias: "
-                    f"{options}."
+                    "Encontré más de una posibilidad verificada en tu cuenta. "
+                    f"{options}.{count_note} Envía una referencia explícita para una nueva "
+                    "verificación."
                 )
             return "Necesito más detalles para identificar el movimiento de forma segura."
 
