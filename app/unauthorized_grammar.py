@@ -2543,12 +2543,26 @@ def _p7_has_activity_anaphor(
 def _nearest_preceding_activity_or_txid(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
+    language: str,
 ) -> tuple[tuple[int, int], str] | None:
-    for index in range(clause.token_start - 1, -1, -1):
-        if analysis.tokens[index].is_txid:
-            return (index, index + 1), "linked_prior_txid"
-        if LexicalTag.ACTIVITY in analysis.tags[index]:
-            return (index, index + 1), "linked_prior_activity"
+    prior_clauses = [
+        prior for prior in analysis.clauses
+        if prior.index < clause.index
+    ]
+    for prior in reversed(prior_clauses):
+        for index in range(prior.token_end - 1, prior.token_start - 1, -1):
+            if analysis.tokens[index].is_txid:
+                return (index, index + 1), "linked_prior_txid"
+            if LexicalTag.ACTIVITY not in analysis.tags[index]:
+                continue
+            activity_span = (index, index + 1)
+            if _customer_anchored_activity(
+                analysis,
+                prior,
+                activity_span,
+                language,
+            ):
+                return activity_span, "linked_prior_activity"
     return None
 
 
@@ -2624,7 +2638,11 @@ def _activity_nonrecognition(
             if anaphor_span is not None:
                 evidence.append(anaphor_span)
 
-            prior = _nearest_preceding_activity_or_txid(analysis, clause)
+            prior = _nearest_preceding_activity_or_txid(
+                analysis,
+                clause,
+                language,
+            )
             if prior is not None:
                 activity_span, activity_ref = prior
                 evidence.append(activity_span)
