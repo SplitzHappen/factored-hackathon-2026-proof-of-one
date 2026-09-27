@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -55,7 +57,7 @@ def test_account_product_info_answers_only_with_verified_product_facts(
     assert body["transactions"] == []
     assert len(body["products"]) == 1
     product = body["products"][0]
-    assert str(product["current_balance"]) == expected_balance
+    assert Decimal(str(product["current_balance"])) == Decimal(expected_balance)
     assert product["currency"] == currency
     assert product["product_status"] == "Active"
     assert expected_balance in body["response_text"]
