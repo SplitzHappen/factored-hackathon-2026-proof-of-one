@@ -10,12 +10,14 @@ from uuid import uuid4
 
 import duckdb
 
+from app.artifact_identity import (
+    SYNTHETIC_BUILDER_VERSION,
+    SYNTHETIC_SCHEMA_VERSION,
+)
 from app.schemas import SupportedLanguage
 
 
 DEMO_TENANT_ID = "proof-of-one-demo"
-SYNTHETIC_SCHEMA_VERSION = 1
-SYNTHETIC_BUILDER_VERSION = "synthetic-demo-v1"
 SYNTHETIC_BUILD_LOCK_TIMEOUT_SECONDS = 10.0
 
 
