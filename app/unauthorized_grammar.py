@@ -1206,3 +1206,457 @@ def analyze_foundation(text: str, language: str) -> FoundationAnalysis:
         tags=tags,
         self_evidence=self_evidence,
     )
+
+
+class PropositionFamily(str, Enum):
+    OWNERSHIP_DENIAL = "ownership_denial"
+    PERFORMANCE_DENIAL = "performance_denial"
+    ORIGINATION_DENIAL = "origination_denial"
+    AUTHORIZATION_DENIAL = "authorization_denial"
+    THIRD_PARTY_UNAUTHORIZED_USE = "third_party_unauthorized_use"
+    FRAUD_CHARACTERIZATION = "fraud_characterization"
+    ACTIVITY_NONRECOGNITION = "activity_nonrecognition"
+    COMPROMISE_LINKED_ACTIVITY = "compromise_linked_activity"
+
+
+@dataclass(frozen=True)
+class PositiveProposition:
+    """Unresolved RF1H-B2 positive proposition.
+
+    Scope/exclusion and retraction fields are intentionally present now so B3 can
+    resolve propositions without changing the proposition audit shape.
+    """
+
+    family: PropositionFamily
+    rule: str
+    language: str
+    clause_index: int
+    token_start: int
+    token_end: int
+    source_start: int
+    source_end: int
+    activity_token_span: tuple[int, int] | None
+    activity_ref: str
+    predicate_token_span: tuple[int, int] | None
+    evidence_token_spans: tuple[tuple[int, int], ...]
+    mode: str = "unresolved"
+    exclusion_provenance: tuple[str, ...] = ()
+    retraction_provenance: tuple[str, ...] = ()
+
+
+_ES_COPULA = frozenset({"es", "son", "era", "eran", "fue", "fueron"})
+_PT_COPULA = frozenset({"e", "sao", "era", "eram", "foi", "foram"})
+
+_ES_ALIENATION_WORDS = frozenset({"ajeno", "ajena", "ajenos", "ajenas"})
+_PT_ALIENATION_WORDS = frozenset({"alheio", "alheia", "alheios", "alheias"})
+
+_ES_ALIENATION_PHRASES = (
+    ("de", "otra", "persona"),
+    ("de", "otras", "personas"),
+    ("de", "un", "tercero"),
+    ("de", "terceros"),
+)
+_PT_ALIENATION_PHRASES = (
+    ("de", "outra", "pessoa"),
+    ("de", "outras", "pessoas"),
+    ("de", "um", "terceiro"),
+    ("de", "terceiros"),
+)
+
+_DENIAL_WORDS = frozenset({"no", "nao", "nunca", "jamas", "jamais"})
+
+
+def _in_clause(span_start: int, span_end: int, clause: ClauseSegment) -> bool:
+    return span_start >= clause.token_start and span_end <= clause.token_end
+
+
+def _negative_indices(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+) -> tuple[int, ...]:
+    indices: list[int] = []
+    for index in range(clause.token_start, clause.token_end):
+        if analysis.tokens[index].normalized in _DENIAL_WORDS:
+            indices.append(index)
+            continue
+        if analysis.tags[index] & {
+            LexicalTag.NEGATOR,
+            LexicalTag.NEG_QUANTIFIER,
+            LexicalTag.COORD_NEGATION,
+        }:
+            indices.append(index)
+    return tuple(dict.fromkeys(indices))
+
+
+def _activity_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (index, index + 1)
+        for index in range(clause.token_start, clause.token_end)
+        if LexicalTag.ACTIVITY in analysis.tags[index]
+    )
+
+
+def _nearest_activity_span(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch | None,
+) -> tuple[int, int] | None:
+    spans = _activity_spans(analysis, clause)
+    if not spans:
+        return None
+    if predicate is None:
+        return spans[0]
+    return min(
+        spans,
+        key=lambda span: min(
+            abs(span[0] - predicate.token_start),
+            abs(span[0] - (predicate.token_end - 1)),
+        ),
+    )
+
+
+def _self_roles_in_clause(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+) -> tuple[SelfEvidence, ...]:
+    return tuple(
+        item
+        for item in analysis.self_evidence
+        if _in_clause(item.token_start, item.token_end, clause)
+    )
+
+
+def _predicate_has_denial(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+) -> bool:
+    for index in _negative_indices(analysis, clause):
+        if index <= predicate.token_start and predicate.token_start - index <= 5:
+            return True
+        if index >= predicate.token_end and index - predicate.token_end <= 2:
+            return True
+    return False
+
+
+def _source_span_for_token_span(
+    analysis: FoundationAnalysis,
+    span: tuple[int, int],
+) -> tuple[int, int]:
+    start, end = span
+    return analysis.tokens[start].start, analysis.tokens[end - 1].end
+
+
+def _make_proposition(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    *,
+    family: PropositionFamily,
+    rule: str,
+    language: str,
+    evidence_spans: Iterable[tuple[int, int]],
+    activity_span: tuple[int, int] | None,
+    predicate: PredicateMatch | None,
+    activity_ref: str | None = None,
+) -> PositiveProposition:
+    evidence = tuple(evidence_spans)
+    concrete_spans = list(evidence)
+    if activity_span is not None and activity_span not in concrete_spans:
+        concrete_spans.append(activity_span)
+    if predicate is not None:
+        predicate_span = (predicate.token_start, predicate.token_end)
+        if predicate_span not in concrete_spans:
+            concrete_spans.append(predicate_span)
+    else:
+        predicate_span = None
+
+    token_start = min(span[0] for span in concrete_spans)
+    token_end = max(span[1] for span in concrete_spans)
+    source_start = analysis.tokens[token_start].start
+    source_end = analysis.tokens[token_end - 1].end
+
+    return PositiveProposition(
+        family=family,
+        rule=rule,
+        language=language,
+        clause_index=clause.index,
+        token_start=token_start,
+        token_end=token_end,
+        source_start=source_start,
+        source_end=source_end,
+        activity_token_span=activity_span,
+        activity_ref=(
+            activity_ref
+            if activity_ref is not None
+            else ("explicit_activity" if activity_span is not None else "topic_transaction")
+        ),
+        predicate_token_span=predicate_span,
+        evidence_token_spans=tuple(concrete_spans),
+    )
+
+
+def _ownership_denials(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    activity_spans = _activity_spans(analysis, clause)
+    if not activity_spans:
+        return []
+
+    copulas = _ES_COPULA if language == "es" else _PT_COPULA
+    ownership_indices = [
+        index
+        for index in range(clause.token_start, clause.token_end)
+        if LexicalTag.OWNERSHIP in analysis.tags[index]
+    ]
+    negatives = _negative_indices(analysis, clause)
+    output: list[PositiveProposition] = []
+
+    for copula_index in range(clause.token_start, clause.token_end):
+        token = analysis.tokens[copula_index]
+        if token.normalized not in copulas:
+            continue
+        if language == "pt" and token.normalized == "e" and not token.had_acute:
+            continue
+
+        neg_index = next(
+            (
+                index
+                for index in reversed(negatives)
+                if index < copula_index and copula_index - index <= 3
+            ),
+            None,
+        )
+        if neg_index is None:
+            continue
+        owner_index = next(
+            (
+                index
+                for index in ownership_indices
+                if index > copula_index and index - copula_index <= 3
+            ),
+            None,
+        )
+        if owner_index is None:
+            continue
+
+        activity_span = min(
+            activity_spans,
+            key=lambda span: abs(span[0] - copula_index),
+        )
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.OWNERSHIP_DENIAL,
+                rule="P1",
+                language=language,
+                evidence_spans=(
+                    activity_span,
+                    (neg_index, neg_index + 1),
+                    (copula_index, copula_index + 1),
+                    (owner_index, owner_index + 1),
+                ),
+                activity_span=activity_span,
+                predicate=None,
+            )
+        )
+    return output
+
+
+def _alienation_denials(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    activity_spans = _activity_spans(analysis, clause)
+    if not activity_spans:
+        return []
+
+    words = [token.normalized for token in analysis.tokens]
+    singletons = _ES_ALIENATION_WORDS if language == "es" else _PT_ALIENATION_WORDS
+    phrases = _ES_ALIENATION_PHRASES if language == "es" else _PT_ALIENATION_PHRASES
+    marker_spans: list[tuple[int, int]] = []
+
+    for index in range(clause.token_start, clause.token_end):
+        if words[index] in singletons:
+            marker_spans.append((index, index + 1))
+
+    for phrase in phrases:
+        width = len(phrase)
+        for index in range(clause.token_start, clause.token_end - width + 1):
+            if tuple(words[index : index + width]) == phrase:
+                marker_spans.append((index, index + width))
+
+    output: list[PositiveProposition] = []
+    for marker_span in marker_spans:
+        activity_span = min(
+            activity_spans,
+            key=lambda span: abs(span[0] - marker_span[0]),
+        )
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.OWNERSHIP_DENIAL,
+                rule="P1b",
+                language=language,
+                evidence_spans=(activity_span, marker_span),
+                activity_span=activity_span,
+                predicate=None,
+            )
+        )
+    return output
+
+
+def _role_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    allowed: frozenset[SelfRole],
+) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (item.token_start, item.token_end)
+        for item in _self_roles_in_clause(analysis, clause)
+        if item.role in allowed
+    )
+
+
+def _predicate_denials(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+    *,
+    predicate_family: PredicateFamily,
+    proposition_family: PropositionFamily,
+    rule: str,
+    self_roles: frozenset[SelfRole],
+) -> list[PositiveProposition]:
+    self_spans = _role_spans(analysis, clause, self_roles)
+    if not self_spans:
+        return []
+
+    output: list[PositiveProposition] = []
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.family is not predicate_family:
+            continue
+        if not _predicate_has_denial(analysis, clause, predicate):
+            continue
+
+        activity_span = _nearest_activity_span(analysis, clause, predicate)
+        negatives = _negative_indices(analysis, clause)
+        denial_span = min(
+            ((index, index + 1) for index in negatives),
+            key=lambda span: min(
+                abs(span[0] - predicate.token_start),
+                abs(span[0] - predicate.token_end),
+            ),
+        )
+        nearest_self = min(
+            self_spans,
+            key=lambda span: min(
+                abs(span[0] - predicate.token_start),
+                abs(span[0] - predicate.token_end),
+            ),
+        )
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=proposition_family,
+                rule=rule,
+                language=language,
+                evidence_spans=(denial_span, nearest_self),
+                activity_span=activity_span,
+                predicate=predicate,
+                activity_ref=(
+                    "explicit_activity"
+                    if activity_span is not None
+                    else "topic_transaction"
+                ),
+            )
+        )
+    return output
+
+
+def build_positive_propositions(
+    text: str,
+    language: str,
+) -> tuple[PositiveProposition, ...]:
+    """Construct unresolved RF1H-B2 positive propositions.
+
+    This API is intentionally internal to the grammar engine. It does not apply
+    B3 scope/exclusion or message-level retraction and is not wired into the
+    production boolean classifier.
+    """
+
+    analysis = analyze_foundation(text, language)
+    propositions: list[PositiveProposition] = []
+
+    for clause in analysis.clauses:
+        propositions.extend(_ownership_denials(analysis, clause, language))
+        propositions.extend(_alienation_denials(analysis, clause, language))
+        propositions.extend(
+            _predicate_denials(
+                analysis,
+                clause,
+                language,
+                predicate_family=PredicateFamily.PERFORM,
+                proposition_family=PropositionFamily.PERFORMANCE_DENIAL,
+                rule="P2",
+                self_roles=frozenset({SelfRole.SUBJECT, SelfRole.AGENT}),
+            )
+        )
+        propositions.extend(
+            _predicate_denials(
+                analysis,
+                clause,
+                language,
+                predicate_family=PredicateFamily.ORIGINATE,
+                proposition_family=PropositionFamily.ORIGINATION_DENIAL,
+                rule="P3",
+                self_roles=frozenset({SelfRole.SOURCE}),
+            )
+        )
+
+    unique: dict[
+        tuple[str, str, int, int, int, str, tuple[int, int] | None],
+        PositiveProposition,
+    ] = {}
+    for proposition in propositions:
+        key = (
+            proposition.family.value,
+            proposition.rule,
+            proposition.clause_index,
+            proposition.token_start,
+            proposition.token_end,
+            proposition.activity_ref,
+            proposition.predicate_token_span,
+        )
+        unique[key] = proposition
+    return tuple(unique.values())
+
+
+def dump_positive_propositions(
+    text: str,
+    language: str,
+) -> tuple[dict[str, object], ...]:
+    """Return a compact source-grounded debug view for proposition-level tests."""
+
+    propositions = build_positive_propositions(text, language)
+    return tuple(
+        {
+            "family": proposition.family.value,
+            "rule": proposition.rule,
+            "clause_index": proposition.clause_index,
+            "activity_ref": proposition.activity_ref,
+            "source": text[proposition.source_start : proposition.source_end],
+            "mode": proposition.mode,
+        }
+        for proposition in propositions
+    )
