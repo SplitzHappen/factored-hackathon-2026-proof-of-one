@@ -84,35 +84,36 @@ def test_locked_runtime_store_returns_generic_503(tmp_path) -> None:
 def test_wal_supports_concurrent_isolated_customer_requests(tmp_path) -> None:
     context = _context(tmp_path)
 
-    def worker(index: int) -> tuple[str, list[str]]:
+    def worker(index: int) -> tuple[str, str, list[str]]:
         persona_id = "lucia" if index % 2 == 0 else "rafael"
+        expected_id = "DEMO-ES-1001" if persona_id == "lucia" else "DEMO-PT-2001"
+        message = (
+            f"¿Cuál es el estado de la transacción {expected_id}?"
+            if persona_id == "lucia"
+            else f"Qual é o status da transação {expected_id}?"
+        )
         with TestClient(create_app(context)) as client:
             session = _session(client, persona_id)
             response = client.post(
                 "/api/customer/turn",
                 headers={"X-Demo-Session": session["session_id"]},
-                json={
-                    "message": (
-                        "Muéstrame mis últimos movimientos."
-                        if persona_id == "lucia"
-                        else "Mostre minhas transações recentes."
-                    )
-                },
+                json={"message": message},
             )
             assert response.status_code == 200
+            assert response.json()["route"] == "ANSWER"
             ids = [
                 tx["transaction_id"]
                 for tx in response.json()["transactions"]
             ]
-            return persona_id, ids
+            return persona_id, expected_id, ids
 
     with ThreadPoolExecutor(max_workers=8) as executor:
         results = list(executor.map(worker, range(8)))
 
-    for persona_id, ids in results:
-        assert ids
+    for persona_id, expected_id, ids in results:
+        assert ids == [expected_id]
         expected_prefix = "DEMO-ES-" if persona_id == "lucia" else "DEMO-PT-"
-        assert all(transaction_id.startswith(expected_prefix) for transaction_id in ids)
+        assert expected_id.startswith(expected_prefix)
 
 
 def test_mixed_ownership_row_cannot_enter_customer_candidates(tmp_path) -> None:
