@@ -67,6 +67,32 @@ class BankRepository:
                 f"{found!r}; expected {EXPECTED_CURATED_SCHEMA_VERSION}."
             )
 
+    def check_ready(self) -> None:
+        """Revalidate the live read-only banking schema used by request paths."""
+
+        self._validate_schema_version()
+        required_tables = {"build_metadata", "customers", "products", "transactions"}
+        try:
+            with self._connect() as con:
+                rows = con.execute(
+                    """
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = 'main'
+                    """
+                ).fetchall()
+        except duckdb.Error as exc:
+            raise IncompatibleBankDatabaseError(
+                "Banking database could not be read for readiness."
+            ) from exc
+        tables = {str(row[0]) for row in rows}
+        missing = required_tables - tables
+        if missing:
+            raise IncompatibleBankDatabaseError(
+                "Banking database is missing required tables: "
+                + ", ".join(sorted(missing))
+            )
+
     def get_customer_summary(
         self,
         authenticated_customer_id: str,
