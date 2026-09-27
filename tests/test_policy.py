@@ -181,3 +181,31 @@ def test_unknown_intent_is_not_clarified() -> None:
 
     assert result.route is RouteDecision.ABSTAIN
     assert result.reason_codes == [PolicyReason.UNSUPPORTED_INTENT]
+
+
+def test_interpretation_unavailable_routes_to_nonmandatory_escalation() -> None:
+    result = route_policy(
+        policy_input(
+            PolicyIntent.UNKNOWN,
+            interpretation_unavailable=True,
+        )
+    )
+
+    assert result.route is RouteDecision.ESCALATE
+    assert result.reason_codes == [PolicyReason.INTERPRETATION_UNAVAILABLE]
+    assert result.safe_to_answer is False
+    assert result.mandatory_escalation is False
+
+
+def test_unauthorized_assertion_precedes_interpretation_unavailable() -> None:
+    result = route_policy(
+        policy_input(
+            PolicyIntent.UNKNOWN,
+            unauthorized_activity_asserted=True,
+            interpretation_unavailable=True,
+        )
+    )
+
+    assert result.route is RouteDecision.ESCALATE
+    assert result.reason_codes == [PolicyReason.UNAUTHORIZED_ACTIVITY_REPORTED]
+    assert result.mandatory_escalation is True
