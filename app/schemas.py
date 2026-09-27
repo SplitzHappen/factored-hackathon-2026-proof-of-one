@@ -82,6 +82,7 @@ class PolicyReason(StrEnum):
     REQUIRED_PARAMETERS_MISSING = "required_parameters_missing"
     UNSUPPORTED_CAUSAL_EXPLANATION = "unsupported_causal_explanation"
     PROHIBITED_BANKING_ACTION = "prohibited_banking_action"
+    INTERPRETATION_UNAVAILABLE = "interpretation_unavailable"
     UNSUPPORTED_INTENT = "unsupported_intent"
 
 
@@ -244,6 +245,7 @@ class PolicyInput(ContractModel):
     trusted_record_found: bool
     trusted_data_conflict: bool
     excluded_relationship_required: bool
+    interpretation_unavailable: bool = False
     ambiguous_transaction_match: bool
     required_parameters_missing: bool
 
