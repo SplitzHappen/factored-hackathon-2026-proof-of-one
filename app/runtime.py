@@ -36,6 +36,10 @@ class RuntimeSchemaVersionError(RuntimeStoreError):
     """Raised when an existing runtime database has an unexpected schema version."""
 
 
+class RuntimeDataModeMismatchError(RuntimeStoreError):
+    """Raised when operational state is reused across banking data modes."""
+
+
 class SessionIdentityMismatchError(RuntimeStoreError):
     """Raised when a caller tries to reuse a session ID with different identity."""
 
@@ -76,7 +80,9 @@ class OperationalStore:
         self.path = path
         self.busy_timeout_seconds = busy_timeout_seconds
 
-    def initialize(self) -> None:
+    def initialize(self, *, data_mode: str | None = None) -> None:
+        if data_mode not in {None, "synthetic", "curated"}:
+            raise ValueError("data_mode must be 'synthetic', 'curated', or None")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             # Serialize schema inspection/creation so simultaneous startup attempts
@@ -110,6 +116,40 @@ class OperationalStore:
                     raise RuntimeSchemaVersionError(
                         f"Unsupported runtime schema version: {version}"
                     )
+
+                if data_mode is not None:
+                    mode_row = connection.execute(
+                        "SELECT value FROM runtime_metadata WHERE key = 'data_mode'"
+                    ).fetchone()
+                    if mode_row is None:
+                        populated_rows = sum(
+                            int(
+                                connection.execute(
+                                    f"SELECT COUNT(*) FROM {table}"
+                                ).fetchone()[0]
+                            )
+                            for table in (
+                                "sessions",
+                                "conversation_state",
+                                "escalation_tickets",
+                            )
+                            if table in existing_tables
+                        )
+                        if populated_rows:
+                            raise RuntimeDataModeMismatchError(
+                                "Existing runtime state has no data-mode binding; "
+                                "refusing to infer one after operational rows exist."
+                            )
+                        connection.execute(
+                            "INSERT INTO runtime_metadata(key, value) "
+                            "VALUES ('data_mode', ?)",
+                            (data_mode,),
+                        )
+                    elif mode_row["value"] != data_mode:
+                        raise RuntimeDataModeMismatchError(
+                            "Runtime data mode does not match the banking artifact: "
+                            f"runtime={mode_row['value']!r}, artifact={data_mode!r}."
+                        )
 
             ddl_statements = (
                 """
@@ -172,6 +212,11 @@ class OperationalStore:
                     "INSERT INTO runtime_metadata(key, value) VALUES ('schema_version', ?)",
                     (str(RUNTIME_SCHEMA_VERSION),),
                 )
+                if data_mode is not None:
+                    connection.execute(
+                        "INSERT INTO runtime_metadata(key, value) VALUES ('data_mode', ?)",
+                        (data_mode,),
+                    )
 
     def save_authenticated_session(self, session: AuthenticatedSession) -> None:
         """Persist the server-controlled session once; identity is immutable thereafter."""
