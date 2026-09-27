@@ -80,7 +80,7 @@ def resolve_message_date_range(
         (("mes pasado", "mes passado"), _previous_month(reference_date)),
     )
 
-    matched_ranges: list[tuple[date, date]] = []
+    matched_ranges: list[tuple[date | None, date | None]] = []
     for phrases, resolved in relative_rules:
         if any(re.search(rf"\b{re.escape(phrase)}\b", normalized) for phrase in phrases):
             matched_ranges.append(resolved)
