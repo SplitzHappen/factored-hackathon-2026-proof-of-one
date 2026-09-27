@@ -35,6 +35,7 @@ _UNAUTHORIZED_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bno (?:autorice|di autorizacion|di permiso|aprobe)\b"),
     re.compile(r"\bsin mi (?:autorizacion|permiso|consentimiento)\b"),
     re.compile(r"\b(?:me|lo|la) (?:cobraron|cargaron|debitaron) sin (?:mi )?(?:autorizacion|permiso|consentimiento)\b"),
+    re.compile(r"\bme hicieron un (?:cargo|cobro) sin mi (?:autorizacion|permiso|consentimiento)\b"),
     # Portuguese: non-recognition.
     re.compile(r"\bnao (?:reconheco|reconheci|identifico)\b"),
     re.compile(r"\bdesconheco (?:essa|esta|esse|este|a|o)?\s*(?:cobranca|compra|pagamento|lancamento|operacao|transacao)?\b"),
@@ -50,6 +51,7 @@ _UNAUTHORIZED_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bnao (?:autorizei|dei autorizacao|dei permissao|aprovei)\b"),
     re.compile(r"\bsem (?:a )?minha (?:autorizacao|permissao|anuencia)\b"),
     re.compile(r"\b(?:me )?(?:cobraram|debitaram|lançaram|lancaram) sem (?:a )?minha (?:autorizacao|permissao)\b"),
+    re.compile(r"\bfizeram uma (?:cobranca|compra|operacao|transacao) sem (?:a )?minha (?:autorizacao|permissao)\b"),
     # Common code-switch wording in the frozen ES/PT stress slice.
     re.compile(r"\b(?:that|this) (?:charge|transaction|purchase) (?:was not|wasn't|is not|isn't) mine\b"),
     re.compile(r"\bi did not (?:make|authorize|approve) (?:that|this) (?:charge|transaction|purchase)\b"),
