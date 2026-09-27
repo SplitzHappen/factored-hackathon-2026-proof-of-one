@@ -20,6 +20,7 @@ from app.schemas import (
     AuthenticatedSession,
     EscalationRequest,
     SupportedLanguage,
+    SessionRole,
 )
 
 
@@ -146,6 +147,8 @@ def _make_bank(path: Path) -> None:
 def _session(customer_id: str = "C001") -> AuthenticatedSession:
     return AuthenticatedSession(
         session_id=uuid4(),
+        tenant_id=f"test-tenant-{customer_id}",
+        role=SessionRole.CUSTOMER,
         demo_persona_id=f"persona-{customer_id}",
         customer_id=customer_id,
         language=SupportedLanguage.ES,
