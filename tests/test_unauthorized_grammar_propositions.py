@@ -754,3 +754,36 @@ def test_p5_preposed_permission_absence_remains_positive() -> None:
 
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
+
+
+
+def test_b2r_a1_response_particle_does_not_negate_perform_predicate() -> None:
+    es = _families("No, yo hice esa compra.", "es")
+    pt = _families("Não, eu fiz essa compra.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in es
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+def test_b2r_a1_tag_negation_does_not_negate_prior_perform_predicate() -> None:
+    es = _families("Yo lo hice, ¿no?", "es")
+    pt = _families("Eu fiz isso, não?", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in es
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+def test_b2r_a1_matrix_negation_does_not_attach_to_embedded_perform_predicate() -> None:
+    es = _families("No sé si hice esa compra.", "es")
+    pt = _families("Não sei se fiz essa compra.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in es
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+def test_b2r_a1_canonical_performance_denial_remains_positive() -> None:
+    es = _families("Yo no hice esa compra.", "es")
+    pt = _families("Eu não fiz essa compra.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL in es
+    assert PropositionFamily.PERFORMANCE_DENIAL in pt
