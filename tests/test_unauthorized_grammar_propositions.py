@@ -614,3 +614,143 @@ def test_r3_d1_can_inherit_authorization_denial() -> None:
         if proposition.rule == "R3-D1-elliptical-continuation"
     )
     assert item.family is PropositionFamily.AUTHORIZATION_DENIAL
+
+def test_p5_exceeded_amount_authorization_is_positive() -> None:
+    es = build_positive_propositions(
+        "Mi hermano gastó más de lo que autoricé.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Meu irmão gastou mais do que eu autorizei.",
+        "pt",
+    )
+
+    es_item = next(
+        item
+        for item in es
+        if item.rule == "P5-exceeded-authorization-amount"
+    )
+    pt_item = next(
+        item
+        for item in pt
+        if item.rule == "P5-exceeded-authorization-amount"
+    )
+
+    assert es_item.family is PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE
+    assert pt_item.family is PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE
+
+
+def test_p5_portuguese_alem_do_que_amount_exceedance_is_positive() -> None:
+    propositions = build_positive_propositions(
+        "Minha irmã gastou além do que eu autorizei.",
+        "pt",
+    )
+
+    assert any(
+        item.rule == "P5-exceeded-authorization-amount"
+        for item in propositions
+    )
+
+
+def test_p5_non_exceeded_authorized_amount_is_not_positive() -> None:
+    es = build_positive_propositions(
+        "Mi hermano gastó exactamente lo que autoricé.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Meu irmão gastou exatamente o que eu autorizei.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-amount"
+        for item in (*es, *pt)
+    )
+
+
+def test_p5_limited_grant_then_out_of_scope_purchase_is_positive() -> None:
+    es = build_positive_propositions(
+        "Le di la tarjeta para la gasolina y compró otras cosas sin permiso.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Dei o cartão ao meu irmão para gasolina e ele comprou outras coisas sem permissão.",
+        "pt",
+    )
+
+    assert any(
+        item.rule == "P5-exceeded-authorization-purpose"
+        for item in es
+    )
+    assert any(
+        item.rule == "P5-exceeded-authorization-purpose"
+        for item in pt
+    )
+
+
+def test_p5_limited_grant_in_scope_action_without_denial_is_not_positive() -> None:
+    es = build_positive_propositions(
+        "Le di la tarjeta para la gasolina y compró gasolina.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Dei o cartão ao meu irmão para gasolina e ele comprou gasolina.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-purpose"
+        for item in (*es, *pt)
+    )
+
+
+def test_p5_bare_permission_absence_is_supported_for_known_actor_use() -> None:
+    es = _families("Mi hermano usó mi tarjeta sin permiso.", "es")
+    pt = _families("Minha irmã usou minha conta sem permissão.", "pt")
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
+
+
+def test_p4_subsequent_specific_purchase_not_authorized_remains_positive() -> None:
+    es = _families("Mi hermano hizo esta compra que no autoricé.", "es")
+    pt = _families("Minha irmã fez esta compra que eu não autorizei.", "pt")
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
+def test_p5_later_permission_denial_does_not_relabel_earlier_use() -> None:
+    propositions = build_positive_propositions(
+        "Mi hermano usó mi tarjeta para gasolina y compró otra compra sin permiso.",
+        "es",
+    )
+
+    assert not any(
+        item.rule == "P5"
+        and item.predicate_token_span is not None
+        and item.activity_ref in {"explicit_activity", "known_actor_instrument_use"}
+        for item in propositions
+    )
+
+
+def test_p5_exceeded_purpose_requires_prior_limited_grant() -> None:
+    es = build_positive_propositions(
+        "Mi hermano compró otra compra sin permiso.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Meu irmão comprou outra compra sem permissão.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-purpose"
+        for item in (*es, *pt)
+    )
+
+def test_p5_preposed_permission_absence_remains_positive() -> None:
+    es = _families("Sin mi permiso, mi hermano usó mi tarjeta.", "es")
+    pt = _families("Sem minha permissão, minha irmã usou minha conta.", "pt")
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt

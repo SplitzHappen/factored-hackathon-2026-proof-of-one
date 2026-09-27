@@ -474,6 +474,7 @@ _ES_LEMMAS: dict[PredicateFamily, tuple[str, ...]] = {
         "retirar",
         "transferir",
         "comprar",
+        "gastar",
     ),
     PredicateFamily.ORIGINATE: ("salir", "partir", "provenir", "venir"),
     PredicateFamily.AUTHORIZE: ("autorizar", "aprobar", "consentir", "permitir"),
@@ -502,6 +503,7 @@ _PT_LEMMAS: dict[PredicateFamily, tuple[str, ...]] = {
         "sacar",
         "transferir",
         "comprar",
+        "gastar",
     ),
     PredicateFamily.ORIGINATE: ("partir", "sair", "vir"),
     PredicateFamily.AUTHORIZE: ("autorizar", "aprovar", "consentir", "permitir"),
@@ -2021,6 +2023,12 @@ def _permission_absence_spans(
         if auth_span is not None:
             spans.append((possessor_index - 1, auth_span[1]))
 
+    for auth_span in auth_nouns:
+        if auth_span[0] <= clause.token_start:
+            continue
+        if words[auth_span[0] - 1] == introducer:
+            spans.append((auth_span[0] - 1, auth_span[1]))
+
     for phrase in phrases:
         width = len(phrase)
         for index in range(clause.token_start, clause.token_end - width + 1):
@@ -2028,6 +2036,52 @@ def _permission_absence_spans(
                 spans.append((index, index + width))
 
     return tuple(dict.fromkeys(spans))
+
+
+def _permission_absence_for_predicate(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    permission_spans: tuple[tuple[int, int], ...],
+) -> tuple[int, int] | None:
+    local_spans = tuple(
+        span
+        for span in permission_spans
+        if min(
+            abs(span[0] - predicate.token_end),
+            abs(predicate.token_start - span[1]),
+        )
+        <= 6
+    )
+    ordered = sorted(
+        local_spans,
+        key=lambda span: min(
+            abs(span[0] - predicate.token_end),
+            abs(predicate.token_start - span[1]),
+        ),
+    )
+
+    for span in ordered:
+        left = min(span[0], predicate.token_start)
+        right = max(span[1], predicate.token_end)
+        intervening_action = any(
+            candidate.token_start > left
+            and candidate.token_start < right
+            and not (
+                candidate.token_start == predicate.token_start
+                and candidate.token_end == predicate.token_end
+            )
+            and candidate.form.family in {
+                PredicateFamily.PERFORM,
+                PredicateFamily.USE_ACCESS,
+            }
+            for candidate in analysis.predicates
+            if _in_clause(candidate.token_start, candidate.token_end, clause)
+        )
+        if not intervening_action:
+            return span
+
+    return None
 
 
 def _third_party_unauthorized_use(
@@ -2068,18 +2122,18 @@ def _third_party_unauthorized_use(
             preceding_known = tuple(
                 span for span in known_actors if span[0] < predicate.token_start
             )
-            if preceding_known and absence_spans:
+            local_permission = _permission_absence_for_predicate(
+                analysis,
+                clause,
+                predicate,
+                absence_spans,
+            )
+            if preceding_known and local_permission is not None:
                 actor_span = min(
                     preceding_known,
                     key=lambda span: predicate.token_start - span[0],
                 )
-                permission_span = min(
-                    absence_spans,
-                    key=lambda span: min(
-                        abs(span[0] - predicate.token_start),
-                        abs(span[0] - predicate.token_end),
-                    ),
-                )
+                permission_span = local_permission
                 actor_kind = "known"
 
         if actor_span is None or actor_kind is None:
@@ -2294,6 +2348,308 @@ def _customer_anchored_activity(
                 return True
 
     return False
+
+
+
+
+_ES_EXCEEDED_AMOUNT_MARKERS = (
+    ("mas", "de", "lo", "que"),
+)
+_PT_EXCEEDED_AMOUNT_MARKERS = (
+    ("mais", "do", "que"),
+    ("alem", "do", "que"),
+)
+_ES_GRANT_DATIVE_WORDS = frozenset({"le", "les"})
+_PT_GRANT_DATIVE_WORDS = frozenset({"lhe", "lhes"})
+
+
+def _phrase_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    phrases: tuple[tuple[str, ...], ...],
+) -> tuple[tuple[int, int], ...]:
+    words = [token.normalized for token in analysis.tokens]
+    spans: list[tuple[int, int]] = []
+    for phrase in phrases:
+        width = len(phrase)
+        for index in range(clause.token_start, clause.token_end - width + 1):
+            if tuple(words[index : index + width]) == phrase:
+                spans.append((index, index + width))
+    return tuple(spans)
+
+
+def _nearest_known_actor_before_predicate(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+    predicate: PredicateMatch,
+) -> tuple[int, int] | None:
+    actors = tuple(
+        span
+        for span in _known_actor_spans(analysis, clause, language)
+        if span[0] < predicate.token_start
+    )
+    if not actors:
+        return None
+    return min(
+        actors,
+        key=lambda span: predicate.token_start - span[0],
+    )
+
+
+def _first_person_authorization_after_marker(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    marker_span: tuple[int, int],
+) -> PredicateMatch | None:
+    candidates = tuple(
+        predicate
+        for predicate in analysis.predicates
+        if _in_clause(predicate.token_start, predicate.token_end, clause)
+        and predicate.form.family is PredicateFamily.AUTHORIZE
+        and predicate.form.person == 1
+        and predicate.token_start >= marker_span[1]
+        and predicate.token_start - marker_span[1] <= 5
+        and _source_accent_selects_predicate(analysis, predicate)
+    )
+    if not candidates:
+        return None
+    return min(candidates, key=lambda predicate: predicate.token_start)
+
+
+def _exceeded_amount_authorization(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    markers = (
+        _ES_EXCEEDED_AMOUNT_MARKERS
+        if language == "es"
+        else _PT_EXCEEDED_AMOUNT_MARKERS
+    )
+    marker_spans = _phrase_spans(analysis, clause, markers)
+    if not marker_spans:
+        return []
+
+    output: list[PositiveProposition] = []
+    for marker_span in marker_spans:
+        authorization = _first_person_authorization_after_marker(
+            analysis,
+            clause,
+            marker_span,
+        )
+        if authorization is None:
+            continue
+
+        actions = tuple(
+            predicate
+            for predicate in analysis.predicates
+            if _in_clause(predicate.token_start, predicate.token_end, clause)
+            and predicate.form.family in {
+                PredicateFamily.PERFORM,
+                PredicateFamily.USE_ACCESS,
+            }
+            and predicate.token_end <= marker_span[0]
+            and marker_span[0] - predicate.token_end <= 6
+            and _source_accent_selects_predicate(analysis, predicate)
+        )
+        if not actions:
+            continue
+        action = max(actions, key=lambda predicate: predicate.token_start)
+
+        actor_span = _nearest_known_actor_before_predicate(
+            analysis,
+            clause,
+            language,
+            action,
+        )
+        if actor_span is None:
+            continue
+
+        activity_span = _nearest_activity_span(analysis, clause, action)
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE,
+                rule="P5-exceeded-authorization-amount",
+                language=language,
+                evidence_spans=(
+                    actor_span,
+                    marker_span,
+                    (action.token_start, action.token_end),
+                    (authorization.token_start, authorization.token_end),
+                ),
+                activity_span=activity_span,
+                predicate=action,
+                activity_ref=(
+                    "explicit_activity"
+                    if activity_span is not None
+                    else "known_actor_exceeded_authorized_amount"
+                ),
+            )
+        )
+    return output
+
+
+def _limited_grant_recipient(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+    action: PredicateMatch,
+) -> tuple[int, int] | None:
+    words = [token.normalized for token in analysis.tokens]
+    dative_words = (
+        _ES_GRANT_DATIVE_WORDS
+        if language == "es"
+        else _PT_GRANT_DATIVE_WORDS
+    )
+
+    grants = tuple(
+        predicate
+        for predicate in analysis.predicates
+        if _in_clause(predicate.token_start, predicate.token_end, clause)
+        and predicate.form.family is PredicateFamily.GIVE_PERMISSION
+        and predicate.form.person == 1
+        and predicate.token_end < action.token_start
+        and action.token_start - predicate.token_end <= 14
+        and _source_accent_selects_predicate(analysis, predicate)
+    )
+    for grant in reversed(grants):
+        instrument_span = next(
+            (
+                (index, index + 1)
+                for index in range(grant.token_end, action.token_start)
+                if LexicalTag.INSTRUMENT in analysis.tags[index]
+            ),
+            None,
+        )
+        if instrument_span is None:
+            continue
+
+        purpose_index = next(
+            (
+                index
+                for index in range(instrument_span[1], action.token_start)
+                if words[index] == "para"
+            ),
+            None,
+        )
+        if purpose_index is None:
+            continue
+
+        dative_span = next(
+            (
+                (index, index + 1)
+                for index in range(
+                    max(clause.token_start, grant.token_start - 2),
+                    min(action.token_start, grant.token_end + 3),
+                )
+                if words[index] in dative_words
+            ),
+            None,
+        )
+        if dative_span is not None:
+            return dative_span
+
+        known_actor = next(
+            (
+                span
+                for span in _known_actor_spans(analysis, clause, language)
+                if grant.token_start <= span[0] < action.token_start
+            ),
+            None,
+        )
+        if known_actor is not None:
+            return known_actor
+
+    return None
+
+
+def _exceeded_purpose_authorization(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    permission_spans = _permission_absence_spans(
+        analysis,
+        clause,
+        language,
+    )
+    if not permission_spans:
+        return []
+
+    output: list[PositiveProposition] = []
+    for action in analysis.predicates:
+        if not _in_clause(action.token_start, action.token_end, clause):
+            continue
+        if action.form.family is not PredicateFamily.PERFORM:
+            continue
+        if not _source_accent_selects_predicate(analysis, action):
+            continue
+
+        later_permission = tuple(
+            span
+            for span in permission_spans
+            if span[0] >= action.token_end
+            and span[0] - action.token_end <= 6
+        )
+        if not later_permission:
+            continue
+        permission_span = min(later_permission, key=lambda span: span[0])
+
+        grant_recipient = _limited_grant_recipient(
+            analysis,
+            clause,
+            language,
+            action,
+        )
+        if grant_recipient is None:
+            continue
+
+        actor_span = _nearest_known_actor_before_predicate(
+            analysis,
+            clause,
+            language,
+            action,
+        )
+        if actor_span is None:
+            actor_span = grant_recipient
+
+        activity_span = _nearest_activity_span(analysis, clause, action)
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE,
+                rule="P5-exceeded-authorization-purpose",
+                language=language,
+                evidence_spans=(
+                    actor_span,
+                    permission_span,
+                    (action.token_start, action.token_end),
+                ),
+                activity_span=activity_span,
+                predicate=action,
+                activity_ref=(
+                    "explicit_activity"
+                    if activity_span is not None
+                    else "known_actor_exceeded_authorized_purpose"
+                ),
+            )
+        )
+    return output
+
+
+def _exceeded_authorization_propositions(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    return [
+        *_exceeded_amount_authorization(analysis, clause, language),
+        *_exceeded_purpose_authorization(analysis, clause, language),
+    ]
 
 
 def _fraud_marker_spans(
@@ -3222,6 +3578,13 @@ def build_positive_propositions(
         )
         propositions.extend(
             _third_party_unauthorized_use(analysis, clause, language)
+        )
+        propositions.extend(
+            _exceeded_authorization_propositions(
+                analysis,
+                clause,
+                language,
+            )
         )
         propositions.extend(
             _fraud_characterizations(analysis, clause, language)
