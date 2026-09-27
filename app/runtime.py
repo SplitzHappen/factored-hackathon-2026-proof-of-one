@@ -185,6 +185,7 @@ class OperationalStore:
                                 "sessions",
                                 "conversation_state",
                                 "escalation_tickets",
+                                "rate_limit_events",
                             )
                             if table in existing_tables
                         )
@@ -223,7 +224,8 @@ class OperationalStore:
                         CHECK(length(customer_id) BETWEEN 1 AND 128),
                     language TEXT NOT NULL CHECK(language IN ('es', 'pt')),
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    revoked_at TEXT
                 )
                 """,
                 """
@@ -255,8 +257,18 @@ class OperationalStore:
                         CHECK(length(reason_code) BETWEEN 1 AND 80),
                     summary TEXT NOT NULL
                         CHECK(length(summary) BETWEEN 1 AND 500),
+                    idempotency_key TEXT NOT NULL UNIQUE
+                        CHECK(length(idempotency_key) = 64),
                     created_at TEXT NOT NULL,
                     verified_at TEXT
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS rate_limit_events (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scope TEXT NOT NULL CHECK(length(scope) BETWEEN 1 AND 40),
+                    subject TEXT NOT NULL CHECK(length(subject) BETWEEN 1 AND 128),
+                    created_at TEXT NOT NULL
                 )
                 """,
             )
@@ -266,6 +278,12 @@ class OperationalStore:
                 """
                 CREATE INDEX IF NOT EXISTS idx_escalation_tickets_tenant_verified
                 ON escalation_tickets(tenant_id, verified_at, created_at)
+                """
+            )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_rate_limit_events_scope_subject_time
+                ON rate_limit_events(scope, subject, created_at)
                 """
             )
             if not existing_tables:
