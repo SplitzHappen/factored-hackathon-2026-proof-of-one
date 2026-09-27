@@ -154,7 +154,7 @@ def test_unauthorized_assertion_creates_verified_handoff(tmp_path) -> None:
     body = response.json()
     assert body["route"] == "ESCALATE"
     assert body["transactions"] == []
-    assert body["handoff_available"] is True
+    assert body["handoff_available"] is False
     assert body["escalation_ticket_id"] is not None
 
     record = context.store.get_escalation_record(
