@@ -70,6 +70,10 @@ class TicketLimitExceededError(RuntimeStoreError):
     """Raised when one session reaches its bounded distinct-ticket limit."""
 
 
+class RuntimeReadinessError(RuntimeStoreError):
+    """Raised when the runtime store cannot satisfy deployment-readiness checks."""
+
+
 @dataclass(frozen=True, slots=True)
 class _TicketSnapshot:
     ticket_id: UUID
@@ -138,18 +142,22 @@ class OperationalStore:
             raise ValueError("data_mode must be 'synthetic', 'curated', or None")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
+            preexisting_tables = self._runtime_tables(connection)
+            self._preflight_existing_runtime(
+                connection,
+                preexisting_tables,
+                data_mode=data_mode,
+            )
+            journal_row = connection.execute("PRAGMA journal_mode=WAL").fetchone()
+            journal_mode = "" if journal_row is None else str(journal_row[0]).casefold()
+            if journal_mode != "wal":
+                raise RuntimeReadinessError(
+                    f"Runtime SQLite must use WAL mode; found {journal_mode or 'unknown'}"
+                )
             # Serialize schema inspection/creation so simultaneous startup attempts
             # cannot both conclude that metadata is absent and race to initialize it.
             connection.execute("BEGIN IMMEDIATE")
-            existing_tables = {
-                row["name"]
-                for row in connection.execute(
-                    """
-                    SELECT name FROM sqlite_master
-                    WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
-                    """
-                )
-            }
+            existing_tables = self._runtime_tables(connection)
             if existing_tables:
                 unexpected_tables = existing_tables - RUNTIME_TABLES
                 if unexpected_tables:
@@ -354,10 +362,71 @@ class OperationalStore:
                 """,
                 (str(session_id),),
             ).fetchone()
+        return self._active_session_from_row(row)
+
+    def authenticate_session_request(
+        self,
+        session_id: UUID,
+    ) -> AuthenticatedSession | None:
+        """Authenticate one active session and persist its request-rate event atomically."""
+
+        now = self._utc_now()
+        cutoff = now - timedelta(seconds=self.session_request_window_seconds)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                """
+                SELECT session_id, tenant_id, role, demo_persona_id, customer_id, language,
+                       created_at, revoked_at
+                FROM sessions
+                WHERE session_id = ?
+                """,
+                (str(session_id),),
+            ).fetchone()
+            session = self._active_session_from_row(row, now=now)
+            if session is None:
+                return None
+            connection.execute(
+                """
+                DELETE FROM rate_limit_events
+                WHERE scope = 'session_request' AND subject = ? AND created_at < ?
+                """,
+                (str(session_id), cutoff.isoformat()),
+            )
+            count = int(
+                connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM rate_limit_events
+                    WHERE scope = 'session_request' AND subject = ?
+                    """,
+                    (str(session_id),),
+                ).fetchone()[0]
+            )
+            if count >= self.session_request_limit:
+                raise RateLimitExceededError(
+                    "Rate limit exceeded for session_request"
+                )
+            connection.execute(
+                """
+                INSERT INTO rate_limit_events(scope, subject, created_at)
+                VALUES ('session_request', ?, ?)
+                """,
+                (str(session_id), now.isoformat()),
+            )
+        return session
+
+    def _active_session_from_row(
+        self,
+        row: sqlite3.Row | None,
+        *,
+        now: datetime | None = None,
+    ) -> AuthenticatedSession | None:
         if row is None or row["revoked_at"] is not None:
             return None
         created_at = datetime.fromisoformat(row["created_at"])
-        if self._utc_now() >= created_at + timedelta(seconds=self.session_ttl_seconds):
+        reference_time = self._utc_now() if now is None else now
+        if reference_time >= created_at + timedelta(seconds=self.session_ttl_seconds):
             return None
         return self._session_from_row(row)
 
@@ -382,14 +451,6 @@ class OperationalStore:
             subject=subject,
             limit=self.session_creation_limit,
             window_seconds=self.session_creation_window_seconds,
-        )
-
-    def enforce_session_request_rate(self, session_id: UUID) -> None:
-        self._enforce_rate_limit(
-            scope="session_request",
-            subject=str(session_id),
-            limit=self.session_request_limit,
-            window_seconds=self.session_request_window_seconds,
         )
 
     def cleanup_expired_state(self) -> None:
@@ -808,6 +869,109 @@ class OperationalStore:
             ),
         )
 
+    @staticmethod
+    def _runtime_tables(connection: sqlite3.Connection) -> set[str]:
+        return {
+            row["name"]
+            for row in connection.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+                """
+            )
+        }
+
+    def _preflight_existing_runtime(
+        self,
+        connection: sqlite3.Connection,
+        existing_tables: set[str],
+        *,
+        data_mode: str | None,
+    ) -> None:
+        """Reject incompatible existing runtime state before changing journal mode."""
+
+        if not existing_tables:
+            return
+        unexpected_tables = existing_tables - RUNTIME_TABLES
+        if unexpected_tables:
+            raise RuntimeSchemaVersionError(
+                "Runtime database contains unexpected tables: "
+                + ", ".join(sorted(unexpected_tables))
+            )
+        if "runtime_metadata" not in existing_tables:
+            raise RuntimeSchemaVersionError(
+                "Existing runtime database is missing schema metadata"
+            )
+        row = connection.execute(
+            "SELECT value FROM runtime_metadata WHERE key = 'schema_version'"
+        ).fetchone()
+        if row is None or row["value"] != str(RUNTIME_SCHEMA_VERSION):
+            version = None if row is None else row["value"]
+            raise RuntimeSchemaVersionError(
+                f"Unsupported runtime schema version: {version}"
+            )
+        if data_mode is None:
+            return
+        mode_row = connection.execute(
+            "SELECT value FROM runtime_metadata WHERE key = 'data_mode'"
+        ).fetchone()
+        if mode_row is not None and mode_row["value"] != data_mode:
+            raise RuntimeDataModeMismatchError(
+                "Runtime data mode does not match the banking artifact: "
+                f"runtime={mode_row['value']!r}, artifact={data_mode!r}."
+            )
+        if mode_row is None:
+            populated_rows = sum(
+                int(
+                    connection.execute(
+                        f"SELECT COUNT(*) FROM {table}"
+                    ).fetchone()[0]
+                )
+                for table in (
+                    "sessions",
+                    "conversation_state",
+                    "escalation_tickets",
+                    "rate_limit_events",
+                )
+                if table in existing_tables
+            )
+            if populated_rows:
+                raise RuntimeDataModeMismatchError(
+                    "Existing runtime state has no data-mode binding; "
+                    "refusing to infer one after operational rows exist."
+                )
+
+    def check_ready(self, *, expected_data_mode: str) -> None:
+        """Verify schema/mode binding, WAL, and runtime-store writability."""
+
+        with self._connect() as connection:
+            journal_row = connection.execute("PRAGMA journal_mode").fetchone()
+            journal_mode = "" if journal_row is None else str(journal_row[0]).casefold()
+            if journal_mode != "wal":
+                raise RuntimeReadinessError(
+                    f"Runtime SQLite is not in WAL mode: {journal_mode or 'unknown'}"
+                )
+            schema_row = connection.execute(
+                "SELECT value FROM runtime_metadata WHERE key = 'schema_version'"
+            ).fetchone()
+            if schema_row is None or schema_row["value"] != str(RUNTIME_SCHEMA_VERSION):
+                raise RuntimeReadinessError("Runtime schema version is not ready")
+            mode_row = connection.execute(
+                "SELECT value FROM runtime_metadata WHERE key = 'data_mode'"
+            ).fetchone()
+            if mode_row is None or mode_row["value"] != expected_data_mode:
+                raise RuntimeReadinessError("Runtime data-mode binding is not ready")
+            connection.execute("BEGIN IMMEDIATE")
+            cursor = connection.execute(
+                """
+                UPDATE runtime_metadata
+                SET value = value
+                WHERE key = 'schema_version'
+                """
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeReadinessError("Runtime store is not writable")
+
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(
@@ -817,6 +981,9 @@ class OperationalStore:
         try:
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute(
+                f"PRAGMA busy_timeout = {int(self.busy_timeout_seconds * 1000)}"
+            )
             with connection:
                 yield connection
         finally:

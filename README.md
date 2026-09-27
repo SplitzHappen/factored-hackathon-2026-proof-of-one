@@ -80,11 +80,19 @@ python -m pytest -q
 uvicorn app.main:app --reload
 ```
 
-The health endpoint is available at:
+The service exposes separate liveness and readiness endpoints:
 
 ```text
 http://127.0.0.1:8000/health
+http://127.0.0.1:8000/ready
 ```
+
+`/health` is process liveness only. `/ready` revalidates the live banking artifact/schema,
+runtime data-mode binding, SQLite writability, and WAL mode; deployment health checks use
+`/ready` and receive HTTP 503 when a required dependency is not ready.
+
+HTTP request bodies are capped at 64 KiB before FastAPI parses them, and validation-error
+responses omit rejected input values rather than echoing customer payloads.
 
 ## Docker
 

@@ -174,6 +174,27 @@ The public synthetic API now enforces bounded operational state:
 These controls bound the public demo's writable SQLite growth and prevent a failed turn followed
 by a client retry from creating duplicate verified support tickets.
 
+## Deployment-readiness and request safety
+
+The deployment surface separates liveness from dependency readiness:
+
+- `GET /health` reports process liveness only;
+- `GET /ready` revalidates the banking artifact identity/schema, runtime schema and
+  data-mode binding, runtime-store writability, and SQLite WAL mode;
+- readiness reports the active `data_mode` and `synthetic_data` marker and returns HTTP
+  `503` when a required dependency is unavailable or inconsistent;
+- the container health check targets `/ready`, not `/health`.
+
+All HTTP request bodies are capped at **64 KiB before request-model parsing**. Oversized
+bodies return HTTP `413` without echoing the payload. Validation errors return bounded
+field/type/message metadata and deliberately omit FastAPI/Pydantic's rejected `input`
+value.
+
+The operational SQLite database runs in **WAL** mode on a single-host/local-volume
+deployment. Session authentication and per-session throttling share one SQLite
+transaction, reducing one connection from the authenticated request path. Broader
+multi-client/container concurrency stress remains a separate RD4 assurance step.
+
 ## Time semantics
 
 Relative-date interpretation is anchored by a server-authoritative `reference_date`.
