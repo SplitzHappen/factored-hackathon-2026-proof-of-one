@@ -7,8 +7,12 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
+from app.artifact_identity import identify_bank_artifact_mode
 from app.bootstrap import AppContext, build_app_context
+from app.http_safety import RequestBodyLimitMiddleware
 from app.runtime import RateLimitExceededError, TicketLimitExceededError
 from app.schemas import (
     AuthenticatedSession,
@@ -19,6 +23,7 @@ from app.schemas import (
     DemoSessionResponse,
     EscalationRecord,
     HealthResponse,
+    ReadyResponse,
     SessionRole,
     SupportedLanguage,
 )
@@ -44,6 +49,29 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         version="0.2.0",
         lifespan=lifespan,
     )
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_bytes=64 * 1024,
+    )
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(
+        request: Request,
+        exc: RequestValidationError,
+    ) -> JSONResponse:
+        del request
+        detail = [
+            {
+                "type": error.get("type", "validation_error"),
+                "loc": list(error.get("loc", ())),
+                "msg": error.get("msg", "Invalid request"),
+            }
+            for error in exc.errors()
+        ]
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content={"detail": detail},
+        )
     if context is not None:
         # Preserve deterministic injected-context unit tests even when they do not
         # enter TestClient's lifespan context manager.
@@ -75,7 +103,13 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 detail="Invalid demo session",
             ) from exc
 
-        session = runtime().store.get_authenticated_session(session_id)
+        try:
+            session = runtime().store.authenticate_session_request(session_id)
+        except RateLimitExceededError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Demo session request limit reached",
+            ) from exc
         if session is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -86,13 +120,6 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Customer role required",
             )
-        try:
-            runtime().store.enforce_session_request_rate(session.session_id)
-        except RateLimitExceededError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Demo session request limit reached",
-            ) from exc
         return session
 
     @app.get("/health", response_model=HealthResponse)
@@ -102,6 +129,61 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             service="proof-of-one",
             llm_connected=False,
         )
+
+    @app.get("/ready", response_model=ReadyResponse)
+    def ready() -> ReadyResponse | JSONResponse:
+        runtime_context = getattr(app.state, "context", None)
+        if runtime_context is None:
+            payload = ReadyResponse(
+                status="not_ready",
+                service="proof-of-one",
+                data_mode=None,
+                synthetic_data=None,
+                bank_ready=False,
+                runtime_ready=False,
+                llm_connected=False,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content=payload.model_dump(mode="json"),
+            )
+
+        bank_ready = False
+        runtime_ready = False
+        try:
+            artifact_mode = identify_bank_artifact_mode(
+                runtime_context.bank.database_path
+            )
+            if artifact_mode != runtime_context.data_mode:
+                raise RuntimeError("bank artifact mode changed after startup")
+            runtime_context.bank.check_ready()
+            bank_ready = True
+        except Exception:
+            bank_ready = False
+
+        try:
+            runtime_context.store.check_ready(
+                expected_data_mode=runtime_context.data_mode
+            )
+            runtime_ready = True
+        except Exception:
+            runtime_ready = False
+
+        payload = ReadyResponse(
+            status="ready" if bank_ready and runtime_ready else "not_ready",
+            service="proof-of-one",
+            data_mode=runtime_context.data_mode,
+            synthetic_data=runtime_context.data_mode == "synthetic",
+            bank_ready=bank_ready,
+            runtime_ready=runtime_ready,
+            llm_connected=False,
+        )
+        if not (bank_ready and runtime_ready):
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content=payload.model_dump(mode="json"),
+            )
+        return payload
 
     @app.get(
         "/api/demo/personas",
