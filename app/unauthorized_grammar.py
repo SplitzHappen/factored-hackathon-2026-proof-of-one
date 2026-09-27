@@ -1347,7 +1347,7 @@ _PT_DENIAL_BRIDGE_WORDS = frozenset(
         "eu", "nos",
         "me", "te", "se", "o", "a", "os", "as", "lhe", "lhes",
         "de", "do", "da", "dos", "das", "meu", "minha", "meus", "minhas",
-        "nunca", "jamais", "tambem", "tampouco", "nem",
+        "nunca", "jamais", "tambem", "tampouco", "nem", "que",
     }
 )
 _DENIAL_BINDING_BARRIERS = frozenset({",", ";", "?", "¿", "!", "¡", ":"})
@@ -1376,11 +1376,27 @@ def _bound_denial_index(
                 for item in between
             ):
                 continue
-            if any(
-                analysis.tokens[item].normalized not in bridge_words
+            non_bridge = tuple(
+                item
                 for item in between
-            ):
-                continue
+                if analysis.tokens[item].normalized not in bridge_words
+            )
+            if non_bridge:
+                token_tags = analysis.tags[index]
+                has_prior_correlative = (
+                    LexicalTag.COORD_NEGATION in token_tags
+                    and any(
+                        prior < index
+                        and LexicalTag.COORD_NEGATION in analysis.tags[prior]
+                        for prior in _negative_indices(
+                            analysis,
+                            clause,
+                            language,
+                        )
+                    )
+                )
+                if not has_prior_correlative:
+                    continue
             candidates.append(index)
             continue
 
