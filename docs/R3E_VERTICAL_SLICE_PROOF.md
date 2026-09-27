@@ -1,6 +1,6 @@
 # R3E Bilingual Vertical-Slice Proof
 
-Status: **candidate proof surface; validate in CI before merge**
+Status: **implemented and CI-validated; subsequently hardened by the RA–RD repair series**
 
 R3E does not broaden the product. It proves that the R3D HTTP walking skeleton can execute
 the four intended customer-resolution outcomes in both supported languages while preserving
@@ -13,7 +13,7 @@ the deterministic authority boundary.
 | Verified normal answer | yes | yes | `ANSWER` |
 | Genuine same-customer ambiguity | yes | yes | `CLARIFY` |
 | Explicit follow-up lookup after clarification | yes | yes | `ANSWER` |
-| Prohibited banking action | yes | yes | `ABSTAIN` + human handoff available |
+| Prohibited banking action | yes | yes | `ABSTAIN` + opt-in support handoff available |
 | Explicit unauthorized/non-recognition | yes | yes | `ESCALATE` + verified ticket |
 | Cross-customer reference | yes | yes | `CLARIFY`, no record/candidate disclosure |
 
@@ -60,7 +60,7 @@ The response contains:
 
 Missing/unowned references therefore remain distinct from fraud-specific escalation.
 
-## Human handoff boundary
+## Opt-in support handoff boundary
 
 Prohibited mutation requests are not executed. They produce:
 
@@ -69,6 +69,10 @@ Prohibited mutation requests are not executed. They produce:
 - no banking mutation;
 - no escalation ticket;
 - `handoff_available=true`.
+
+The customer may then call the explicit support-handoff endpoint, which persists a verified
+demo support ticket. This proves an actionable support-request path; it does **not** claim that
+a live human queue or analyst UI already exists.
 
 This is tested separately in Spanish and Portuguese.
 
@@ -87,23 +91,22 @@ The ticket is:
 
 The proof test validates the final `VerifiedEscalationContext`, not merely the HTTP ticket ID.
 
-## What R3E does not prove
+## What the original R3E proof did not establish
 
-R3E is a deterministic synthetic integration proof. It does **not** establish:
+R3E was a deterministic synthetic integration proof. At that checkpoint it did **not** establish
+production-language generalization, live-LLM quality, native-reviewed Portuguese quality,
+held-out performance, production-scale concurrency, final abuse/session controls, analyst
+Workbench/Intelligence behavior, or candidate-bound ordinal selection semantics.
 
-- production-language generalization;
-- live-LLM quality;
-- native-reviewed Portuguese quality;
-- held-out performance;
-- production-scale concurrency;
-- final abuse/rate/session-expiry controls;
-- analyst Workbench/Intelligence behavior;
-- candidate-bound ordinal selection or stale-state expiry semantics.
+Subsequent RA–RD repairs now cover portability, artifact safety, eager startup/data-mode binding,
+unauthorized-language breadth, answer/handoff/date/locale semantics, per-visitor tenancy,
+session/abuse lifecycle, readiness/body/WAL hardening, and integration/concurrency smoke. They do
+not change the remaining evaluation limits: live-provider evidence, blind realistic-language v2,
+held-out evaluation, and analyst UI remain separately gated.
 
-Those claims remain governed by their separate evaluation and audit gates.
+## Independent audit status
 
-## Independent audit gate
-
-After this proof is merged, the project must stop and run the standing independent Claude
-**integrated product/API/safety** audit before the product surface is treated as
-submission-stable.
+The standing independent Claude integrated product/API/safety audit was completed after R3E and
+returned `REPAIR_BEFORE_CONTINUING`. The RA–RD repair series implements the accepted repair set;
+a bounded Claude repair-diff confirmation remains required before the repaired surface is treated
+as deployment/submission-stable.
