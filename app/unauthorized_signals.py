@@ -229,6 +229,31 @@ _SCOPE_EXCLUSION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^se (?:eu |um dia |alguem |a )"),
     # Security-information / policy questions rather than event assertions.
     re.compile(r"^[¿?]?\s*como (?:puedo|podria) (?:protegerme|evitar)\b"),
+    re.compile(
+        r"^[¿?]?\s*(?:que|cuales) (?:medidas|controles|mecanismos) "
+        r"(?:de seguridad )?(?:tienen|usan|ofrecen|hay)\b"
+        r".{0,120}\b(?:evitar|prevenir)\b"
+        r".{0,100}\b(?:cargo|cargos|compra|compras|pago|pagos|"
+        r"transferencia|transferencias|transaccion|transacciones) "
+        r"no autorizad[oa]s?\b"
+    ),
+    re.compile(
+        r"^acabo de (?:hacer|realizar|efectuar)\b.{0,120};\s*[¿?]?"
+        r"(?:que|cuales) (?:medidas|controles|mecanismos) "
+        r"(?:de seguridad )?(?:tienen|usan|ofrecen|hay)\b"
+        r".{0,120}\b(?:evitar|prevenir)\b"
+        r".{0,100}\b(?:cargo|cargos|compra|compras|pago|pagos|"
+        r"transferencia|transferencias|transaccion|transacciones) "
+        r"no autorizad[oa]s?\b"
+    ),
+    re.compile(
+        r"^(?:quais|que) (?:medidas|controles|mecanismos) "
+        r"(?:de seguranca )?(?:tem|existem|usam|oferecem)\b"
+        r".{0,120}\b(?:evitar|prevenir)\b"
+        r".{0,100}\b(?:cobranca|cobrancas|compra|compras|pagamento|pagamentos|"
+        r"transferencia|transferencias|transacao|transacoes|pix) "
+        r"nao autorizad[oa]s?\b"
+    ),
     re.compile(r"^quais cuidados\b"),
     re.compile(r"^(?!.*\bnao autorizad[oa]s?\b).{0,100}\btem protecao caso\b"),
     re.compile(r"\b(?:seguro|protecao|proteccion) contra \b"),
