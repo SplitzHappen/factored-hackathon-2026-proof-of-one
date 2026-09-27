@@ -2906,6 +2906,274 @@ def _first_person_compromise(
     return output
 
 
+
+
+_D1_INHERITABLE_FAMILIES: dict[
+    PredicateFamily,
+    PropositionFamily,
+] = {
+    PredicateFamily.PERFORM: PropositionFamily.PERFORMANCE_DENIAL,
+    PredicateFamily.ORIGINATE: PropositionFamily.ORIGINATION_DENIAL,
+    PredicateFamily.AUTHORIZE: PropositionFamily.AUTHORIZATION_DENIAL,
+    PredicateFamily.RECOGNIZE: PropositionFamily.ACTIVITY_NONRECOGNITION,
+}
+
+
+def _d1_is_whitespace_dash(text: str, token: Token) -> bool:
+    if token.surface not in {"-", "–", "—"}:
+        return False
+    before_ok = token.start == 0 or text[token.start - 1].isspace()
+    after_ok = token.end == len(text) or text[token.end].isspace()
+    return before_ok and after_ok
+
+
+def _d1_separator_indices(
+    analysis: FoundationAnalysis,
+    text: str,
+) -> tuple[int, ...]:
+    output: list[int] = []
+    for index, token in enumerate(analysis.tokens):
+        if token.surface == ",":
+            if not _is_numeric_punctuation(text, token):
+                output.append(index)
+            continue
+        if token.surface == ";":
+            output.append(index)
+            continue
+        if _d1_is_whitespace_dash(text, token):
+            output.append(index)
+    return tuple(output)
+
+
+def _d1_segment_bounds(
+    analysis: FoundationAnalysis,
+    text: str,
+    separator_index: int,
+) -> tuple[ClauseSegment, ClauseSegment] | None:
+    prefix_start = 0
+    for index in range(separator_index - 1, -1, -1):
+        if _is_primary_boundary(text, analysis.tokens[index]):
+            prefix_start = index + 1
+            break
+
+    suffix_end = len(analysis.tokens)
+    for index in range(separator_index + 1, len(analysis.tokens)):
+        if _is_primary_boundary(text, analysis.tokens[index]):
+            suffix_end = index
+            break
+
+    if prefix_start >= separator_index or separator_index + 1 >= suffix_end:
+        return None
+
+    prefix = ClauseSegment(
+        index=-1,
+        token_start=prefix_start,
+        token_end=separator_index,
+        source_start=analysis.tokens[prefix_start].start,
+        source_end=analysis.tokens[separator_index - 1].end,
+    )
+    suffix = ClauseSegment(
+        index=-1,
+        token_start=separator_index + 1,
+        token_end=suffix_end,
+        source_start=analysis.tokens[separator_index + 1].start,
+        source_end=analysis.tokens[suffix_end - 1].end,
+    )
+    return prefix, suffix
+
+
+def _d1_closed_continuation(
+    analysis: FoundationAnalysis,
+    suffix: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    finite_predicate = any(
+        _in_clause(predicate.token_start, predicate.token_end, suffix)
+        and predicate.form.person is not None
+        for predicate in analysis.predicates
+    )
+    if finite_predicate:
+        return None
+
+    words = [
+        analysis.tokens[index].normalized
+        for index in range(suffix.token_start, suffix.token_end)
+        if analysis.tokens[index].surface != ","
+    ]
+    if not words:
+        return None
+
+    if language == "es":
+        starts_closed = (
+            len(words) >= 2 and words[0] == "ni" and words[1] in {"yo", "nosotros", "nosotras"}
+        ) or (
+            len(words) >= 2 and words[0] in {"yo", "nosotros", "nosotras"} and words[1] == "tampoco"
+        )
+    else:
+        starts_closed = (
+            len(words) >= 2 and words[0] == "nem" and words[1] in {"eu", "nos"}
+        ) or (
+            len(words) >= 2
+            and words[0] in {"eu", "nos"}
+            and (
+                words[1] == "tampouco"
+                or (
+                    len(words) >= 3
+                    and words[1] == "tambem"
+                    and words[2] == "nao"
+                )
+            )
+        )
+    if not starts_closed:
+        return None
+
+    self_spans = _role_spans(
+        analysis,
+        suffix,
+        frozenset({SelfRole.SUBJECT}),
+    )
+    if not self_spans:
+        return None
+
+    coord_word = "ni" if language == "es" else "nem"
+    marker_index = next(
+        (
+            index
+            for index in range(suffix.token_start, suffix.token_end)
+            if analysis.tokens[index].normalized in {
+                coord_word,
+                "tampoco",
+                "tampouco",
+                "tambem",
+                "nao",
+            }
+        ),
+        None,
+    )
+    if marker_index is None:
+        return None
+
+    return self_spans[0], (marker_index, marker_index + 1)
+
+
+def _d1_prior_frame(
+    analysis: FoundationAnalysis,
+    prefix: ClauseSegment,
+    language: str,
+) -> tuple[PredicateMatch, tuple[int, int] | None, tuple[int, int], PropositionFamily] | None:
+    candidates = [
+        predicate
+        for predicate in analysis.predicates
+        if _in_clause(predicate.token_start, predicate.token_end, prefix)
+        and predicate.form.family in _D1_INHERITABLE_FAMILIES
+        and predicate.form.person is not None
+        and _predicate_has_denial(analysis, prefix, predicate, language)
+    ]
+    if not candidates:
+        return None
+
+    predicate = max(candidates, key=lambda item: item.token_start)
+    negatives = _negative_indices(analysis, prefix, language)
+    if not negatives:
+        return None
+
+    denial_span = min(
+        ((index, index + 1) for index in negatives),
+        key=lambda span: min(
+            abs(span[0] - predicate.token_start),
+            abs(span[0] - predicate.token_end),
+        ),
+    )
+    activity_span = _nearest_activity_span(analysis, prefix, predicate)
+    family = _D1_INHERITABLE_FAMILIES[predicate.form.family]
+    return predicate, activity_span, denial_span, family
+
+
+def _elliptical_continuations(
+    analysis: FoundationAnalysis,
+    text: str,
+    language: str,
+) -> list[PositiveProposition]:
+    output: list[PositiveProposition] = []
+
+    for separator_index in _d1_separator_indices(analysis, text):
+        bounds = _d1_segment_bounds(analysis, text, separator_index)
+        if bounds is None:
+            continue
+        prefix, suffix = bounds
+
+        continuation = _d1_closed_continuation(
+            analysis,
+            suffix,
+            language,
+        )
+        if continuation is None:
+            continue
+        self_span, continuation_marker = continuation
+
+        frame = _d1_prior_frame(
+            analysis,
+            prefix,
+            language,
+        )
+        if frame is None:
+            continue
+        predicate, activity_span, denial_span, family = frame
+
+        if family is PropositionFamily.ACTIVITY_NONRECOGNITION:
+            if activity_span is None:
+                activity_ref = "topic_transaction"
+            elif not _customer_anchored_activity(
+                analysis,
+                prefix,
+                activity_span,
+                language,
+            ):
+                continue
+            else:
+                activity_ref = "linked_prior_activity"
+        else:
+            activity_ref = (
+                "linked_prior_activity"
+                if activity_span is not None
+                else "topic_transaction"
+            )
+
+        evidence = [
+            denial_span,
+            self_span,
+            continuation_marker,
+            (predicate.token_start, predicate.token_end),
+        ]
+        if activity_span is not None:
+            evidence.append(activity_span)
+
+        containing_clause = next(
+            (
+                clause
+                for clause in analysis.clauses
+                if _in_clause(self_span[0], self_span[1], clause)
+            ),
+            suffix,
+        )
+
+        output.append(
+            _make_proposition(
+                analysis,
+                containing_clause,
+                family=family,
+                rule="R3-D1-elliptical-continuation",
+                language=language,
+                evidence_spans=evidence,
+                activity_span=activity_span,
+                predicate=predicate,
+                activity_ref=activity_ref,
+            )
+        )
+
+    return output
+
+
 def build_positive_propositions(
     text: str,
     language: str,
@@ -2964,6 +3232,10 @@ def build_positive_propositions(
         propositions.extend(
             _first_person_compromise(analysis, clause, language)
         )
+
+    propositions.extend(
+        _elliptical_continuations(analysis, text, language)
+    )
 
     unique: dict[
         tuple[str, str, int, int, int, str, tuple[int, int] | None],
