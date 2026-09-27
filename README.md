@@ -92,7 +92,7 @@ http://127.0.0.1:8000/health
 docker compose up --build
 ```
 
-The service is exposed on port 8000. Docker Compose defaults to the public synthetic artifact and keeps generated demo banking data plus `runtime.sqlite` on the writable runtime volume. Organizer-backed local runs may set `DATA_MODE=curated` and point `BANK_DB_PATH` at the read-only curated artifact.
+The service is exposed on port 8000. The default Docker Compose surface is synthetic-only: it creates/uses the recognized synthetic demo artifact and a synthetic-bound runtime SQLite store, and it does not mount the curated organizer-derived artifact. Curated local runs use explicit `DATA_MODE=curated`, the locally built curated `bank.duckdb`, and a separate curated runtime SQLite path outside the public default Compose surface.
 
 ## Curated data build
 

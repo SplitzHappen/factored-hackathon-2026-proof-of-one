@@ -4,9 +4,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATA_MODE: ${DATA_MODE:-synthetic}
-      BANK_DB_PATH: ${BANK_DB_PATH:-/app/runtime/synthetic-demo.duckdb}
-      RUNTIME_DB_PATH: /app/runtime/runtime.sqlite
+      DATA_MODE: synthetic
+      BANK_DB_PATH: /app/runtime/synthetic-demo.duckdb
+      RUNTIME_DB_PATH: /app/runtime/synthetic-runtime.sqlite
     volumes:
-      - ./data/curated:/app/data:ro
       - ./runtime:/app/runtime
