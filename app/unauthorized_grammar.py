@@ -1909,6 +1909,200 @@ def _unauthorized_participle_denials(
     return output
 
 
+
+
+_ES_PERMISSION_ABSENCE_PHRASES = (
+    ("sin", "preguntarme"),
+    ("sin", "avisarme"),
+    ("a", "escondidas"),
+)
+_PT_PERMISSION_ABSENCE_PHRASES = (
+    ("sem", "me", "perguntar"),
+    ("sem", "me", "avisar"),
+    ("escondido",),
+    ("escondida",),
+)
+
+
+def _customer_instrument_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+) -> tuple[tuple[tuple[int, int], tuple[int, int]], ...]:
+    possessors = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.POSSESSOR}),
+    )
+    instruments = tuple(
+        (index, index + 1)
+        for index in range(clause.token_start, clause.token_end)
+        if LexicalTag.INSTRUMENT in analysis.tags[index]
+    )
+
+    linked: list[tuple[tuple[int, int], tuple[int, int]]] = []
+    for instrument in instruments:
+        possessor = next(
+            (
+                span
+                for span in possessors
+                if min(
+                    abs(span[0] - instrument[0]),
+                    abs(span[1] - instrument[0]),
+                )
+                <= 2
+            ),
+            None,
+        )
+        if possessor is not None:
+            linked.append((instrument, possessor))
+    return tuple(linked)
+
+
+def _unknown_actor_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (index, index + 1)
+        for index in range(clause.token_start, clause.token_end)
+        if LexicalTag.THIRD_PARTY in analysis.tags[index]
+    )
+
+
+def _permission_absence_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], ...]:
+    words = [token.normalized for token in analysis.tokens]
+    phrases = (
+        _ES_PERMISSION_ABSENCE_PHRASES
+        if language == "es"
+        else _PT_PERMISSION_ABSENCE_PHRASES
+    )
+    spans: list[tuple[int, int]] = []
+
+    introducer = "sin" if language == "es" else "sem"
+    auth_nouns = _auth_noun_spans(analysis, clause)
+    possessors = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.POSSESSOR}),
+    )
+    for possessor in possessors:
+        possessor_index = possessor[0]
+        if possessor_index <= clause.token_start:
+            continue
+        if words[possessor_index - 1] != introducer:
+            continue
+        auth_span = next(
+            (span for span in auth_nouns if span[0] == possessor[1]),
+            None,
+        )
+        if auth_span is not None:
+            spans.append((possessor_index - 1, auth_span[1]))
+
+    for phrase in phrases:
+        width = len(phrase)
+        for index in range(clause.token_start, clause.token_end - width + 1):
+            if tuple(words[index : index + width]) == phrase:
+                spans.append((index, index + width))
+
+    return tuple(dict.fromkeys(spans))
+
+
+def _third_party_unauthorized_use(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    customer_instruments = _customer_instrument_spans(analysis, clause)
+    if not customer_instruments:
+        return []
+
+    unknown_actors = _unknown_actor_spans(analysis, clause)
+    known_actors = _known_actor_spans(analysis, clause, language)
+    absence_spans = _permission_absence_spans(analysis, clause, language)
+    activity_span = _nearest_activity_span(analysis, clause, None)
+    output: list[PositiveProposition] = []
+
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.family is not PredicateFamily.USE_ACCESS:
+            continue
+
+        actor_span: tuple[int, int] | None = None
+        permission_span: tuple[int, int] | None = None
+        actor_kind: str | None = None
+
+        preceding_unknown = tuple(
+            span for span in unknown_actors if span[0] < predicate.token_start
+        )
+        if preceding_unknown:
+            actor_span = min(
+                preceding_unknown,
+                key=lambda span: predicate.token_start - span[0],
+            )
+            actor_kind = "unknown"
+        else:
+            preceding_known = tuple(
+                span for span in known_actors if span[0] < predicate.token_start
+            )
+            if preceding_known and absence_spans:
+                actor_span = min(
+                    preceding_known,
+                    key=lambda span: predicate.token_start - span[0],
+                )
+                permission_span = min(
+                    absence_spans,
+                    key=lambda span: min(
+                        abs(span[0] - predicate.token_start),
+                        abs(span[0] - predicate.token_end),
+                    ),
+                )
+                actor_kind = "known"
+
+        if actor_span is None or actor_kind is None:
+            continue
+
+        instrument_span, possessor_span = min(
+            customer_instruments,
+            key=lambda item: min(
+                abs(item[0][0] - predicate.token_start),
+                abs(item[0][0] - predicate.token_end),
+            ),
+        )
+
+        evidence: list[tuple[int, int]] = [
+            actor_span,
+            instrument_span,
+            possessor_span,
+        ]
+        if permission_span is not None:
+            evidence.append(permission_span)
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE,
+                rule="P5",
+                language=language,
+                evidence_spans=evidence,
+                activity_span=activity_span,
+                predicate=predicate,
+                activity_ref=(
+                    "explicit_activity"
+                    if activity_span is not None
+                    else f"{actor_kind}_actor_instrument_use"
+                ),
+            )
+        )
+
+    return output
+
+
 def build_positive_propositions(
     text: str,
     language: str,
@@ -1954,6 +2148,9 @@ def build_positive_propositions(
         )
         propositions.extend(
             _unauthorized_participle_denials(analysis, clause, language)
+        )
+        propositions.extend(
+            _third_party_unauthorized_use(analysis, clause, language)
         )
 
     unique: dict[
