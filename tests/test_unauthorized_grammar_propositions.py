@@ -747,3 +747,10 @@ def test_p5_exceeded_purpose_requires_prior_limited_grant() -> None:
         item.rule == "P5-exceeded-authorization-purpose"
         for item in (*es, *pt)
     )
+
+def test_p5_preposed_permission_absence_remains_positive() -> None:
+    es = _families("Sin mi permiso, mi hermano usó mi tarjeta.", "es")
+    pt = _families("Sem minha permissão, minha irmã usou minha conta.", "pt")
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
