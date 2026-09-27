@@ -96,12 +96,47 @@ class DeterministicDemoInterpretationProvider(StructuredInterpretationProvider):
             for term in (
                 "por que fue rechazada",
                 "por que se rechazo",
+                "por que no paso",
+                "por que fallo",
                 "por que a transacao",
+                "por que nao passou",
+                "por que falhou",
+                "motivo da recusa",
                 "o que causou",
                 "que pudo haberlo provocado",
             )
         ):
             return PolicyIntent.DECLINE_CAUSE
+        if any(
+            term in message
+            for term in (
+                "historial de pagos",
+                "historial de mis pagos",
+                "ultimos pagos",
+                "pagos recientes",
+                "historico de pagamentos",
+                "historico dos pagamentos",
+                "ultimos pagamentos",
+                "pagamentos recentes",
+            )
+        ):
+            return PolicyIntent.PAYMENT_HISTORY
+        if any(
+            term in message
+            for term in (
+                "saldo",
+                "saldos",
+                "balance de mi cuenta",
+                "balance da minha conta",
+                "mis productos",
+                "meus produtos",
+                "mis cuentas",
+                "minhas contas",
+                "que productos tengo",
+                "quais produtos tenho",
+            )
+        ):
+            return PolicyIntent.ACCOUNT_PRODUCT_INFO
         if any(
             term in message
             for term in (
