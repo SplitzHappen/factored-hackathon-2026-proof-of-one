@@ -148,3 +148,14 @@ def test_permission_backlink_does_not_jump_over_unrelated_clause() -> None:
         item.rule == "P4-R3-permission-backlink"
         for item in propositions
     )
+
+def test_bare_permission_denial_without_activity_or_backlink_is_not_p4() -> None:
+    es = build_positive_propositions("Yo no le di permiso.", "es")
+    pt = build_positive_propositions("Eu não dei permissão.", "pt")
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in {
+        item.family for item in es
+    }
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in {
+        item.family for item in pt
+    }
