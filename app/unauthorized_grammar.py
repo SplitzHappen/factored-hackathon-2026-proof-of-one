@@ -2784,6 +2784,30 @@ def _nearest_eligible_compromise_instrument(
     )
 
 
+def _source_accent_selects_predicate(
+    analysis: FoundationAnalysis,
+    predicate: PredicateMatch,
+) -> bool:
+    if predicate.token_end - predicate.token_start != 1:
+        return True
+
+    token = analysis.tokens[predicate.token_start]
+    if not token.had_acute:
+        return True
+
+    same_span_family = tuple(
+        candidate
+        for candidate in analysis.predicates
+        if candidate.token_start == predicate.token_start
+        and candidate.token_end == predicate.token_end
+        and candidate.form.family is predicate.form.family
+    )
+    if not any(candidate.form.accent_required for candidate in same_span_family):
+        return True
+
+    return predicate.form.accent_required
+
+
 def _first_person_compromise(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -2796,6 +2820,8 @@ def _first_person_compromise(
         if not _in_clause(predicate.token_start, predicate.token_end, clause):
             continue
         if predicate.form.family is not PredicateFamily.COMPROMISE:
+            continue
+        if not _source_accent_selects_predicate(analysis, predicate):
             continue
 
         # P8 models the customer as affected owner/experiencer, not actor.
