@@ -1651,6 +1651,70 @@ def _role_spans(
     )
 
 
+def _bound_self_evidence(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    allowed: frozenset[SelfRole],
+) -> SelfEvidence | None:
+    candidates: list[SelfEvidence] = []
+
+    for item in _self_roles_in_clause(analysis, clause):
+        if item.role not in allowed:
+            continue
+
+        if item.implicit_from_predicate:
+            if (
+                item.token_start == predicate.token_start
+                and item.token_end == predicate.token_end
+                and predicate.form.person == 1
+            ):
+                candidates.append(item)
+            continue
+
+        if item.role is SelfRole.SUBJECT and predicate.form.person != 1:
+            continue
+
+        distance = min(
+            abs(item.token_start - predicate.token_end),
+            abs(predicate.token_start - item.token_end),
+        )
+        if distance > 5:
+            continue
+
+        left = min(item.token_start, predicate.token_start)
+        right = max(item.token_end, predicate.token_end)
+        intervening = any(
+            other.token_start >= left
+            and other.token_end <= right
+            and not (
+                other.token_start == predicate.token_start
+                and other.token_end == predicate.token_end
+            )
+            and other.form.person is not None
+            for other in analysis.predicates
+            if _in_clause(other.token_start, other.token_end, clause)
+        )
+        if intervening:
+            continue
+
+        candidates.append(item)
+
+    if not candidates:
+        return None
+
+    return min(
+        candidates,
+        key=lambda item: (
+            0 if item.implicit_from_predicate else 1,
+            min(
+                abs(item.token_start - predicate.token_end),
+                abs(predicate.token_start - item.token_end),
+            ),
+        ),
+    )
+
+
 def _predicate_denials(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -1661,10 +1725,6 @@ def _predicate_denials(
     rule: str,
     self_roles: frozenset[SelfRole],
 ) -> list[PositiveProposition]:
-    self_spans = _role_spans(analysis, clause, self_roles)
-    if not self_spans:
-        return []
-
     output: list[PositiveProposition] = []
     for predicate in analysis.predicates:
         if not _in_clause(predicate.token_start, predicate.token_end, clause):
@@ -1672,6 +1732,15 @@ def _predicate_denials(
         if predicate.form.family is not predicate_family:
             continue
         if not _predicate_has_denial(analysis, clause, predicate, language):
+            continue
+
+        self_evidence = _bound_self_evidence(
+            analysis,
+            clause,
+            predicate,
+            self_roles,
+        )
+        if self_evidence is None:
             continue
 
         activity_span = _nearest_activity_span(analysis, clause, predicate)
@@ -1684,12 +1753,9 @@ def _predicate_denials(
         if denial_index is None:
             continue
         denial_span = (denial_index, denial_index + 1)
-        nearest_self = min(
-            self_spans,
-            key=lambda span: min(
-                abs(span[0] - predicate.token_start),
-                abs(span[0] - predicate.token_end),
-            ),
+        nearest_self = (
+            self_evidence.token_start,
+            self_evidence.token_end,
         )
         output.append(
             _make_proposition(
@@ -1834,11 +1900,6 @@ def _authorization_denials(
     language: str,
 ) -> list[PositiveProposition]:
     output: list[PositiveProposition] = []
-    self_subject_spans = _role_spans(
-        analysis,
-        clause,
-        frozenset({SelfRole.SUBJECT, SelfRole.AGENT}),
-    )
     auth_nouns = _auth_noun_spans(analysis, clause)
 
     for predicate in analysis.predicates:
@@ -1851,7 +1912,14 @@ def _authorization_denials(
             continue
         if not _predicate_has_denial(analysis, clause, predicate, language):
             continue
-        if not self_subject_spans:
+
+        self_evidence = _bound_self_evidence(
+            analysis,
+            clause,
+            predicate,
+            frozenset({SelfRole.SUBJECT, SelfRole.AGENT}),
+        )
+        if self_evidence is None:
             continue
 
         if predicate.form.family is PredicateFamily.GIVE_PERMISSION:
@@ -1876,12 +1944,9 @@ def _authorization_denials(
         if denial_index is None:
             continue
         denial_span = (denial_index, denial_index + 1)
-        nearest_self = min(
-            self_subject_spans,
-            key=lambda span: min(
-                abs(span[0] - predicate.token_start),
-                abs(span[0] - predicate.token_end),
-            ),
+        nearest_self = (
+            self_evidence.token_start,
+            self_evidence.token_end,
         )
 
         evidence: list[tuple[int, int]] = [denial_span, nearest_self]
@@ -3079,12 +3144,6 @@ def _activity_nonrecognition(
     language: str,
 ) -> list[PositiveProposition]:
     output: list[PositiveProposition] = []
-    self_subjects = _role_spans(
-        analysis,
-        clause,
-        frozenset({SelfRole.SUBJECT, SelfRole.AGENT}),
-    )
-
     for predicate in analysis.predicates:
         if not _in_clause(predicate.token_start, predicate.token_end, clause):
             continue
@@ -3092,7 +3151,14 @@ def _activity_nonrecognition(
             continue
         if not _predicate_has_denial(analysis, clause, predicate, language):
             continue
-        if not self_subjects:
+
+        self_evidence = _bound_self_evidence(
+            analysis,
+            clause,
+            predicate,
+            frozenset({SelfRole.SUBJECT, SelfRole.AGENT}),
+        )
+        if self_evidence is None:
             continue
 
         target_kind, target_span = _p7_nominal_target(
@@ -3113,12 +3179,9 @@ def _activity_nonrecognition(
         if denial_index is None:
             continue
         denial_span = (denial_index, denial_index + 1)
-        nearest_self = min(
-            self_subjects,
-            key=lambda span: min(
-                abs(span[0] - predicate.token_start),
-                abs(span[0] - predicate.token_end),
-            ),
+        nearest_self = (
+            self_evidence.token_start,
+            self_evidence.token_end,
         )
         evidence: list[tuple[int, int]] = [denial_span, nearest_self]
         activity_span: tuple[int, int] | None = None
