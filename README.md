@@ -99,6 +99,16 @@ runtime data-mode binding, SQLite writability, and WAL mode; deployment health c
 HTTP request bodies are capped at 64 KiB before FastAPI parses them, and validation-error
 responses omit rejected input values rather than echoing customer payloads.
 
+## Runtime schema lifecycle
+
+The writable operational SQLite database is versioned and intentionally has **no in-place
+migration path** at this prototype stage. An incompatible older runtime fails closed before
+startup changes it. For the bounded synthetic demo, stop the service, preserve the old runtime
+file only if it is useful for diagnostics, move/remove it, and restart to create the current
+schema. Never edit the stored schema version manually or reuse one runtime database across
+synthetic and curated modes. See
+[docs/R3D_API_WALKING_SKELETON.md](docs/R3D_API_WALKING_SKELETON.md) for the exact policy.
+
 ## Docker
 
 ```powershell
