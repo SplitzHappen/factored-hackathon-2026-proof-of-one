@@ -92,6 +92,16 @@ class HealthResponse(ContractModel):
     llm_connected: bool
 
 
+class ReadyResponse(ContractModel):
+    status: str
+    service: str
+    data_mode: str | None
+    synthetic_data: bool | None
+    bank_ready: bool
+    runtime_ready: bool
+    llm_connected: bool
+
+
 class AuthenticatedSession(ContractModel):
     """Server-controlled authenticated context; never model-controlled."""
 
