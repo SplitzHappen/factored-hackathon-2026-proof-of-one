@@ -55,13 +55,36 @@ def test_ready_fails_closed_when_runtime_schema_binding_is_corrupted(tmp_path) -
         connection.commit()
 
     response = client.get("/ready")
+    liveness = client.get("/health")
 
     assert response.status_code == 503
+    assert liveness.status_code == 200
+    assert liveness.json()["status"] == "ok"
     body = response.json()
     assert body["status"] == "not_ready"
     assert body["bank_ready"] is True
     assert body["runtime_ready"] is False
     assert body["data_mode"] == "synthetic"
+
+
+def test_ready_fails_closed_when_bank_dependency_is_not_ready(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    client, context = _client(tmp_path)
+
+    def fail_bank_ready() -> None:
+        raise RuntimeError("simulated bank readiness failure")
+
+    monkeypatch.setattr(context.bank, "check_ready", fail_bank_ready)
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "not_ready"
+    assert body["bank_ready"] is False
+    assert body["runtime_ready"] is True
 
 
 def test_runtime_store_uses_wal_mode(tmp_path) -> None:
