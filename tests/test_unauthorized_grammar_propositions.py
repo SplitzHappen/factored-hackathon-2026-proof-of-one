@@ -899,3 +899,52 @@ def test_b2r_a3_pro_drop_customer_subject_still_binds_to_first_person_predicate(
 
     assert PropositionFamily.PERFORMANCE_DENIAL in es
     assert PropositionFamily.PERFORMANCE_DENIAL in pt
+
+
+
+def test_b2r_a3_future_performance_refusal_is_not_past_denial() -> None:
+    es = _families("No pagaré ese cargo.", "es")
+    pt = _families("Não pagarei essa cobrança.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in es
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+def test_b2r_a3_conditional_authorization_is_not_past_denial() -> None:
+    es = _families("Yo nunca autorizaría esa compra.", "es")
+    pt = _families("Eu nunca autorizaria essa compra.", "pt")
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in pt
+
+
+def test_b2r_a3_habitual_present_performance_is_not_past_denial() -> None:
+    es = _families("No hago compras por internet.", "es")
+    pt = _families("Eu não faço compras nesse site.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in es
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+def test_b2r_a3_directive_subjunctive_is_not_customer_authorization_denial() -> None:
+    es = _families("Por favor, no autorice ese cargo.", "es")
+    pt = _families("Por favor, não autorize essa cobrança.", "pt")
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in pt
+
+
+def test_b2r_a3_past_performance_denial_remains_positive() -> None:
+    es = _families("Yo no hice esa compra.", "es")
+    pt = _families("Eu não fiz essa compra.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL in es
+    assert PropositionFamily.PERFORMANCE_DENIAL in pt
+
+
+def test_b2r_a3_past_authorization_denial_remains_positive() -> None:
+    es = _families("Yo no autoricé esa compra.", "es")
+    pt = _families("Eu não autorizei essa compra.", "pt")
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL in pt
