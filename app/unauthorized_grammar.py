@@ -2919,6 +2919,14 @@ _D1_INHERITABLE_FAMILIES: dict[
 }
 
 
+def _d1_is_whitespace_dash(text: str, token: Token) -> bool:
+    if token.surface not in {"-", "–", "—"}:
+        return False
+    before_ok = token.start == 0 or text[token.start - 1].isspace()
+    after_ok = token.end == len(text) or text[token.end].isspace()
+    return before_ok and after_ok
+
+
 def _d1_separator_indices(
     analysis: FoundationAnalysis,
     text: str,
@@ -2932,7 +2940,7 @@ def _d1_separator_indices(
         if token.surface == ";":
             output.append(index)
             continue
-        if token.normalized == "-" and _is_whitespace_adjacent_dash(text, token):
+        if _d1_is_whitespace_dash(text, token):
             output.append(index)
     return tuple(output)
 
