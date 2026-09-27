@@ -20,6 +20,7 @@ from app.schemas import (
     ConversationState,
     EscalationRequest,
     SupportedLanguage,
+    SessionRole,
     TransactionQuery,
 )
 
@@ -27,6 +28,8 @@ from app.schemas import (
 def make_session(*, customer_id: str = "customer-demo-001") -> AuthenticatedSession:
     return AuthenticatedSession(
         session_id=uuid4(),
+        tenant_id=f"test-tenant-{customer_id}",
+        role=SessionRole.CUSTOMER,
         demo_persona_id="persona-demo-001",
         customer_id=customer_id,
         language=SupportedLanguage.ES,
