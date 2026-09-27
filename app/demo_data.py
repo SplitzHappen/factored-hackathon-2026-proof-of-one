@@ -55,7 +55,11 @@ def _is_recognized_synthetic_demo_bank(path: Path) -> bool:
 
     connection: duckdb.DuckDBPyConnection | None = None
     try:
-        connection = duckdb.connect(str(path), read_only=True)
+        connection = duckdb.connect(
+            str(path),
+            read_only=True,
+            config={"enable_external_access": "false"},
+        )
         rows = connection.execute(
             "SELECT schema_version, builder_version FROM build_metadata"
         ).fetchall()
