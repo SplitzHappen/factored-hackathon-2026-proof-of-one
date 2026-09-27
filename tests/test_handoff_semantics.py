@@ -168,6 +168,33 @@ def test_automatic_escalation_reports_persisted_ticket_not_available_handoff(
     assert verified.reason_code == "unauthorized_activity_reported"
 
 
+def test_automatic_unauthorized_ticket_without_owned_transaction_is_analyst_resolvable(
+    tmp_path,
+) -> None:
+    client, context = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "No reconozco el cobro DEMO-PT-2001."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "ESCALATE"
+    assert body["escalation_ticket_id"] is not None
+    assert "DEMO-PT-2001" not in body["response_text"]
+
+    verified = context.store.resolve_verified_escalation_context(
+        UUID(body["escalation_ticket_id"])
+    )
+    assert verified is not None
+    assert verified.transaction_id is None
+    assert verified.reason_code == "unauthorized_activity_reported"
+    assert str(verified.session.session_id) == session["session_id"]
+
+
 def test_informational_unauthorized_wording_uses_soft_case_copy(tmp_path) -> None:
     client, _ = _client(tmp_path)
     session = _session(client, "lucia")
