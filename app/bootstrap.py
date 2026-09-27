@@ -37,6 +37,7 @@ def build_app_context(settings: Settings = default_settings) -> AppContext:
     bank = BankRepository(settings.bank_db_path)
     store = OperationalStore(settings.runtime_db_path)
     store.initialize(data_mode=artifact_mode)
+    store.cleanup_expired_state()
 
     provider = DeterministicDemoInterpretationProvider()
     interpreter = InterpretationService(
