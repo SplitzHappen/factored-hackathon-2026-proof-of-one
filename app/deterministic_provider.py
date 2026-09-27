@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 
 from app.interpretation import StructuredInterpretationProvider
 from app.schemas import ModelInterpretationRequest, PolicyIntent
+from app.unauthorized_signals import is_explicit_unauthorized_assertion
 
 
 _TRANSACTION_ID = re.compile(r"\bDEMO-(?:ES|PT)-\d{4}\b", re.IGNORECASE)
@@ -40,19 +41,7 @@ class DeterministicDemoInterpretationProvider(StructuredInterpretationProvider):
         raw_id = _TRANSACTION_ID.search(request.message)
         transaction_id = raw_id.group(0).upper() if raw_id else None
 
-        unauthorized = any(
-            phrase in message
-            for phrase in (
-                "no reconozco",
-                "no lo hice",
-                "no la hice",
-                "no autorice",
-                "nao reconheco",
-                "nao fui eu",
-                "nao autorizei",
-                "eu nao fiz",
-            )
-        )
+        unauthorized = is_explicit_unauthorized_assertion(request.message)
 
         intent = self._intent(message, transaction_id is not None)
         amount = (

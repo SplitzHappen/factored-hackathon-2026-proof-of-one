@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from app.bank import BankRepository
 from app.runtime import OperationalStore
+from app.unauthorized_signals import is_explicit_unauthorized_assertion
 from app.schemas import (
     AuthenticatedSession,
     InterpretationFallbackReason,
@@ -54,26 +55,6 @@ _REFERENCE_REQUIRED_INTENTS = {
     PolicyIntent.TRANSACTION_LOOKUP,
     PolicyIntent.TRANSACTION_STATUS,
 }
-
-_UNAUTHORIZED_PATTERNS = (
-    # Spanish
-    re.compile(r"\bno reconozco\b"),
-    re.compile(r"\bno reconoci\b"),
-    re.compile(r"\bdesconozco\b"),
-    re.compile(r"\bno fui yo\b"),
-    re.compile(r"\byo no (?:hice|realice|autorice)\b"),
-    re.compile(r"\bno (?:lo|la) autorice\b"),
-    re.compile(r"\bno autorice\b"),
-    re.compile(r"\b(?:esa|esta) (?:compra|transaccion) no es mia\b"),
-    re.compile(r"\byo no hice (?:esa|esta) (?:compra|transaccion)\b"),
-    # Portuguese
-    re.compile(r"\bnao reconheco\b"),
-    re.compile(r"\bdesconheco\b"),
-    re.compile(r"\bnao fui eu\b"),
-    re.compile(r"\beu nao (?:fiz|realizei|autorizei)\b"),
-    re.compile(r"\bnao autorizei\b"),
-    re.compile(r"\b(?:essa|esta) (?:compra|transacao) nao e minha\b"),
-)
 
 _TRANSACTION_TYPE_CUES: dict[TransactionTypeFilter, tuple[str, ...]] = {
     TransactionTypeFilter.PURCHASE: ("compra", "compras", "purchase"),
@@ -462,5 +443,4 @@ class InterpretationService:
         # code-switch, and prompt-injection text must not disable a genuine first-
         # person unauthorized assertion merely because the session language differs.
         del language
-        normalized = cls._normalize_message(message)
-        return any(pattern.search(normalized) for pattern in _UNAUTHORIZED_PATTERNS)
+        return is_explicit_unauthorized_assertion(message)
