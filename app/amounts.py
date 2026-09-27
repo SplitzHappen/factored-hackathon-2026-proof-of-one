@@ -10,7 +10,7 @@ from app.schemas import SupportedLanguage
 # decimal separator. Currency symbols/codes are deliberately outside the token
 # so "$54.000 COP" and "R$ 219,90" normalize through the same parser.
 _LOCALE_AMOUNT_TOKEN = re.compile(
-    r"(?<![\w.,])(?:\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?)(?![\w.,])"
+    r"(?<![\w.,:/-])(?:\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?)(?![\w.,:/-])"
 )
 
 
