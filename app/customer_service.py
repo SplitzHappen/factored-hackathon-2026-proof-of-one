@@ -13,6 +13,7 @@ from app.schemas import (
     CustomerTurnResponse,
     EscalationRecord,
     EscalationRequest,
+    InterpretationStatus,
     PolicyInput,
     PolicyIntent,
     PolicyReason,
@@ -87,6 +88,10 @@ class CustomerResolutionService:
                 trusted_record_found=not trusted_record_missing,
                 trusted_data_conflict=False,
                 excluded_relationship_required=False,
+                interpretation_unavailable=(
+                    interpretation.status is InterpretationStatus.SAFE_FALLBACK
+                    and interpretation.requires_human_fallback
+                ),
                 ambiguous_transaction_match=(
                     reference_status is TransactionReferenceStatus.AMBIGUOUS
                 ),
@@ -257,6 +262,12 @@ class CustomerResolutionService:
                 "Caso registrado após sinal explícito de atividade não reconhecida."
                 if pt
                 else "Caso registrado tras una señal explícita de actividad no reconocida."
+            )
+        if reason is PolicyReason.INTERPRETATION_UNAVAILABLE:
+            return (
+                "Caso registrado porque la interpretación automática no estuvo disponible."
+                if not pt
+                else "Caso registrado porque a interpretação automática não esteve disponível."
             )
         if reason is PolicyReason.TRUSTED_DATA_CONFLICT:
             return (
@@ -446,6 +457,14 @@ class CustomerResolutionService:
             return "Necesito más detalles para identificar el movimiento de forma segura."
 
         if route is RouteDecision.ESCALATE:
+            if PolicyReason.INTERPRETATION_UNAVAILABLE in reason_codes:
+                return (
+                    "No pude interpretar tu solicitud de forma confiable. Registré este caso "
+                    "para revisión humana en el demo."
+                    if not pt
+                    else "Não consegui interpretar sua solicitação com confiança. Registrei "
+                    "este caso para revisão humana no demo."
+                )
             if PolicyReason.TRUSTED_DATA_CONFLICT in reason_codes:
                 return (
                     "Registré este caso para revisión humana en el demo porque los datos "
