@@ -290,3 +290,16 @@ def test_p6_transaction_id_can_anchor_copular_characterization() -> None:
 
     assert PropositionFamily.FRAUD_CHARACTERIZATION in es
     assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+
+def test_p6_copular_predication_does_not_jump_to_later_non_activity_head() -> None:
+    es = _families(
+        "Esta transferencia es legítima pero este correo es un fraude.",
+        "es",
+    )
+    pt = _families(
+        "Este Pix é legítimo mas este site é um golpe.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
