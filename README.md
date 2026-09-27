@@ -4,10 +4,13 @@ Proof of One is a bounded account/payment customer-support prototype for the Fac
 
 ## Current implementation stage
 
-R3E bilingual vertical-slice proof.
+Post-audit synthetic API hardening through the RD4 integration/concurrency assurance surface.
+The public runtime is still deliberately deterministic: live-provider selection/execution,
+blind realistic-language v2 evaluation, judge UI/Workbench, and final submission artifacts
+remain later gates.
 
 The application currently contains:
-- a judge-visible FastAPI walking skeleton with public synthetic demo personas and server-issued tenant/role-bound sessions;
+- a judge-visible FastAPI walking skeleton with public synthetic demo personas, fresh server-issued per-visitor tenants, explicit customer roles, four-hour session TTL/revocation, and bounded operational retention;
 - strict Pydantic boundary contracts;
 - Docker packaging;
 - a deterministic curated-data builder for minimized trusted banking data;
@@ -18,7 +21,7 @@ The application currently contains:
 - tests proving that model-facing transaction queries cannot supply a `customer_id`, conversation state cannot rebind identity, and the runtime store cannot contain authoritative banking tables;
 - a provider-neutral Spanish/Portuguese interpretation boundary with strict typed extraction, bounded retries/fallback, deterministic transaction-reference verification, and no model authority over identity, ownership, banking truth, policy, or behavioral evidence;
 - a deterministic stub interpreter behind that same provider protocol so end-to-end product integration does not wait for live provider selection;
-- deterministic Spanish/Portuguese customer responses over verified facts, with cross-customer non-disclosure and verified human handoff for unauthorized-activity reports;
+- deterministic Spanish/Portuguese customer responses over verified facts, with cross-customer non-disclosure, verified escalation/support-ticket persistence, and an explicit customer-requested support-handoff endpoint;
 - a frozen descriptive Behavioral Unusualness fallback after the supervised fraud-risk model failed its pre-registered usefulness gate.
 
 No production LLM provider/model is frozen yet.
@@ -36,12 +39,12 @@ Current verified examples include:
 - a read-only source audit covering 13 logical tables, 7,671 CSV files, and 23,495,188 parsed rows with zero unreadable files or malformed rows;
 - a deterministic curated serving layer over 150,000 customers, 400,000 products, and 4,425,008 transactions;
 - a private 200-case template-controlled conformance/safety suite frozen before provider/prompt optimization, plus a disjoint 100-case development pool;
-- a separate frozen 32-case synthetic ES/PT phrasing-distinct language slice for provider generalization evidence, with explicit non-organizer/non-native-review provenance;
+- a separate frozen 32-case synthetic ES/PT realistic-language v1 surface for provider-selection/language-stress diagnostics only, with explicit non-organizer/non-native-review provenance; v1 is not admissible for baseline-vs-LLM uplift claims;
 - a 26-feature point-in-time analytical surface with chronological splits and strict same-timestamp leakage prevention;
 - a supervised fraud-risk model that **failed** its pre-registered usefulness gate and was therefore **not deployed**;
 - a transparent descriptive behavioral-evidence fallback whose output is explicitly not a fraud probability or fraud determination.
 
-The concise public narrative is in [docs/DATA_EVIDENCE_SPINE.md](docs/DATA_EVIDENCE_SPINE.md). The detailed retrospective evidence → decision → consequence record is in [docs/ANALYTICAL_DECISION_LEDGER.md](docs/ANALYTICAL_DECISION_LEDGER.md). The supplementary language-evaluation boundary is documented in [docs/REALISTIC_LANGUAGE_SLICE.md](docs/REALISTIC_LANGUAGE_SLICE.md).
+The concise public narrative is in [docs/DATA_EVIDENCE_SPINE.md](docs/DATA_EVIDENCE_SPINE.md). The detailed retrospective evidence → decision → consequence record is in [docs/ANALYTICAL_DECISION_LEDGER.md](docs/ANALYTICAL_DECISION_LEDGER.md). The realistic-language v1 evidence boundary is documented in [docs/REALISTIC_LANGUAGE_SLICE.md](docs/REALISTIC_LANGUAGE_SLICE.md), and the independent sealed-v2 requirements are in [docs/REALISTIC_LANGUAGE_V2_FREEZE_PROTOCOL.md](docs/REALISTIC_LANGUAGE_V2_FREEZE_PROTOCOL.md). No baseline-vs-LLM uplift claim is permitted until a compliant blind-authored v2 is reviewed and sealed.
 
 ## Safety architecture
 
@@ -54,7 +57,7 @@ The selected design intentionally separates:
 
 The model will never receive arbitrary SQL access and will never control the authenticated customer identity. Retrospective `is_fraud` labels and organizer `fraud_score` values are also excluded from runtime transaction records and policy inputs; fraud-specific mandatory escalation is driven by the customer's reported non-recognition/unauthorized activity, not by a score.
 
-The writable SQLite store contains only operational metadata: server-established session identity references, bounded multi-turn state, and structured escalation handoffs. It contains no customer/product/transaction banking tables and rejects unexpected tables on initialization.
+The writable SQLite store contains only operational metadata: server-established session identity references, bounded structured conversation state, rate-limit events, and structured escalation/support tickets. It contains no customer/product/transaction banking tables and rejects unexpected tables on initialization.
 
 Escalation is a controlled Act -> Verify path: a support ticket is inserted, committed, re-read and compared with the intended handoff, marked verified, and read back again before success is returned. Persistence or verification failure is a hard failure and is never represented as a successful escalation.
 
@@ -65,6 +68,8 @@ The public/default runtime uses fully synthetic demo data (`DATA_MODE=synthetic`
 - `GET /api/demo/personas`
 - `POST /api/demo/sessions`
 - `POST /api/customer/turn` with the returned `X-Demo-Session` header
+- `POST /api/customer/handoff` for an explicit demo support request
+- `DELETE /api/demo/session` to revoke the current demo session
 
 The client never supplies a `customer_id`, tenant, or role. Those are server-issued and persisted. Every demo response is marked `synthetic_data=true`.
 
