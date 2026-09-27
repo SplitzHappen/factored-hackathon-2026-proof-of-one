@@ -213,16 +213,51 @@ def test_conditional_tags_require_structural_position_and_preserve_accent() -> N
 
 
 def test_token_source_offsets_survive_diacritic_normalization() -> None:
-    text = "Não autorizei a transação."
+    text = "Sí, el débito no es mío."
     tokens = tokenize_with_source(text)
 
     for token in tokens:
         assert text[token.start : token.end] == token.surface
 
-    nao = next(token for token in tokens if token.normalized == "nao")
-    transacao = next(token for token in tokens if token.normalized == "transacao")
-    assert nao.had_acute is False
-    assert transacao.had_acute is True
+    si = next(token for token in tokens if token.normalized == "si")
+    debito = next(token for token in tokens if token.normalized == "debito")
+    mio = next(token for token in tokens if token.normalized == "mio")
+    assert si.had_acute is True
+    assert debito.had_acute is True
+    assert mio.had_acute is True
+
+
+
+
+def test_spanish_mi_and_mi_accent_roles_remain_distinct() -> None:
+    analysis = analyze_foundation("Mi tarjeta no salió de mí.", "es")
+    possessor_spans = [
+        item
+        for item in analysis.self_evidence
+        if item.role is SelfRole.POSSESSOR
+    ]
+    source_spans = [
+        item
+        for item in analysis.self_evidence
+        if item.role is SelfRole.SOURCE
+    ]
+
+    assert len(possessor_spans) == 1
+    assert len(source_spans) == 1
+
+
+def test_portuguese_nos_subject_is_distinct_from_nos_clitic() -> None:
+    subject = analyze_foundation("Nós fizemos a compra.", "pt")
+    clitic = analyze_foundation("Nos cobraram duas vezes.", "pt")
+
+    assert any(
+        item.role is SelfRole.SUBJECT and not item.implicit_from_predicate
+        for item in subject.self_evidence
+    )
+    assert not any(
+        item.role is SelfRole.SUBJECT and not item.implicit_from_predicate
+        for item in clitic.self_evidence
+    )
 
 
 def test_foundation_does_not_classify_unauthorized_activity() -> None:
