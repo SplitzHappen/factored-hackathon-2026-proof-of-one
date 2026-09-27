@@ -8,10 +8,10 @@ from typing import Iterable
 
 
 _TXID_RE = re.compile(
-    r"(?i)\\bdemo(?:[-\\s]*)(es|pt)(?:[-\\s]*)(\\d{4})\\b"
+    r"(?i)\bdemo(?:[-\s]*)(es|pt)(?:[-\s]*)(\d{4})\b"
 )
 
-_WORD_RE = re.compile(r"[\\w]+(?:['’][\\w]+)*", re.UNICODE)
+_WORD_RE = re.compile(r"[\w]+(?:[\'’][\w]+)*", re.UNICODE)
 
 _STRUCTURAL_PUNCTUATION = frozenset(".?!;:,¿¡-—–")
 
