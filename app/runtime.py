@@ -347,14 +347,123 @@ class OperationalStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT session_id, tenant_id, role, demo_persona_id, customer_id, language
+                SELECT session_id, tenant_id, role, demo_persona_id, customer_id, language,
+                       created_at, revoked_at
                 FROM sessions
                 WHERE session_id = ?
                 """,
                 (str(session_id),),
             ).fetchone()
-        if row is None:
+        if row is None or row["revoked_at"] is not None:
             return None
+        created_at = datetime.fromisoformat(row["created_at"])
+        if self._utc_now() >= created_at + timedelta(seconds=self.session_ttl_seconds):
+            return None
+        return self._session_from_row(row)
+
+    def revoke_session(self, session_id: UUID) -> bool:
+        """Revoke an active customer session without deleting retained support state."""
+
+        now = self._utc_now().isoformat()
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE sessions
+                SET revoked_at = ?, updated_at = ?
+                WHERE session_id = ? AND revoked_at IS NULL
+                """,
+                (now, now, str(session_id)),
+            )
+        return cursor.rowcount == 1
+
+    def enforce_session_creation_rate(self, subject: str) -> None:
+        self._enforce_rate_limit(
+            scope="session_create",
+            subject=subject,
+            limit=self.session_creation_limit,
+            window_seconds=self.session_creation_window_seconds,
+        )
+
+    def enforce_session_request_rate(self, session_id: UUID) -> None:
+        self._enforce_rate_limit(
+            scope="session_request",
+            subject=str(session_id),
+            limit=self.session_request_limit,
+            window_seconds=self.session_request_window_seconds,
+        )
+
+    def cleanup_expired_state(self) -> None:
+        """Delete retained visitor state after the bounded tenant-retention window."""
+
+        cutoff = self._utc_now() - timedelta(seconds=self.tenant_retention_seconds)
+        cutoff_text = cutoff.isoformat()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """
+                DELETE FROM escalation_tickets
+                WHERE session_id IN (
+                    SELECT session_id FROM sessions WHERE created_at < ?
+                )
+                """,
+                (cutoff_text,),
+            )
+            connection.execute(
+                "DELETE FROM sessions WHERE created_at < ?",
+                (cutoff_text,),
+            )
+            connection.execute(
+                "DELETE FROM rate_limit_events WHERE created_at < ?",
+                (cutoff_text,),
+            )
+
+    def _enforce_rate_limit(
+        self,
+        *,
+        scope: str,
+        subject: str,
+        limit: int,
+        window_seconds: int,
+    ) -> None:
+        if not scope or len(scope) > 40:
+            raise ValueError("rate-limit scope must be between 1 and 40 characters")
+        if not subject or len(subject) > 128:
+            raise ValueError("rate-limit subject must be between 1 and 128 characters")
+        now = self._utc_now()
+        cutoff = now - timedelta(seconds=window_seconds)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """
+                DELETE FROM rate_limit_events
+                WHERE scope = ? AND subject = ? AND created_at < ?
+                """,
+                (scope, subject, cutoff.isoformat()),
+            )
+            count = int(
+                connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM rate_limit_events
+                    WHERE scope = ? AND subject = ?
+                    """,
+                    (scope, subject),
+                ).fetchone()[0]
+            )
+            if count >= limit:
+                raise RateLimitExceededError(
+                    f"Rate limit exceeded for {scope}"
+                )
+            connection.execute(
+                """
+                INSERT INTO rate_limit_events(scope, subject, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (scope, subject, now.isoformat()),
+            )
+
+    @staticmethod
+    def _session_from_row(row: sqlite3.Row) -> AuthenticatedSession:
         return AuthenticatedSession(
             session_id=UUID(row["session_id"]),
             tenant_id=row["tenant_id"],
@@ -363,6 +472,21 @@ class OperationalStore:
             customer_id=row["customer_id"],
             language=SupportedLanguage(row["language"]),
         )
+
+    def _get_persisted_session_identity(
+        self,
+        session_id: UUID,
+    ) -> AuthenticatedSession | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT session_id, tenant_id, role, demo_persona_id, customer_id, language
+                FROM sessions
+                WHERE session_id = ?
+                """,
+                (str(session_id),),
+            ).fetchone()
+        return None if row is None else self._session_from_row(row)
 
     def save_conversation_state(
         self,
