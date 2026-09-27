@@ -31,8 +31,8 @@ def _session(client: TestClient, persona_id: str) -> dict:
     return response.json()
 
 
-def test_runtime_schema_bumped_for_explicit_ticket_tenant_binding() -> None:
-    assert RUNTIME_SCHEMA_VERSION == 3
+def test_runtime_schema_includes_tenant_and_lifecycle_controls() -> None:
+    assert RUNTIME_SCHEMA_VERSION == 4
 
 
 def test_authenticated_session_requires_explicit_tenant_and_role() -> None:
