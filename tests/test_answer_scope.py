@@ -135,6 +135,27 @@ def test_payment_history_is_payment_filtered_over_owned_records(
         ),
     ],
 )
+def test_payment_history_explicit_transfer_reference_does_not_masquerade_as_payment(
+    tmp_path,
+) -> None:
+    client = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Muéstrame el historial de pagos de DEMO-ES-1002."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "ANSWER"
+    assert body["intent"] == "payment_history"
+    assert body["transactions"] == []
+    assert "DEMO-ES-1002" not in body["response_text"]
+    assert "No encontré pagos recientes verificables" in body["response_text"]
+
+
 def test_decline_cause_abstention_does_not_presuppose_rejection(
     tmp_path,
     persona_id: str,
