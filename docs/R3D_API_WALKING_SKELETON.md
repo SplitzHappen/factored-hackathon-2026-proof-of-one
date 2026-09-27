@@ -151,6 +151,29 @@ HTTP tests prove:
 - `customer_id` never appears in persona/session API responses;
 - recent history is restricted to the authenticated customer's records.
 
+## Session and abuse lifecycle
+
+The public synthetic API now enforces bounded operational state:
+
+- active customer sessions expire **4 hours** after server issuance;
+- customers may explicitly revoke their current demo session with `DELETE /api/demo/session`;
+- expired or revoked sessions cannot call customer turn/handoff endpoints;
+- verified support tickets remain internally reviewable during the retained tenant window even
+  after customer authentication expires;
+- tenant/session/ticket state is retained for at most **24 hours** from session creation before
+  cleanup;
+- new demo-session creation is limited by persistent peer-scoped counters (default:
+  **10 successful sessions per hour**);
+- authenticated customer requests are limited by persistent per-session counters (default:
+  **60 requests per minute**);
+- escalation creation is retry-safe by session + transaction + reason and allows at most
+  **5 distinct tickets per session**;
+- abuse-limit state is SQLite-backed and therefore survives process restarts;
+- limit failures return HTTP `429`; expired/revoked sessions return HTTP `401`.
+
+These controls bound the public demo's writable SQLite growth and prevent a failed turn followed
+by a client retry from creating duplicate verified support tickets.
+
 ## Time semantics
 
 Relative-date interpretation is anchored by a server-authoritative `reference_date`.
@@ -172,7 +195,7 @@ R3D does not:
 - implement analyst Workbench/Intelligence;
 - execute the held-out suite;
 - display Behavioral Unusualness;
-- implement final rate/cost caps or full session-expiry controls.
+- implement live-provider cost caps (required in the same change that wires a live provider).
 
 Those remain later roadmap items.
 

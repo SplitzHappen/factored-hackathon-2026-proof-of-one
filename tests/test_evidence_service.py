@@ -335,8 +335,8 @@ def test_ticket_without_verified_transaction_context_returns_no_evidence(
             """
             INSERT INTO escalation_tickets(
                 ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
-                created_at, verified_at
-            ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), NULL)
+                idempotency_key, created_at, verified_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), NULL)
             """,
             (
                 str(unverified_id),
@@ -345,6 +345,7 @@ def test_ticket_without_verified_transaction_context_returns_no_evidence(
                 "T006",
                 "manual_support_required",
                 "Unverified test record.",
+                "0" * 64,
             ),
         )
 
