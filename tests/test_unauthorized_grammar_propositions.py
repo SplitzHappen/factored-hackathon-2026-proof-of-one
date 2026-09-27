@@ -718,3 +718,32 @@ def test_p4_subsequent_specific_purchase_not_authorized_remains_positive() -> No
 
     assert PropositionFamily.AUTHORIZATION_DENIAL in es
     assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
+def test_p5_later_permission_denial_does_not_relabel_earlier_use() -> None:
+    propositions = build_positive_propositions(
+        "Mi hermano usó mi tarjeta para gasolina y compró otra compra sin permiso.",
+        "es",
+    )
+
+    assert not any(
+        item.rule == "P5"
+        and item.predicate_token_span is not None
+        and item.activity_ref in {"explicit_activity", "known_actor_instrument_use"}
+        for item in propositions
+    )
+
+
+def test_p5_exceeded_purpose_requires_prior_limited_grant() -> None:
+    es = build_positive_propositions(
+        "Mi hermano compró otra compra sin permiso.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Meu irmão comprou outra compra sem permissão.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-purpose"
+        for item in (*es, *pt)
+    )
