@@ -69,7 +69,7 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             for error in exc.errors()
         ]
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={"detail": detail},
         )
     if context is not None:
