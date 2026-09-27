@@ -142,6 +142,12 @@ class OperationalStore:
             raise ValueError("data_mode must be 'synthetic', 'curated', or None")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
+            preexisting_tables = self._runtime_tables(connection)
+            self._preflight_existing_runtime(
+                connection,
+                preexisting_tables,
+                data_mode=data_mode,
+            )
             journal_row = connection.execute("PRAGMA journal_mode=WAL").fetchone()
             journal_mode = "" if journal_row is None else str(journal_row[0]).casefold()
             if journal_mode != "wal":
@@ -151,15 +157,7 @@ class OperationalStore:
             # Serialize schema inspection/creation so simultaneous startup attempts
             # cannot both conclude that metadata is absent and race to initialize it.
             connection.execute("BEGIN IMMEDIATE")
-            existing_tables = {
-                row["name"]
-                for row in connection.execute(
-                    """
-                    SELECT name FROM sqlite_master
-                    WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
-                    """
-                )
-            }
+            existing_tables = self._runtime_tables(connection)
             if existing_tables:
                 unexpected_tables = existing_tables - RUNTIME_TABLES
                 if unexpected_tables:
@@ -870,6 +868,78 @@ class OperationalStore:
                 else None
             ),
         )
+
+    @staticmethod
+    def _runtime_tables(connection: sqlite3.Connection) -> set[str]:
+        return {
+            row["name"]
+            for row in connection.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+                """
+            )
+        }
+
+    def _preflight_existing_runtime(
+        self,
+        connection: sqlite3.Connection,
+        existing_tables: set[str],
+        *,
+        data_mode: str | None,
+    ) -> None:
+        """Reject incompatible existing runtime state before changing journal mode."""
+
+        if not existing_tables:
+            return
+        unexpected_tables = existing_tables - RUNTIME_TABLES
+        if unexpected_tables:
+            raise RuntimeSchemaVersionError(
+                "Runtime database contains unexpected tables: "
+                + ", ".join(sorted(unexpected_tables))
+            )
+        if "runtime_metadata" not in existing_tables:
+            raise RuntimeSchemaVersionError(
+                "Existing runtime database is missing schema metadata"
+            )
+        row = connection.execute(
+            "SELECT value FROM runtime_metadata WHERE key = 'schema_version'"
+        ).fetchone()
+        if row is None or row["value"] != str(RUNTIME_SCHEMA_VERSION):
+            version = None if row is None else row["value"]
+            raise RuntimeSchemaVersionError(
+                f"Unsupported runtime schema version: {version}"
+            )
+        if data_mode is None:
+            return
+        mode_row = connection.execute(
+            "SELECT value FROM runtime_metadata WHERE key = 'data_mode'"
+        ).fetchone()
+        if mode_row is not None and mode_row["value"] != data_mode:
+            raise RuntimeDataModeMismatchError(
+                "Runtime data mode does not match the banking artifact: "
+                f"runtime={mode_row['value']!r}, artifact={data_mode!r}."
+            )
+        if mode_row is None:
+            populated_rows = sum(
+                int(
+                    connection.execute(
+                        f"SELECT COUNT(*) FROM {table}"
+                    ).fetchone()[0]
+                )
+                for table in (
+                    "sessions",
+                    "conversation_state",
+                    "escalation_tickets",
+                    "rate_limit_events",
+                )
+                if table in existing_tables
+            )
+            if populated_rows:
+                raise RuntimeDataModeMismatchError(
+                    "Existing runtime state has no data-mode binding; "
+                    "refusing to infer one after operational rows exist."
+                )
 
     def check_ready(self, *, expected_data_mode: str) -> None:
         """Verify schema/mode binding, WAL, and runtime-store writability."""
