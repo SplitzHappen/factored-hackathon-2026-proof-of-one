@@ -54,6 +54,11 @@ def test_currency_symbols_and_codes_do_not_change_amount_normalization(
     assert extract_locale_amounts(message, language) == expected
 
 
+def test_ids_dates_and_times_do_not_supply_amount_provenance() -> None:
+    message = "DEMO-ES-1001 del 2026-09-27 a las 12:30"
+    assert extract_locale_amounts(message, SupportedLanguage.ES) == []
+
+
 def test_non_locale_dot_decimal_is_not_partially_parsed() -> None:
     assert extract_locale_amounts("status do pagamento de 219.90", SupportedLanguage.PT) == []
     assert extract_single_locale_amount(
