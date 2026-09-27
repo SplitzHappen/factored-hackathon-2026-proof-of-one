@@ -2469,6 +2469,207 @@ def _fraud_characterizations(
     ]
 
 
+
+
+_ES_ACTIVITY_ANAPHORS = frozenset(
+    {"lo", "la", "los", "las", "esto", "eso", "aquello", "este", "esta", "ese", "esa"}
+)
+_PT_ACTIVITY_ANAPHORS = frozenset(
+    {"isso", "isto", "aquilo", "este", "esta", "esse", "essa", "o", "a"}
+)
+
+
+def _p7_nominal_target(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> tuple[str, tuple[int, int] | None]:
+    tagged: list[tuple[int, str]] = []
+    for index in range(predicate.token_end, clause.token_end):
+        if LexicalTag.ACTIVITY in analysis.tags[index]:
+            tagged.append((index, "activity"))
+        if LexicalTag.DESCRIPTOR_NOUN in analysis.tags[index]:
+            tagged.append((index, "descriptor"))
+
+    if tagged:
+        index, kind = min(tagged, key=lambda item: item[0])
+        return kind, (index, index + 1)
+
+    tagged_before: list[tuple[int, str]] = []
+    for index in range(clause.token_start, predicate.token_start):
+        if LexicalTag.ACTIVITY in analysis.tags[index]:
+            tagged_before.append((index, "activity"))
+        if LexicalTag.DESCRIPTOR_NOUN in analysis.tags[index]:
+            tagged_before.append((index, "descriptor"))
+
+    if tagged_before:
+        index, kind = min(tagged_before, key=lambda item: item[0])
+        return kind, (index, index + 1)
+
+    return "none", None
+
+
+def _p7_has_activity_anaphor(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> tuple[int, int] | None:
+    anaphors = _ES_ACTIVITY_ANAPHORS if language == "es" else _PT_ACTIVITY_ANAPHORS
+    words = [token.normalized for token in analysis.tokens]
+
+    candidates: list[int] = []
+    for index in range(
+        max(clause.token_start, predicate.token_start - 3),
+        min(clause.token_end, predicate.token_end + 4),
+    ):
+        if words[index] in anaphors:
+            candidates.append(index)
+
+    if not candidates:
+        return None
+
+    index = min(
+        candidates,
+        key=lambda item: min(
+            abs(item - predicate.token_start),
+            abs(item - predicate.token_end),
+        ),
+    )
+    return (index, index + 1)
+
+
+def _nearest_preceding_activity_or_txid(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], str] | None:
+    prior_clauses = [
+        prior for prior in analysis.clauses
+        if prior.index < clause.index
+    ]
+    for prior in reversed(prior_clauses):
+        for index in range(prior.token_end - 1, prior.token_start - 1, -1):
+            if analysis.tokens[index].is_txid:
+                return (index, index + 1), "linked_prior_txid"
+            if LexicalTag.ACTIVITY not in analysis.tags[index]:
+                continue
+            activity_span = (index, index + 1)
+            if _customer_anchored_activity(
+                analysis,
+                prior,
+                activity_span,
+                language,
+            ):
+                return activity_span, "linked_prior_activity"
+    return None
+
+
+def _activity_nonrecognition(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    output: list[PositiveProposition] = []
+    self_subjects = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.SUBJECT, SelfRole.AGENT}),
+    )
+
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.family is not PredicateFamily.RECOGNIZE:
+            continue
+        if not _predicate_has_denial(analysis, clause, predicate, language):
+            continue
+        if not self_subjects:
+            continue
+
+        target_kind, target_span = _p7_nominal_target(
+            analysis,
+            clause,
+            predicate,
+            language,
+        )
+        if target_kind == "descriptor":
+            continue
+
+        negatives = _negative_indices(analysis, clause, language)
+        denial_span = min(
+            ((index, index + 1) for index in negatives),
+            key=lambda span: min(
+                abs(span[0] - predicate.token_start),
+                abs(span[0] - predicate.token_end),
+            ),
+        )
+        nearest_self = min(
+            self_subjects,
+            key=lambda span: min(
+                abs(span[0] - predicate.token_start),
+                abs(span[0] - predicate.token_end),
+            ),
+        )
+        evidence: list[tuple[int, int]] = [denial_span, nearest_self]
+        activity_span: tuple[int, int] | None = None
+        activity_ref = "topic_transaction"
+        rule = "P7"
+
+        if target_kind == "activity" and target_span is not None:
+            if not _customer_anchored_activity(
+                analysis,
+                clause,
+                target_span,
+                language,
+            ):
+                continue
+            activity_span = target_span
+            activity_ref = "explicit_activity"
+            evidence.append(target_span)
+        else:
+            anaphor_span = _p7_has_activity_anaphor(
+                analysis,
+                clause,
+                predicate,
+                language,
+            )
+            if anaphor_span is not None:
+                evidence.append(anaphor_span)
+
+            prior = _nearest_preceding_activity_or_txid(
+                analysis,
+                clause,
+                language,
+            )
+            if prior is not None:
+                activity_span, activity_ref = prior
+                evidence.append(activity_span)
+                rule = "P7-R3-activity-anaphora"
+            elif anaphor_span is not None or predicate.form.person == 1:
+                activity_ref = "topic_transaction"
+                rule = "P7-R3-topic-default"
+            else:
+                continue
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.ACTIVITY_NONRECOGNITION,
+                rule=rule,
+                language=language,
+                evidence_spans=evidence,
+                activity_span=activity_span,
+                predicate=predicate,
+                activity_ref=activity_ref,
+            )
+        )
+
+    return output
+
+
 def build_positive_propositions(
     text: str,
     language: str,
@@ -2520,6 +2721,9 @@ def build_positive_propositions(
         )
         propositions.extend(
             _fraud_characterizations(analysis, clause, language)
+        )
+        propositions.extend(
+            _activity_nonrecognition(analysis, clause, language)
         )
 
     unique: dict[
