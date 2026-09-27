@@ -51,6 +51,9 @@ def test_compositional_explicit_unauthorized_assertions(message: str) -> None:
         "É possível alguém fazer um Pix da minha conta sem a minha senha?",
         "Se eu perder o cartão e alguém comprar algo sem minha permissão, o banco devolve o dinheiro?",
         "Quais cuidados devo ter para evitar transações não autorizadas no Pix?",
+        "¿Qué controles de seguridad tienen para prevenir transferencias no autorizadas?",
+        "Acabo de hacer la transferencia DEMO-ES-1001; ¿qué controles de seguridad tienen para prevenir transferencias no autorizadas en mi cuenta?",
+        "Quais controles de segurança existem para prevenir transações não autorizadas?",
         "A transação DEMO-PT-2001 tem proteção caso um dia alguém use meu cartão sem autorização?",
         # Descriptor clarification, retraction, and negated denial.
         "No reconozco el nombre que aparece en este cobro; ¿me pueden decir qué comercio es?",
@@ -72,6 +75,8 @@ def test_compositional_scope_controls_remain_negative(message: str) -> None:
         "No reconozco el nombre del comercio y además no hice esa compra.",
         "Pensé que el cargo anterior era mío, pero este cargo no es mío.",
         "Há pagamentos não autorizados; quais cuidados devo tomar agora?",
+        "Tengo transferencias no autorizadas; ¿qué controles de seguridad tienen para evitar que vuelva a pasar?",
+        "Há transferências não autorizadas; quais controles de segurança devo ativar agora?",
         "Não reconheço o nome do comércio e também não fiz essa compra.",
         "Achei que a cobrança anterior era minha, mas essa compra não é minha.",
     ],
