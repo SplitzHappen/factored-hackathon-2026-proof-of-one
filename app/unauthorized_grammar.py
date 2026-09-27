@@ -1,0 +1,1208 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+import re
+import unicodedata
+from typing import Iterable
+
+
+_TXID_RE = re.compile(
+    r"(?i)\bdemo(?:[-\s]*)(es|pt)(?:[-\s]*)(\d{4})\b"
+)
+
+_WORD_RE = re.compile(r"[\w]+(?:[\'’][\w]+)*", re.UNICODE)
+
+_STRUCTURAL_PUNCTUATION = frozenset(".?!;:,¿¡-—–")
+
+
+class PredicateFamily(str, Enum):
+    PERFORM = "perform"
+    ORIGINATE = "originate"
+    AUTHORIZE = "authorize"
+    GIVE_PERMISSION = "give_permission"
+    RECOGNIZE = "recognize"
+    USE_ACCESS = "use_access"
+    COMPROMISE = "compromise"
+
+
+class SelfRole(str, Enum):
+    SUBJECT = "self_subject"
+    AGENT = "self_agent"
+    SOURCE = "self_source"
+    POSSESSOR = "self_possessor"
+    DATIVE = "self_dative"
+
+
+class LexicalTag(str, Enum):
+    ACTIVITY = "activity"
+    INSTRUMENT = "instrument"
+    SELF = "self"
+    THIRD_PARTY = "third_party"
+    NEGATOR = "negator"
+    NEG_QUANTIFIER = "neg_quantifier"
+    COORD_NEGATION = "coord_negation"
+    OWNERSHIP = "ownership"
+    AUTH_NOUN = "auth_noun"
+    FRAUD_MARKER = "fraud_marker"
+    DESCRIPTOR_NOUN = "descriptor_noun"
+    SECURITY_INFO = "security_info"
+    UNCERTAINTY = "uncertainty"
+    CONDITIONAL = "conditional"
+    RETRACTION = "retraction"
+    AFFIRM_SELF = "affirm_self"
+    TXID = "txid"
+    QUESTION_OPEN = "question_open"
+    QUESTION_CLOSE = "question_close"
+    CONTRAST = "contrast"
+
+
+@dataclass(frozen=True)
+class Token:
+    surface: str
+    normalized: str
+    start: int
+    end: int
+    had_acute: bool
+    is_txid: bool = False
+    txid_language: str | None = None
+    txid_digits: str | None = None
+
+
+@dataclass(frozen=True)
+class ClauseSegment:
+    index: int
+    token_start: int
+    token_end: int
+    source_start: int
+    source_end: int
+
+
+@dataclass(frozen=True)
+class PredicateForm:
+    family: PredicateFamily
+    lemma: str
+    language: str
+    person: int | None
+    number: str | None
+    tense_aspect: str
+    mood: str
+    voice: str
+    accent_required: bool
+
+
+@dataclass(frozen=True)
+class PredicateMatch:
+    form: PredicateForm
+    token_start: int
+    token_end: int
+    accent_ambiguous: bool = False
+
+
+@dataclass(frozen=True)
+class SelfEvidence:
+    role: SelfRole
+    token_start: int
+    token_end: int
+    implicit_from_predicate: bool = False
+    ambiguous: bool = False
+
+
+@dataclass(frozen=True)
+class FoundationAnalysis:
+    tokens: tuple[Token, ...]
+    clauses: tuple[ClauseSegment, ...]
+    predicates: tuple[PredicateMatch, ...]
+    tags: tuple[frozenset[LexicalTag], ...]
+    self_evidence: tuple[SelfEvidence, ...]
+
+
+def _strip_diacritics(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _has_acute(text: str) -> bool:
+    decomposed = unicodedata.normalize("NFD", text)
+    return "\u0301" in decomposed
+
+
+def _normalize_word(text: str) -> str:
+    return _strip_diacritics(text).replace("’", "'")
+
+
+def tokenize_with_source(text: str) -> tuple[Token, ...]:
+    """Tokenize while retaining exact source offsets and accent metadata."""
+
+    tokens: list[Token] = []
+    index = 0
+    while index < len(text):
+        if text[index].isspace():
+            index += 1
+            continue
+
+        txid_match = _TXID_RE.match(text, index)
+        if txid_match is not None:
+            surface = txid_match.group(0)
+            tokens.append(
+                Token(
+                    surface=surface,
+                    normalized="<txid>",
+                    start=index,
+                    end=txid_match.end(),
+                    had_acute=False,
+                    is_txid=True,
+                    txid_language=txid_match.group(1).lower(),
+                    txid_digits=txid_match.group(2),
+                )
+            )
+            index = txid_match.end()
+            continue
+
+        char = text[index]
+        if char in _STRUCTURAL_PUNCTUATION:
+            normalized = "-" if char in {"—", "–"} else char
+            tokens.append(
+                Token(
+                    surface=char,
+                    normalized=normalized,
+                    start=index,
+                    end=index + 1,
+                    had_acute=False,
+                )
+            )
+            index += 1
+            continue
+
+        word_match = _WORD_RE.match(text, index)
+        if word_match is not None:
+            surface = word_match.group(0)
+            tokens.append(
+                Token(
+                    surface=surface,
+                    normalized=_normalize_word(surface),
+                    start=index,
+                    end=word_match.end(),
+                    had_acute=_has_acute(surface),
+                )
+            )
+            index = word_match.end()
+            continue
+
+        tokens.append(
+            Token(
+                surface=char,
+                normalized=_normalize_word(char),
+                start=index,
+                end=index + 1,
+                had_acute=_has_acute(char),
+            )
+        )
+        index += 1
+
+    return tuple(tokens)
+
+
+def _is_numeric_punctuation(text: str, token: Token) -> bool:
+    if token.surface not in {".", ","}:
+        return False
+    before = text[token.start - 1] if token.start > 0 else ""
+    after = text[token.end] if token.end < len(text) else ""
+    return before.isdigit() and after.isdigit()
+
+
+def _has_following_whitespace(text: str, token: Token) -> bool:
+    return token.end >= len(text) or text[token.end].isspace()
+
+
+def _is_whitespace_adjacent_dash(text: str, token: Token) -> bool:
+    if token.normalized != "-":
+        return False
+    before_ok = token.start == 0 or text[token.start - 1].isspace()
+    after_ok = token.end == len(text) or text[token.end].isspace()
+    return before_ok and after_ok
+
+
+def _is_primary_boundary(text: str, token: Token) -> bool:
+    if token.normalized in {"?", "!", ";"}:
+        return True
+    if token.normalized == ".":
+        if _is_numeric_punctuation(text, token):
+            return False
+        return _has_following_whitespace(text, token)
+    if token.normalized == "-":
+        return _is_whitespace_adjacent_dash(text, token)
+    return False
+
+
+def _form(
+    family: PredicateFamily,
+    lemma: str,
+    language: str,
+    person: int | None,
+    number: str | None,
+    tense_aspect: str,
+    mood: str,
+    surface: str,
+    *,
+    voice: str = "active",
+) -> tuple[str, PredicateForm]:
+    return (
+        _normalize_word(surface),
+        PredicateForm(
+            family=family,
+            lemma=lemma,
+            language=language,
+            person=person,
+            number=number,
+            tense_aspect=tense_aspect,
+            mood=mood,
+            voice=voice,
+            accent_required=_has_acute(surface),
+        ),
+    )
+
+
+_ES_REGULAR_ENDINGS: dict[str, dict[str, tuple[str, ...]]] = {
+    "ar": {
+        "present": ("o", "as", "a", "amos", "áis", "an"),
+        "preterite": ("é", "aste", "ó", "amos", "asteis", "aron"),
+        "imperfect": ("aba", "abas", "aba", "ábamos", "abais", "aban"),
+        "present_subjunctive": ("e", "es", "e", "emos", "éis", "en"),
+    },
+    "er": {
+        "present": ("o", "es", "e", "emos", "éis", "en"),
+        "preterite": ("í", "iste", "ió", "imos", "isteis", "ieron"),
+        "imperfect": ("ía", "ías", "ía", "íamos", "íais", "ían"),
+        "present_subjunctive": ("a", "as", "a", "amos", "áis", "an"),
+    },
+    "ir": {
+        "present": ("o", "es", "e", "imos", "ís", "en"),
+        "preterite": ("í", "iste", "ió", "imos", "isteis", "ieron"),
+        "imperfect": ("ía", "ías", "ía", "íamos", "íais", "ían"),
+        "present_subjunctive": ("a", "as", "a", "amos", "áis", "an"),
+    },
+}
+
+_PT_REGULAR_ENDINGS: dict[str, dict[str, tuple[str, ...]]] = {
+    "ar": {
+        "present": ("o", "as", "a", "amos", "ais", "am"),
+        "preterite": ("ei", "aste", "ou", "amos", "astes", "aram"),
+        "imperfect": ("ava", "avas", "ava", "ávamos", "áveis", "avam"),
+        "present_subjunctive": ("e", "es", "e", "emos", "eis", "em"),
+    },
+    "er": {
+        "present": ("o", "es", "e", "emos", "eis", "em"),
+        "preterite": ("i", "este", "eu", "emos", "estes", "eram"),
+        "imperfect": ("ia", "ias", "ia", "íamos", "íeis", "iam"),
+        "present_subjunctive": ("a", "as", "a", "amos", "ais", "am"),
+    },
+    "ir": {
+        "present": ("o", "es", "e", "imos", "is", "em"),
+        "preterite": ("i", "iste", "iu", "imos", "istes", "iram"),
+        "imperfect": ("ia", "ias", "ia", "íamos", "íeis", "iam"),
+        "present_subjunctive": ("a", "as", "a", "amos", "ais", "am"),
+    },
+}
+
+
+def _spanish_stem_for_ending(stem: str, ending: str) -> str:
+    if not ending.startswith(("e", "é")):
+        return stem
+    if stem.endswith("z"):
+        return stem[:-1] + "c"
+    if stem.endswith("c"):
+        return stem[:-1] + "qu"
+    if stem.endswith("g"):
+        return stem + "u"
+    return stem
+
+
+def _portuguese_stem_for_ending(stem: str, ending: str) -> str:
+    if not ending.startswith(("e", "é")):
+        return stem
+    if stem.endswith("c"):
+        return stem[:-1] + "qu"
+    if stem.endswith("g"):
+        return stem + "u"
+    return stem
+
+
+def _regular_forms(
+    language: str,
+    family: PredicateFamily,
+    lemma: str,
+) -> list[tuple[str, PredicateForm]]:
+    endings_table = _ES_REGULAR_ENDINGS if language == "es" else _PT_REGULAR_ENDINGS
+    conjugation = lemma[-2:]
+    if conjugation not in endings_table:
+        return []
+
+    stem = lemma[:-2]
+    person_number = (
+        (1, "singular"),
+        (2, "singular"),
+        (3, "singular"),
+        (1, "plural"),
+        (2, "plural"),
+        (3, "plural"),
+    )
+    output: list[tuple[str, PredicateForm]] = []
+    for tense_aspect, endings in endings_table[conjugation].items():
+        mood = "subjunctive" if "subjunctive" in tense_aspect else "indicative"
+        for (person, number), ending in zip(person_number, endings, strict=True):
+            adjusted_stem = (
+                _spanish_stem_for_ending(stem, ending)
+                if language == "es"
+                else _portuguese_stem_for_ending(stem, ending)
+            )
+            output.append(
+                _form(
+                    family,
+                    lemma,
+                    language,
+                    person,
+                    number,
+                    tense_aspect,
+                    mood,
+                    adjusted_stem + ending,
+                )
+            )
+
+    if language == "es":
+        future_endings = ("é", "ás", "á", "emos", "éis", "án")
+        conditional_endings = ("ía", "ías", "ía", "íamos", "íais", "ían")
+    else:
+        future_endings = ("ei", "ás", "á", "emos", "eis", "ão")
+        conditional_endings = ("ia", "ias", "ia", "íamos", "íeis", "iam")
+
+    for tense_aspect, endings in (
+        ("future", future_endings),
+        ("conditional", conditional_endings),
+    ):
+        for (person, number), ending in zip(person_number, endings, strict=True):
+            output.append(
+                _form(
+                    family,
+                    lemma,
+                    language,
+                    person,
+                    number,
+                    tense_aspect,
+                    "indicative",
+                    lemma + ending,
+                )
+            )
+    return output
+
+
+_ES_IRREGULAR: dict[str, dict[str, tuple[str, ...]]] = {
+    "hacer": {
+        "present": ("hago", "haces", "hace", "hacemos", "hacéis", "hacen"),
+        "preterite": ("hice", "hiciste", "hizo", "hicimos", "hicisteis", "hicieron"),
+        "imperfect": ("hacía", "hacías", "hacía", "hacíamos", "hacíais", "hacían"),
+        "present_subjunctive": ("haga", "hagas", "haga", "hagamos", "hagáis", "hagan"),
+    },
+    "dar": {
+        "present": ("doy", "das", "da", "damos", "dais", "dan"),
+        "preterite": ("di", "diste", "dio", "dimos", "disteis", "dieron"),
+        "imperfect": ("daba", "dabas", "daba", "dábamos", "dabais", "daban"),
+        "present_subjunctive": ("dé", "des", "dé", "demos", "deis", "den"),
+    },
+    "salir": {
+        "present": ("salgo", "sales", "sale", "salimos", "salís", "salen"),
+        "preterite": ("salí", "saliste", "salió", "salimos", "salisteis", "salieron"),
+        "imperfect": ("salía", "salías", "salía", "salíamos", "salíais", "salían"),
+        "present_subjunctive": ("salga", "salgas", "salga", "salgamos", "salgáis", "salgan"),
+    },
+    "venir": {
+        "present": ("vengo", "vienes", "viene", "venimos", "venís", "vienen"),
+        "preterite": ("vine", "viniste", "vino", "vinimos", "vinisteis", "vinieron"),
+        "imperfect": ("venía", "venías", "venía", "veníamos", "veníais", "venían"),
+        "present_subjunctive": ("venga", "vengas", "venga", "vengamos", "vengáis", "vengan"),
+    },
+    "reconocer": {
+        "present": ("reconozco", "reconoces", "reconoce", "reconocemos", "reconocéis", "reconocen"),
+        "preterite": ("reconocí", "reconociste", "reconoció", "reconocimos", "reconocisteis", "reconocieron"),
+        "imperfect": ("reconocía", "reconocías", "reconocía", "reconocíamos", "reconocíais", "reconocían"),
+        "present_subjunctive": ("reconozca", "reconozcas", "reconozca", "reconozcamos", "reconozcáis", "reconozcan"),
+    },
+}
+
+_PT_IRREGULAR: dict[str, dict[str, tuple[str, ...]]] = {
+    "fazer": {
+        "present": ("faço", "fazes", "faz", "fazemos", "fazeis", "fazem"),
+        "preterite": ("fiz", "fizeste", "fez", "fizemos", "fizestes", "fizeram"),
+        "imperfect": ("fazia", "fazias", "fazia", "fazíamos", "fazíeis", "faziam"),
+        "present_subjunctive": ("faça", "faças", "faça", "façamos", "façais", "façam"),
+    },
+    "dar": {
+        "present": ("dou", "dás", "dá", "damos", "dais", "dão"),
+        "preterite": ("dei", "deste", "deu", "demos", "destes", "deram"),
+        "imperfect": ("dava", "davas", "dava", "dávamos", "dáveis", "davam"),
+        "present_subjunctive": ("dê", "dês", "dê", "demos", "deis", "deem"),
+    },
+    "sair": {
+        "present": ("saio", "sais", "sai", "saímos", "saís", "saem"),
+        "preterite": ("saí", "saíste", "saiu", "saímos", "saístes", "saíram"),
+        "imperfect": ("saía", "saías", "saía", "saíamos", "saíeis", "saíam"),
+        "present_subjunctive": ("saia", "saias", "saia", "saiamos", "saiais", "saiam"),
+    },
+    "vir": {
+        "present": ("venho", "vens", "vem", "vimos", "vindes", "vêm"),
+        "preterite": ("vim", "vieste", "veio", "viemos", "viestes", "vieram"),
+        "imperfect": ("vinha", "vinhas", "vinha", "vínhamos", "vínheis", "vinham"),
+        "present_subjunctive": ("venha", "venhas", "venha", "venhamos", "venhais", "venham"),
+    },
+    "reconhecer": {
+        "present": ("reconheço", "reconheces", "reconhece", "reconhecemos", "reconheceis", "reconhecem"),
+        "preterite": ("reconheci", "reconheceste", "reconheceu", "reconhecemos", "reconhecestes", "reconheceram"),
+        "imperfect": ("reconhecia", "reconhecias", "reconhecia", "reconhecíamos", "reconhecíeis", "reconheciam"),
+        "present_subjunctive": ("reconheça", "reconheças", "reconheça", "reconheçamos", "reconheçais", "reconheçam"),
+    },
+}
+
+
+_ES_LEMMAS: dict[PredicateFamily, tuple[str, ...]] = {
+    PredicateFamily.PERFORM: (
+        "hacer",
+        "realizar",
+        "efectuar",
+        "ordenar",
+        "mandar",
+        "pagar",
+        "retirar",
+        "transferir",
+        "comprar",
+    ),
+    PredicateFamily.ORIGINATE: ("salir", "partir", "provenir", "venir"),
+    PredicateFamily.AUTHORIZE: ("autorizar", "aprobar", "consentir", "permitir"),
+    PredicateFamily.GIVE_PERMISSION: ("dar",),
+    PredicateFamily.RECOGNIZE: ("reconocer", "identificar"),
+    PredicateFamily.USE_ACCESS: (
+        "usar",
+        "utilizar",
+        "entrar",
+        "acceder",
+        "agarrar",
+        "coger",
+        "tomar",
+        "sacar",
+    ),
+    PredicateFamily.COMPROMISE: ("robar", "clonar", "hackear"),
+}
+
+_PT_LEMMAS: dict[PredicateFamily, tuple[str, ...]] = {
+    PredicateFamily.PERFORM: (
+        "fazer",
+        "realizar",
+        "efetuar",
+        "mandar",
+        "pagar",
+        "sacar",
+        "transferir",
+        "comprar",
+    ),
+    PredicateFamily.ORIGINATE: ("partir", "sair", "vir"),
+    PredicateFamily.AUTHORIZE: ("autorizar", "aprovar", "consentir", "permitir"),
+    PredicateFamily.GIVE_PERMISSION: ("dar",),
+    PredicateFamily.RECOGNIZE: ("reconhecer", "identificar"),
+    PredicateFamily.USE_ACCESS: (
+        "usar",
+        "utilizar",
+        "entrar",
+        "acessar",
+        "pegar",
+        "tomar",
+    ),
+    PredicateFamily.COMPROMISE: ("roubar", "clonar", "hackear", "invadir", "furtar"),
+}
+
+
+_ES_FUTURE_STEMS = {
+    "hacer": "har",
+    "salir": "saldr",
+    "venir": "vendr",
+}
+_PT_FUTURE_STEMS = {
+    "fazer": "far",
+    "vir": "vir",
+}
+
+
+def _irregular_forms(
+    language: str,
+    family: PredicateFamily,
+    lemma: str,
+) -> list[tuple[str, PredicateForm]]:
+    table = _ES_IRREGULAR if language == "es" else _PT_IRREGULAR
+    if lemma not in table:
+        return []
+
+    person_number = (
+        (1, "singular"),
+        (2, "singular"),
+        (3, "singular"),
+        (1, "plural"),
+        (2, "plural"),
+        (3, "plural"),
+    )
+    output: list[tuple[str, PredicateForm]] = []
+    for tense_aspect, surfaces in table[lemma].items():
+        mood = "subjunctive" if "subjunctive" in tense_aspect else "indicative"
+        for (person, number), surface in zip(person_number, surfaces, strict=True):
+            output.append(
+                _form(
+                    family,
+                    lemma,
+                    language,
+                    person,
+                    number,
+                    tense_aspect,
+                    mood,
+                    surface,
+                )
+            )
+
+    if language == "es":
+        future_stem = _ES_FUTURE_STEMS.get(lemma, lemma)
+        future_endings = ("é", "ás", "á", "emos", "éis", "án")
+        conditional_endings = ("ía", "ías", "ía", "íamos", "íais", "ían")
+    else:
+        future_stem = _PT_FUTURE_STEMS.get(lemma, lemma)
+        future_endings = ("ei", "ás", "á", "emos", "eis", "ão")
+        conditional_endings = ("ia", "ias", "ia", "íamos", "íeis", "iam")
+
+    for tense_aspect, endings in (
+        ("future", future_endings),
+        ("conditional", conditional_endings),
+    ):
+        for (person, number), ending in zip(person_number, endings, strict=True):
+            output.append(
+                _form(
+                    family,
+                    lemma,
+                    language,
+                    person,
+                    number,
+                    tense_aspect,
+                    "indicative",
+                    future_stem + ending,
+                )
+            )
+    return output
+
+
+def _participle(language: str, lemma: str) -> str:
+    if language == "es":
+        irregular = {
+            "hacer": "hecho",
+        }
+        if lemma in irregular:
+            return irregular[lemma]
+        if lemma.endswith("ar"):
+            return lemma[:-2] + "ado"
+        return lemma[:-2] + "ido"
+
+    irregular = {
+        "fazer": "feito",
+    }
+    if lemma in irregular:
+        return irregular[lemma]
+    if lemma.endswith("ar"):
+        return lemma[:-2] + "ado"
+    return lemma[:-2] + "ido"
+
+
+_ES_AUXILIARIES: dict[str, tuple[tuple[str, int, str], ...]] = {
+    "present_perfect": (
+        ("he", 1, "singular"),
+        ("has", 2, "singular"),
+        ("ha", 3, "singular"),
+        ("hemos", 1, "plural"),
+        ("habéis", 2, "plural"),
+        ("han", 3, "plural"),
+    ),
+    "pluperfect": (
+        ("había", 1, "singular"),
+        ("habías", 2, "singular"),
+        ("había", 3, "singular"),
+        ("habíamos", 1, "plural"),
+        ("habíais", 2, "plural"),
+        ("habían", 3, "plural"),
+    ),
+}
+
+_PT_AUXILIARIES: dict[str, tuple[tuple[str, int, str], ...]] = {
+    "iterative_compound": (
+        ("tenho", 1, "singular"),
+        ("tens", 2, "singular"),
+        ("tem", 3, "singular"),
+        ("temos", 1, "plural"),
+        ("tendes", 2, "plural"),
+        ("têm", 3, "plural"),
+    ),
+    "pluperfect": (
+        ("tinha", 1, "singular"),
+        ("tinhas", 2, "singular"),
+        ("tinha", 3, "singular"),
+        ("tínhamos", 1, "plural"),
+        ("tínheis", 2, "plural"),
+        ("tinham", 3, "plural"),
+    ),
+}
+
+
+def _build_paradigm(language: str) -> dict[str, tuple[PredicateForm, ...]]:
+    lemma_map = _ES_LEMMAS if language == "es" else _PT_LEMMAS
+    forms: dict[str, list[PredicateForm]] = {}
+
+    for family, lemmas in lemma_map.items():
+        for lemma in lemmas:
+            generated = _irregular_forms(language, family, lemma)
+            if not generated:
+                generated = _regular_forms(language, family, lemma)
+
+            for normalized, form in generated:
+                forms.setdefault(normalized, []).append(form)
+
+            participle = _participle(language, lemma)
+            normalized_participle, participle_form = _form(
+                family,
+                lemma,
+                language,
+                None,
+                None,
+                "participle",
+                "participle",
+                participle,
+                voice="participle",
+            )
+            forms.setdefault(normalized_participle, []).append(participle_form)
+
+    return {surface: tuple(entries) for surface, entries in forms.items()}
+
+
+PARADIGMS: dict[str, dict[str, tuple[PredicateForm, ...]]] = {
+    "es": _build_paradigm("es"),
+    "pt": _build_paradigm("pt"),
+}
+
+
+def _compound_match(
+    tokens: tuple[Token, ...],
+    index: int,
+    language: str,
+) -> list[PredicateMatch]:
+    if index + 1 >= len(tokens):
+        return []
+
+    aux_table = _ES_AUXILIARIES if language == "es" else _PT_AUXILIARIES
+    aux = tokens[index]
+    participle = tokens[index + 1]
+
+    results: list[PredicateMatch] = []
+    for tense_aspect, auxiliaries in aux_table.items():
+        for aux_surface, person, number in auxiliaries:
+            if aux.normalized != _normalize_word(aux_surface):
+                continue
+            for form in PARADIGMS[language].get(participle.normalized, ()):
+                if form.tense_aspect != "participle":
+                    continue
+                compound_form = PredicateForm(
+                    family=form.family,
+                    lemma=form.lemma,
+                    language=language,
+                    person=person,
+                    number=number,
+                    tense_aspect=tense_aspect,
+                    mood="indicative",
+                    voice="active",
+                    accent_required=_has_acute(aux_surface),
+                )
+                results.append(
+                    PredicateMatch(
+                        form=compound_form,
+                        token_start=index,
+                        token_end=index + 2,
+                        accent_ambiguous=(
+                            compound_form.accent_required and not aux.had_acute
+                        ),
+                    )
+                )
+    return results
+
+
+_ES_NOMINAL_DETERMINERS = frozenset(
+    {"el", "la", "los", "las", "un", "una", "unos", "unas", "este", "esta", "ese", "esa", "mi", "mis", "su", "sus"}
+)
+_PT_NOMINAL_DETERMINERS = frozenset(
+    {"o", "a", "os", "as", "um", "uma", "uns", "umas", "este", "esta", "esse", "essa", "meu", "minha", "meus", "minhas", "seu", "sua"}
+)
+
+
+def _looks_nominal(
+    tokens: tuple[Token, ...],
+    index: int,
+    language: str,
+) -> bool:
+    activity = _ES_ACTIVITY if language == "es" else _PT_ACTIVITY
+    if tokens[index].normalized not in activity:
+        return False
+
+    determiners = (
+        _ES_NOMINAL_DETERMINERS
+        if language == "es"
+        else _PT_NOMINAL_DETERMINERS
+    )
+    if index > 0:
+        previous = tokens[index - 1]
+        if previous.normalized in determiners:
+            return True
+        if previous.normalized.isdigit() or previous.is_txid:
+            return True
+    if index + 1 < len(tokens) and tokens[index + 1].is_txid:
+        return True
+    return False
+
+
+def find_predicates(
+    tokens: Iterable[Token],
+    language: str,
+) -> tuple[PredicateMatch, ...]:
+    token_tuple = tuple(tokens)
+    if language not in PARADIGMS:
+        raise ValueError(f"unsupported language: {language}")
+
+    matches: list[PredicateMatch] = []
+    compound_consumed: set[int] = set()
+    for index, token in enumerate(token_tuple):
+        compounds = _compound_match(token_tuple, index, language)
+        if compounds:
+            matches.extend(compounds)
+            compound_consumed.add(index + 1)
+
+        if index in compound_consumed:
+            continue
+        if _looks_nominal(token_tuple, index, language):
+            continue
+
+        for form in PARADIGMS[language].get(token.normalized, ()):
+            if form.tense_aspect == "participle":
+                continue
+            matches.append(
+                PredicateMatch(
+                    form=form,
+                    token_start=index,
+                    token_end=index + 1,
+                    accent_ambiguous=form.accent_required and not token.had_acute,
+                )
+            )
+
+    return tuple(matches)
+
+
+_ES_ACTIVITY = frozenset(
+    {
+        "cargo",
+        "cargos",
+        "cobro",
+        "cobros",
+        "compra",
+        "compras",
+        "pago",
+        "pagos",
+        "movimiento",
+        "movimientos",
+        "operacion",
+        "operaciones",
+        "transaccion",
+        "transacciones",
+        "transferencia",
+        "transferencias",
+        "debito",
+        "debitos",
+        "retiro",
+        "retiros",
+        "consumo",
+        "consumos",
+    }
+)
+
+_PT_ACTIVITY = frozenset(
+    {
+        "cobranca",
+        "cobrancas",
+        "compra",
+        "compras",
+        "pagamento",
+        "pagamentos",
+        "lancamento",
+        "lancamentos",
+        "operacao",
+        "operacoes",
+        "transacao",
+        "transacoes",
+        "transferencia",
+        "transferencias",
+        "pix",
+        "debito",
+        "debitos",
+        "saque",
+        "saques",
+        "gasto",
+        "gastos",
+        "ted",
+        "boleto",
+        "boletos",
+        "movimentacao",
+        "movimentacoes",
+    }
+)
+
+_ES_INSTRUMENT = frozenset({"tarjeta", "cuenta", "billetera", "wallet"})
+_PT_INSTRUMENT = frozenset({"cartao", "conta", "carteira", "wallet"})
+
+_ES_SELF = frozenset({"yo", "me", "mi", "mio", "mia", "mios", "mias", "nosotros", "nosotras"})
+_PT_SELF = frozenset({"eu", "me", "mim", "meu", "minha", "meus", "minhas", "nos"})
+
+_ES_THIRD = frozenset({"alguien", "tercero", "tercera", "persona"})
+_PT_THIRD = frozenset({"alguem", "terceiro", "terceira", "pessoa"})
+
+_ES_NEG_QUANT = frozenset({"nadie", "ninguno", "ninguna", "ningunos", "ningunas"})
+_PT_NEG_QUANT = frozenset({"ninguem", "nenhum", "nenhuma", "nenhuns", "nenhumas"})
+
+_ES_AUTH_NOUN = frozenset({"autorizacion", "permiso", "consentimiento"})
+_PT_AUTH_NOUN = frozenset({"autorizacao", "permissao", "consentimento", "anuencia"})
+
+_ES_FRAUD = frozenset({"fraude", "fraudulento", "fraudulenta", "fraudulentos", "fraudulentas"})
+_PT_FRAUD = frozenset({"fraude", "golpe", "fraudulento", "fraudulenta", "fraudulentos", "fraudulentas"})
+
+_ES_DESCRIPTOR = frozenset({"nombre", "comercio", "establecimiento", "descriptor", "descripcion"})
+_PT_DESCRIPTOR = frozenset({"nome", "comercio", "estabelecimento", "descritor", "descricao"})
+
+_ES_SECURITY = frozenset({"seguridad", "proteccion", "alerta", "alertas", "notificacion", "notificaciones", "medidas", "controles"})
+_PT_SECURITY = frozenset({"seguranca", "protecao", "alerta", "alertas", "notificacao", "notificacoes", "medidas", "controles", "cuidados"})
+
+_ES_UNCERTAINTY = frozenset({"quizas", "talvez"})
+_PT_UNCERTAINTY = frozenset({"talvez"})
+
+_ES_CONTRAST = frozenset({"pero", "sino", "aunque"})
+_PT_CONTRAST = frozenset({"mas", "porem", "embora"})
+
+
+def _next_predicate_index(
+    index: int,
+    predicates: tuple[PredicateMatch, ...],
+    *,
+    max_gap: int = 2,
+) -> int | None:
+    for predicate in predicates:
+        if predicate.token_start < index:
+            continue
+        if predicate.token_start - index <= max_gap:
+            return predicate.token_start
+        break
+    return None
+
+
+def _is_conditional_marker(
+    index: int,
+    tokens: tuple[Token, ...],
+    predicates: tuple[PredicateMatch, ...],
+    language: str,
+) -> bool:
+    token = tokens[index]
+    word = token.normalized
+    if language == "es":
+        if word != "si" or token.had_acute:
+            return False
+    else:
+        if word not in {"se", "caso"}:
+            return False
+
+    if index > 0:
+        previous = tokens[index - 1].normalized
+        if previous not in {".", "?", "!", ";", ":", "-", "¿", "¡", "pero", "mas", "porem"}:
+            return False
+
+    for predicate in predicates:
+        if predicate.token_start <= index:
+            continue
+        if predicate.token_start - index > 5:
+            break
+        if language == "pt" and word == "caso" and predicate.form.mood != "subjunctive":
+            continue
+        return True
+    return False
+
+
+def tag_tokens(
+    tokens: Iterable[Token],
+    language: str,
+    predicates: Iterable[PredicateMatch] = (),
+) -> tuple[frozenset[LexicalTag], ...]:
+    token_tuple = tuple(tokens)
+    predicate_tuple = tuple(predicates)
+    if language not in {"es", "pt"}:
+        raise ValueError(f"unsupported language: {language}")
+
+    activity = _ES_ACTIVITY if language == "es" else _PT_ACTIVITY
+    instrument = _ES_INSTRUMENT if language == "es" else _PT_INSTRUMENT
+    self_words = _ES_SELF if language == "es" else _PT_SELF
+    third_party = _ES_THIRD if language == "es" else _PT_THIRD
+    neg_quant = _ES_NEG_QUANT if language == "es" else _PT_NEG_QUANT
+    auth_noun = _ES_AUTH_NOUN if language == "es" else _PT_AUTH_NOUN
+    fraud = _ES_FRAUD if language == "es" else _PT_FRAUD
+    descriptor = _ES_DESCRIPTOR if language == "es" else _PT_DESCRIPTOR
+    security = _ES_SECURITY if language == "es" else _PT_SECURITY
+    uncertainty = _ES_UNCERTAINTY if language == "es" else _PT_UNCERTAINTY
+    contrast = _ES_CONTRAST if language == "es" else _PT_CONTRAST
+
+    predicate_starts = {predicate.token_start for predicate in predicate_tuple}
+    tags: list[frozenset[LexicalTag]] = []
+    for index, token in enumerate(token_tuple):
+        current: set[LexicalTag] = set()
+        word = token.normalized
+
+        if token.is_txid:
+            current.add(LexicalTag.TXID)
+            current.add(LexicalTag.ACTIVITY)
+        if word in activity and index not in predicate_starts:
+            current.add(LexicalTag.ACTIVITY)
+        if word in instrument:
+            current.add(LexicalTag.INSTRUMENT)
+        if word in self_words:
+            current.add(LexicalTag.SELF)
+        if (
+            language == "pt"
+            and word in {"a", "gente"}
+            and (
+                (word == "a" and index + 1 < len(token_tuple) and token_tuple[index + 1].normalized == "gente")
+                or (word == "gente" and index > 0 and token_tuple[index - 1].normalized == "a")
+            )
+        ):
+            current.add(LexicalTag.SELF)
+        if word in third_party:
+            current.add(LexicalTag.THIRD_PARTY)
+        if word in neg_quant:
+            current.add(LexicalTag.NEG_QUANTIFIER)
+        if word in auth_noun:
+            current.add(LexicalTag.AUTH_NOUN)
+        if word in fraud:
+            current.add(LexicalTag.FRAUD_MARKER)
+        if word in descriptor:
+            current.add(LexicalTag.DESCRIPTOR_NOUN)
+        if word in security:
+            current.add(LexicalTag.SECURITY_INFO)
+        if word in uncertainty:
+            current.add(LexicalTag.UNCERTAINTY)
+        if word in contrast:
+            current.add(LexicalTag.CONTRAST)
+
+        if language == "es":
+            if word == "no":
+                next_predicate = _next_predicate_index(index + 1, predicate_tuple, max_gap=1)
+                if next_predicate is not None:
+                    current.add(LexicalTag.NEGATOR)
+            if word in {"ni"}:
+                current.add(LexicalTag.COORD_NEGATION)
+            if word in {"mio", "mia", "mios", "mias"}:
+                current.add(LexicalTag.OWNERSHIP)
+            if _is_conditional_marker(index, token_tuple, predicate_tuple, language):
+                current.add(LexicalTag.CONDITIONAL)
+            if token.surface == "¿":
+                current.add(LexicalTag.QUESTION_OPEN)
+            if token.surface == "?":
+                current.add(LexicalTag.QUESTION_CLOSE)
+        else:
+            if word == "nao":
+                current.add(LexicalTag.NEGATOR)
+            if word == "nem":
+                current.add(LexicalTag.COORD_NEGATION)
+            if word in {"meu", "minha", "meus", "minhas"}:
+                current.add(LexicalTag.OWNERSHIP)
+            if _is_conditional_marker(index, token_tuple, predicate_tuple, language):
+                current.add(LexicalTag.CONDITIONAL)
+
+        tags.append(frozenset(current))
+
+    return tuple(tags)
+
+
+def find_self_evidence(
+    tokens: Iterable[Token],
+    predicates: Iterable[PredicateMatch],
+    language: str,
+) -> tuple[SelfEvidence, ...]:
+    token_tuple = tuple(tokens)
+    predicate_tuple = tuple(predicates)
+    evidence: list[SelfEvidence] = []
+
+    if language == "es":
+        subject_words = {"yo", "nosotros", "nosotras"}
+        possessor_words = {"mi", "mio", "mia", "mios", "mias"}
+        dative_words = {"me"}
+        agent_pairs = {("por", "mi")}
+        source_pairs = {("de", "mi")}
+        source_triplets = {("de", "mi", "parte")}
+        dative_pairs = {("a", "mi"), ("para", "mi")}
+    elif language == "pt":
+        subject_words = {"eu", "nos"}
+        possessor_words = {"meu", "minha", "meus", "minhas"}
+        dative_words = {"me"}
+        agent_pairs = {("por", "mim")}
+        source_pairs = {("de", "mim")}
+        source_triplets = {("da", "minha", "parte")}
+        dative_pairs = {("a", "mim"), ("para", "mim"), ("pra", "mim")}
+    else:
+        raise ValueError(f"unsupported language: {language}")
+
+    words = [token.normalized for token in token_tuple]
+
+    for index, word in enumerate(words):
+        if word in subject_words and not (
+            language == "pt"
+            and word == "nos"
+            and not token_tuple[index].had_acute
+        ):
+            evidence.append(SelfEvidence(SelfRole.SUBJECT, index, index + 1))
+        if language == "pt" and index + 1 < len(words) and (word, words[index + 1]) == ("a", "gente"):
+            evidence.append(SelfEvidence(SelfRole.SUBJECT, index, index + 2))
+        if word in possessor_words and not (
+            language == "es" and word == "mi" and token_tuple[index].had_acute
+        ):
+            evidence.append(SelfEvidence(SelfRole.POSSESSOR, index, index + 1))
+        if word in dative_words:
+            evidence.append(SelfEvidence(SelfRole.DATIVE, index, index + 1))
+
+        if index + 1 < len(words):
+            pair = (word, words[index + 1])
+            if pair in agent_pairs:
+                evidence.append(SelfEvidence(SelfRole.AGENT, index, index + 2))
+            if pair in source_pairs:
+                evidence.append(SelfEvidence(SelfRole.SOURCE, index, index + 2))
+            if pair in dative_pairs:
+                evidence.append(SelfEvidence(SelfRole.DATIVE, index, index + 2))
+
+        if index + 2 < len(words):
+            triplet = (word, words[index + 1], words[index + 2])
+            if triplet in source_triplets:
+                evidence.append(SelfEvidence(SelfRole.SOURCE, index, index + 3))
+
+    for predicate in predicate_tuple:
+        if predicate.form.person != 1:
+            continue
+        evidence.append(
+            SelfEvidence(
+                SelfRole.SUBJECT,
+                predicate.token_start,
+                predicate.token_end,
+                implicit_from_predicate=True,
+                ambiguous=predicate.accent_ambiguous,
+            )
+        )
+
+    unique: dict[tuple[SelfRole, int, int, bool, bool], SelfEvidence] = {}
+    for item in evidence:
+        unique[
+            (
+                item.role,
+                item.token_start,
+                item.token_end,
+                item.implicit_from_predicate,
+                item.ambiguous,
+            )
+        ] = item
+    return tuple(unique.values())
+
+
+def _colon_has_finite_predicate(
+    token_index: int,
+    tokens: tuple[Token, ...],
+    predicates: tuple[PredicateMatch, ...],
+    text: str,
+) -> bool:
+    next_boundary = len(tokens)
+    for index in range(token_index + 1, len(tokens)):
+        if _is_primary_boundary(text, tokens[index]):
+            next_boundary = index
+            break
+
+    return any(
+        predicate.token_start > token_index
+        and predicate.token_start < next_boundary
+        and predicate.form.person is not None
+        for predicate in predicates
+    )
+
+
+def segment_clauses(
+    text: str,
+    tokens: Iterable[Token],
+    predicates: Iterable[PredicateMatch] = (),
+) -> tuple[ClauseSegment, ...]:
+    token_tuple = tuple(tokens)
+    predicate_tuple = tuple(predicates)
+    if not token_tuple:
+        return ()
+
+    boundaries: list[int] = []
+    for index, token in enumerate(token_tuple):
+        is_boundary = _is_primary_boundary(text, token)
+        if token.normalized == ":":
+            is_boundary = _colon_has_finite_predicate(
+                index,
+                token_tuple,
+                predicate_tuple,
+                text,
+            )
+        if is_boundary:
+            boundaries.append(index)
+
+    segments: list[ClauseSegment] = []
+    start = 0
+    segment_index = 0
+    for boundary in boundaries:
+        if boundary > start:
+            segments.append(
+                ClauseSegment(
+                    index=segment_index,
+                    token_start=start,
+                    token_end=boundary,
+                    source_start=token_tuple[start].start,
+                    source_end=token_tuple[boundary - 1].end,
+                )
+            )
+            segment_index += 1
+        start = boundary + 1
+
+    if start < len(token_tuple):
+        segments.append(
+            ClauseSegment(
+                index=segment_index,
+                token_start=start,
+                token_end=len(token_tuple),
+                source_start=token_tuple[start].start,
+                source_end=token_tuple[-1].end,
+            )
+        )
+
+    return tuple(segments)
+
+
+def analyze_foundation(text: str, language: str) -> FoundationAnalysis:
+    """Return RF1H-B1 structural primitives without classifying authorization."""
+
+    tokens = tokenize_with_source(text)
+    predicates = find_predicates(tokens, language)
+    tags = tag_tokens(tokens, language, predicates)
+    self_evidence = find_self_evidence(tokens, predicates, language)
+    clauses = segment_clauses(text, tokens, predicates)
+    return FoundationAnalysis(
+        tokens=tokens,
+        clauses=clauses,
+        predicates=predicates,
+        tags=tags,
+        self_evidence=self_evidence,
+    )
