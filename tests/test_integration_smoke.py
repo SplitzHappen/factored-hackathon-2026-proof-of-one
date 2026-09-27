@@ -165,6 +165,81 @@ def test_mixed_ownership_row_cannot_enter_customer_candidates(tmp_path) -> None:
     assert "Foreign Mixed Owner" not in response.text
 
 
+def test_http_clarification_reports_first_ten_of_more_than_ten_owned_matches(
+    tmp_path,
+) -> None:
+    client, context = _client(tmp_path)
+
+    connection = duckdb.connect(str(context.bank.database_path))
+    try:
+        for index in range(12):
+            connection.execute(
+                """
+                INSERT INTO transactions VALUES (
+                    ?,
+                    TIMESTAMP '2026-09-17 12:00:00' + (? * INTERVAL '1 minute'),
+                    'DEMO-PROD-ES-001',
+                    'DEMO-CUST-ES-001',
+                    'Payment',
+                    'Retail',
+                    77777.00,
+                    'COP',
+                    'Web',
+                    ?,
+                    'Retail',
+                    'Colombia',
+                    'Bogota',
+                    'Approved',
+                    NULL,
+                    NULL
+                )
+                """,
+                [
+                    f"DEMO-ES-77{index:02d}",
+                    index,
+                    f"Merchant {index}",
+                ],
+            )
+        connection.execute("CHECKPOINT")
+    finally:
+        connection.close()
+
+    session = _session(client, "lucia")
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Busca las transacciones de 77.777."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "CLARIFY"
+    assert len(body["clarification_transaction_ids"]) == 10
+    assert all(
+        transaction_id.startswith("DEMO-ES-77")
+        for transaction_id in body["clarification_transaction_ids"]
+    )
+    assert "Mostrando 10 de 12 resultados." in body["response_text"]
+
+
+def test_unknown_intent_abstains_without_banking_disclosure(tmp_path) -> None:
+    client, _ = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Cuéntame un chiste sobre astronautas."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "ABSTAIN"
+    assert body["transactions"] == []
+    assert body["products"] == []
+    assert body["clarification_transaction_ids"] == []
+
+
 def test_unauthorized_assertion_beats_ambiguous_reference(tmp_path) -> None:
     client, context = _client(tmp_path)
     session = _session(client, "lucia")
