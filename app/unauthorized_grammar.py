@@ -1353,10 +1353,11 @@ _PT_DENIAL_BRIDGE_WORDS = frozenset(
 _DENIAL_BINDING_BARRIERS = frozenset({",", ";", "?", "¿", "!", "¡", ":"})
 
 
-def _bound_denial_index(
+def _bound_denial_index_for_span(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
-    predicate: PredicateMatch,
+    token_start: int,
+    token_end: int,
     language: str,
 ) -> int | None:
     bridge_words = (
@@ -1367,10 +1368,10 @@ def _bound_denial_index(
     candidates: list[int] = []
 
     for index in _negative_indices(analysis, clause, language):
-        if index <= predicate.token_start:
-            if predicate.token_start - index > 5:
+        if index <= token_start:
+            if token_start - index > 5:
                 continue
-            between = range(index + 1, predicate.token_start)
+            between = range(index + 1, token_start)
             if any(
                 analysis.tokens[item].surface in _DENIAL_BINDING_BARRIERS
                 for item in between
@@ -1400,10 +1401,10 @@ def _bound_denial_index(
             candidates.append(index)
             continue
 
-        if index >= predicate.token_end:
-            if index - predicate.token_end > 2:
+        if index >= token_end:
+            if index - token_end > 2:
                 continue
-            between = range(predicate.token_end, index)
+            between = range(token_end, index)
             if any(
                 analysis.tokens[item].surface in _DENIAL_BINDING_BARRIERS
                 for item in between
@@ -1416,11 +1417,42 @@ def _bound_denial_index(
     return min(
         candidates,
         key=lambda index: min(
-            abs(index - predicate.token_start),
-            abs(index - predicate.token_end),
+            abs(index - token_start),
+            abs(index - token_end),
         ),
     )
 
+
+
+def _bound_denial_index(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> int | None:
+    return _bound_denial_index_for_span(
+        analysis,
+        clause,
+        predicate.token_start,
+        predicate.token_end,
+        language,
+    )
+
+
+def _span_has_bound_denial(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    token_start: int,
+    token_end: int,
+    language: str,
+) -> bool:
+    return _bound_denial_index_for_span(
+        analysis,
+        clause,
+        token_start,
+        token_end,
+        language,
+    ) is not None
 
 def _predicate_has_denial(
     analysis: FoundationAnalysis,
