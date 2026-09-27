@@ -2038,6 +2038,36 @@ def _permission_absence_spans(
     return tuple(dict.fromkeys(spans))
 
 
+def _permission_absence_for_predicate(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    permission_spans: tuple[tuple[int, int], ...],
+) -> tuple[int, int] | None:
+    following = tuple(
+        span
+        for span in permission_spans
+        if span[0] >= predicate.token_end
+    )
+    if not following:
+        return None
+
+    span = min(following, key=lambda item: item[0])
+    intervening_action = any(
+        candidate.token_start >= predicate.token_end
+        and candidate.token_start < span[0]
+        and candidate.form.family in {
+            PredicateFamily.PERFORM,
+            PredicateFamily.USE_ACCESS,
+        }
+        for candidate in analysis.predicates
+        if _in_clause(candidate.token_start, candidate.token_end, clause)
+    )
+    if intervening_action:
+        return None
+    return span
+
+
 def _third_party_unauthorized_use(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -2076,18 +2106,18 @@ def _third_party_unauthorized_use(
             preceding_known = tuple(
                 span for span in known_actors if span[0] < predicate.token_start
             )
-            if preceding_known and absence_spans:
+            local_permission = _permission_absence_for_predicate(
+                analysis,
+                clause,
+                predicate,
+                absence_spans,
+            )
+            if preceding_known and local_permission is not None:
                 actor_span = min(
                     preceding_known,
                     key=lambda span: predicate.token_start - span[0],
                 )
-                permission_span = min(
-                    absence_spans,
-                    key=lambda span: min(
-                        abs(span[0] - predicate.token_start),
-                        abs(span[0] - predicate.token_end),
-                    ),
-                )
+                permission_span = local_permission
                 actor_kind = "known"
 
         if actor_span is None or actor_kind is None:
@@ -2552,6 +2582,15 @@ def _exceeded_purpose_authorization(
             continue
         permission_span = min(later_permission, key=lambda span: span[0])
 
+        grant_recipient = _limited_grant_recipient(
+            analysis,
+            clause,
+            language,
+            action,
+        )
+        if grant_recipient is None:
+            continue
+
         actor_span = _nearest_known_actor_before_predicate(
             analysis,
             clause,
@@ -2559,14 +2598,7 @@ def _exceeded_purpose_authorization(
             action,
         )
         if actor_span is None:
-            actor_span = _limited_grant_recipient(
-                analysis,
-                clause,
-                language,
-                action,
-            )
-        if actor_span is None:
-            continue
+            actor_span = grant_recipient
 
         activity_span = _nearest_activity_span(analysis, clause, action)
         output.append(
