@@ -1958,15 +1958,34 @@ def _customer_instrument_spans(
     return tuple(linked)
 
 
+_ES_UNKNOWN_ACTOR_WORDS = frozenset({"alguien", "tercero", "tercera"})
+_PT_UNKNOWN_ACTOR_WORDS = frozenset({"alguem", "terceiro", "terceira"})
+
+
 def _unknown_actor_spans(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
+    language: str,
 ) -> tuple[tuple[int, int], ...]:
-    return tuple(
-        (index, index + 1)
-        for index in range(clause.token_start, clause.token_end)
-        if LexicalTag.THIRD_PARTY in analysis.tags[index]
+    words = [token.normalized for token in analysis.tokens]
+    actor_words = (
+        _ES_UNKNOWN_ACTOR_WORDS
+        if language == "es"
+        else _PT_UNKNOWN_ACTOR_WORDS
     )
+    person_phrase = ("otra", "persona") if language == "es" else ("outra", "pessoa")
+    spans: list[tuple[int, int]] = []
+
+    for index in range(clause.token_start, clause.token_end):
+        if words[index] in actor_words:
+            spans.append((index, index + 1))
+        if (
+            index + 1 < clause.token_end
+            and (words[index], words[index + 1]) == person_phrase
+        ):
+            spans.append((index, index + 2))
+
+    return tuple(spans)
 
 
 def _permission_absence_spans(
@@ -2020,7 +2039,7 @@ def _third_party_unauthorized_use(
     if not customer_instruments:
         return []
 
-    unknown_actors = _unknown_actor_spans(analysis, clause)
+    unknown_actors = _unknown_actor_spans(analysis, clause, language)
     known_actors = _known_actor_spans(analysis, clause, language)
     absence_spans = _permission_absence_spans(analysis, clause, language)
     activity_span = _nearest_activity_span(analysis, clause, None)
