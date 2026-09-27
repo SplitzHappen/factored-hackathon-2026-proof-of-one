@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from app.amounts import format_locale_amount
 from app.bank import BankRepository
 from app.interpretation import InterpretationService
 from app.policy import route_policy
@@ -309,14 +310,16 @@ class CustomerResolutionService:
                     )
                 if pt:
                     details = "; ".join(
-                        f"{product.product_type}: saldo {product.current_balance} "
-                        f"{product.currency} ({product.product_status})"
+                        f"{product.product_type}: saldo "
+                        f"{format_locale_amount(product.current_balance, product.currency, language)} "
+                        f"({product.product_status})"
                         for product in products
                     )
                     return f"Produtos verificados da sua conta: {details}."
                 details = "; ".join(
-                    f"{product.product_type}: saldo {product.current_balance} "
-                    f"{product.currency} ({product.product_status})"
+                    f"{product.product_type}: saldo "
+                    f"{format_locale_amount(product.current_balance, product.currency, language)} "
+                    f"({product.product_status})"
                     for product in products
                 )
                 return f"Productos verificados de tu cuenta: {details}."
@@ -337,11 +340,13 @@ class CustomerResolutionService:
                 if pt:
                     return (
                         f"A transação {tx.transaction_id} está {localized_status}. "
-                        f"Valor registrado: {tx.amount} {tx.currency}."
+                        f"Valor registrado: "
+                        f"{format_locale_amount(tx.amount, tx.currency, language)}."
                     )
                 return (
                     f"La transacción {tx.transaction_id} está {localized_status}. "
-                    f"Importe registrado: {tx.amount} {tx.currency}."
+                    f"Importe registrado: "
+                    f"{format_locale_amount(tx.amount, tx.currency, language)}."
                 )
             if transactions:
                 if intent is PolicyIntent.PAYMENT_HISTORY:

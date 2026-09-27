@@ -28,10 +28,22 @@ def _session(client: TestClient, persona_id: str) -> dict:
 
 
 @pytest.mark.parametrize(
-    ("persona_id", "message", "expected_balance", "currency"),
+    ("persona_id", "message", "expected_balance", "currency", "expected_display"),
     [
-        ("lucia", "¿Cuál es el saldo de mi cuenta?", "3250000.00", "COP"),
-        ("rafael", "Qual é o saldo da minha conta?", "8450.00", "BRL"),
+        (
+            "lucia",
+            "¿Cuál es el saldo de mi cuenta?",
+            "3250000.00",
+            "COP",
+            "3.250.000,00 COP",
+        ),
+        (
+            "rafael",
+            "Qual é o saldo da minha conta?",
+            "8450.00",
+            "BRL",
+            "8.450,00 BRL",
+        ),
     ],
 )
 def test_account_product_info_answers_only_with_verified_product_facts(
@@ -40,6 +52,7 @@ def test_account_product_info_answers_only_with_verified_product_facts(
     message: str,
     expected_balance: str,
     currency: str,
+    expected_display: str,
 ) -> None:
     client = _client(tmp_path)
     session = _session(client, persona_id)
@@ -60,8 +73,7 @@ def test_account_product_info_answers_only_with_verified_product_facts(
     assert Decimal(str(product["current_balance"])) == Decimal(expected_balance)
     assert product["currency"] == currency
     assert product["product_status"] == "Active"
-    assert expected_balance in body["response_text"]
-    assert currency in body["response_text"]
+    assert expected_display in body["response_text"]
 
 
 @pytest.mark.parametrize(
