@@ -135,15 +135,15 @@ _CORE_ASSERTION_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"(?:autorizacao|permissao|consentimento)\b"
     ),
     # Adjectival non-authorization, including "not authorized by me".
-    re.compile(rf"\b{_ES_ACTIVITY}(?: [a-z0-9-]+)? no autorizad[oa]\b"),
+    re.compile(rf"\b{_ES_ACTIVITY}(?: [a-z0-9-]+)? no autorizad[oa]s?\b"),
     re.compile(
         rf"\b{_ES_ACTIVITY}\b.{{0,100}}\b"
-        r"no (?:fue )?autorizad[oa](?: por mi)?\b"
+        r"no (?:(?:fue|fueron) )?autorizad[oa]s?(?: por mi)?\b"
     ),
-    re.compile(rf"\b{_PT_ACTIVITY}(?: [a-z0-9-]+)? nao autorizad[oa]\b"),
+    re.compile(rf"\b{_PT_ACTIVITY}(?: [a-z0-9-]+)? nao autorizad[oa]s?\b"),
     re.compile(
         rf"\b{_PT_ACTIVITY}\b.{{0,100}}\b"
-        r"nao (?:foi )?autorizad[oa](?: por mim)?\b"
+        r"nao (?:(?:foi|foram) )?autorizad[oa]s?(?: por mim)?\b"
     ),
     # Third-party use / account access.
     re.compile(r"\balguien (?:mas )?(?:uso|utilizo|entro|accedio)\b"),
@@ -169,6 +169,99 @@ _CORE_ASSERTION_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"(?:that|this) (?:charge|transaction|purchase)\b"
     ),
 )
+
+# Compositional structures cover productive assertion grammar that should not
+# require enumerating each surface phrase. These remain deliberately narrow:
+# each pattern encodes an explicit ownership, performance, authorization, or
+# origination denial rather than topical fraud language alone.
+_COMPOSITIONAL_ASSERTION_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # Coordinated negation: a prior action is denied and authorization is also
+    # denied through ni/nem. The second conjunct carries the safety meaning.
+    re.compile(
+        r"\b(?:nunca|jamas)\b.{0,70}\bni "
+        r"(?:lo |la )?(?:autorice|aprobe|consenti|permiti)\b"
+    ),
+    re.compile(
+        r"\b(?:nunca|jamais)\b.{0,70}\bnem "
+        r"(?:o |a )?(?:autorizei|aprovei|consenti|permiti)\b"
+    ),
+    # Negative quantifiers and correlative ownership denial.
+    re.compile(
+        rf"\b(?:ninguno|ninguna|ningunos|ningunas)\b"
+        rf".{{0,80}}\b{_ES_ACTIVITY}\b.{{0,50}}\b"
+        r"(?:es|son|fue|fueron) (?:mio|mia|mios|mias)\b"
+    ),
+    re.compile(
+        rf"\bni\b.{{0,80}}\b{_ES_ACTIVITY}\b"
+        r".{0,120}\bni\b.{0,80}\b"
+        r"(?:es|son|fue|fueron) (?:mio|mia|mios|mias)\b"
+    ),
+    re.compile(
+        rf"\b(?:nenhum|nenhuma|nenhuns|nenhumas)\b"
+        rf".{{0,80}}\b{_PT_ACTIVITY}\b.{{0,50}}\b"
+        r"(?:e|sao|foi|foram) (?:meu|minha|meus|minhas)\b"
+    ),
+    re.compile(
+        rf"\bnem\b.{{0,80}}\b{_PT_ACTIVITY}\b"
+        r".{0,120}\bnem\b.{0,80}\b"
+        r"(?:e|sao|foi|foram) (?:meu|minha|meus|minhas)\b"
+    ),
+    # Idiomatic origination / provenance denial.
+    re.compile(
+        rf"\b{_ES_ACTIVITY}\b.{{0,80}}\b"
+        r"no (?:salio|sale|partio|parte|provino|viene) de mi\b"
+    ),
+    re.compile(
+        rf"\b{_PT_ACTIVITY}\b.{{0,80}}\b"
+        r"nao (?:partiu|parte|saiu|sai|veio|vem) de mim\b"
+    ),
+)
+
+
+# These are explicit scope signals showing that otherwise risky lexical material
+# is not being asserted as a present unauthorized event. Keep them separate
+# from the positive grammar so safety recall does not depend on broad negation.
+_SCOPE_EXCLUSION_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # Hypothetical / counterfactual questions.
+    re.compile(r"^[¿?]?\s*que (?:pasa|pasaria) si\b"),
+    re.compile(r"^si (?:algun dia|resultara que|viera|veo|pasara|ocurriera)\b"),
+    re.compile(r"^(?:e )?possivel\b"),
+    re.compile(r"^se (?:eu |um dia |alguem |a )"),
+    # Security-information / policy questions rather than event assertions.
+    re.compile(r"^[¿?]?\s*como (?:puedo|podria) (?:protegerme|evitar)\b"),
+    re.compile(r"^quais cuidados\b"),
+    re.compile(r"^(?!.*\bnao autorizad[oa]s?\b).{0,100}\btem protecao caso\b"),
+    re.compile(r"\b(?:seguro|protecao|proteccion) contra \b"),
+    # Merchant/descriptor clarification, not transaction disowning.
+    re.compile(
+        r"^no reconozco (?:el |la )?(?:nombre|comercio|descriptor|descripcion)\b"
+        r".{0,140}\b(?:que comercio es|que establecimiento es|"
+        r"a que comercio corresponde)\b"
+    ),
+    re.compile(
+        r"^nao reconheco (?:o |a )?(?:nome|comercio|descritor|descricao)\b"
+        r".{0,140}\b(?:qual estabelecimento|a qual estabelecimento|"
+        r"que comercio e|a que comercio corresponde)\b"
+    ),
+    # Same-message retraction / explicit correction.
+    re.compile(
+        r"\b(?:pense|crei)\b.{0,120}\b(?:pero|mas)\b.{0,120}\b"
+        r"(?:si (?:lo |la )?hice|fui yo|era (?:mio|mia)|me acorde)\b.{0,60}$"
+    ),
+    re.compile(
+        r"\b(?:eu )?(?:ia dizer|pensei|achei)\b.{0,120}\b"
+        r"(?:mas|porem)\b.{0,120}\b"
+        r"(?:fui eu|eu mesmo|era (?:meu|minha)|lembrei)\b.{0,60}$"
+    ),
+    # Explicitly negating the denial itself.
+    re.compile(r"\bno digo que no (?:sea|es) (?:mio|mia)\b"),
+    re.compile(r"\bnao (?:estou dizendo|digo) que nao (?:seja|e) (?:meu|minha)\b"),
+)
+
+
+def _is_scope_excluded(normalized: str) -> bool:
+    return _matches_any(_SCOPE_EXCLUSION_PATTERNS, normalized)
+
 
 _PERMISSION_ASSERTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bsin (?:mi )?(?:autorizacion|permiso|consentimiento)\b"),
@@ -268,8 +361,11 @@ def is_explicit_unauthorized_assertion(text: str) -> bool:
     """Return True only for an explicit customer unauthorized/non-recognition assertion."""
 
     normalized = normalize_unauthorized_text(text)
+    if _is_scope_excluded(normalized):
+        return False
     return (
         _matches_any(_CORE_ASSERTION_PATTERNS, normalized)
+        or _matches_any(_COMPOSITIONAL_ASSERTION_PATTERNS, normalized)
         or _is_permission_assertion(normalized)
         or _is_declarative_fraud_assertion(normalized)
     )
