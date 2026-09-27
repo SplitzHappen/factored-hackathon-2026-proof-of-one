@@ -87,7 +87,7 @@ class BehavioralEvidenceService:
         context = self.operational_store.resolve_verified_escalation_context(
             ticket_id
         )
-        if context is None:
+        if context is None or context.transaction_id is None:
             return None
 
         return self._build(
