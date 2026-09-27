@@ -8,8 +8,8 @@ from datetime import date, timedelta
 
 @dataclass(frozen=True, slots=True)
 class ResolvedDateRange:
-    date_from: date
-    date_to: date
+    date_from: date | None
+    date_to: date | None
 
 
 _ISO_DATE = re.compile(r"(?<!\d)(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?!\d)")
@@ -74,22 +74,10 @@ def resolve_message_date_range(
     relative_rules: tuple[tuple[tuple[str, ...], tuple[date, date]], ...] = (
         (("ayer", "ontem"), (reference_date - timedelta(days=1),) * 2),
         (("hoy", "hoje"), (reference_date, reference_date)),
-        (
-            ("semana pasada", "semana passada"),
-            _previous_week(reference_date),
-        ),
-        (
-            ("esta semana", "esta semana"),
-            _current_week(reference_date),
-        ),
-        (
-            ("este mes", "este mes", "este mes", "este mes"),
-            (reference_date.replace(day=1), reference_date),
-        ),
-        (
-            ("mes pasado", "mes passado"),
-            _previous_month(reference_date),
-        ),
+        (("semana pasada", "semana passada"), _previous_week(reference_date)),
+        (("esta semana",), _current_week(reference_date)),
+        (("este mes",), (reference_date.replace(day=1), reference_date)),
+        (("mes pasado", "mes passado"), _previous_month(reference_date)),
     )
 
     matched_ranges: list[tuple[date, date]] = []
@@ -101,15 +89,28 @@ def resolve_message_date_range(
     if explicit_dates is None:
         return None
     if explicit_dates:
-        if len(explicit_dates) > 2:
+        if len(explicit_dates) > 2 or matched_ranges:
             return None
         explicit_dates = sorted(explicit_dates)
-        matched_ranges.append((explicit_dates[0], explicit_dates[-1]))
+        if len(explicit_dates) == 2:
+            matched_ranges.append((explicit_dates[0], explicit_dates[1]))
+        else:
+            explicit = explicit_dates[0]
+            if re.search(r"\b(?:desde|a partir de)\b", normalized):
+                matched_ranges.append((explicit, reference_date))
+            elif re.search(r"\b(?:hasta|ate)\b", normalized):
+                matched_ranges.append((None, explicit))
+            else:
+                matched_ranges.append((explicit, explicit))
 
     if len(matched_ranges) != 1:
         return None
 
     date_from, date_to = matched_ranges[0]
-    if date_from > date_to or date_to > reference_date:
+    if date_from is not None and date_from > reference_date:
+        return None
+    if date_to is not None and date_to > reference_date:
+        return None
+    if date_from is not None and date_to is not None and date_from > date_to:
         return None
     return ResolvedDateRange(date_from=date_from, date_to=date_to)
