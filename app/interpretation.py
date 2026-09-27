@@ -5,11 +5,12 @@ import json
 import re
 import unicodedata
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Protocol
 
 from pydantic import ValidationError
 
+from app.amounts import extract_locale_amounts
 from app.bank import BankRepository
 from app.runtime import OperationalStore
 from app.unauthorized_signals import is_explicit_unauthorized_assertion
@@ -26,6 +27,7 @@ from app.schemas import (
     TransactionStatusFilter,
     TransactionTypeFilter,
     VerifiedInterpretation,
+    SupportedLanguage,
 )
 
 INTERPRETATION_CONTRACT_VERSION = "r3c-v2"
@@ -231,7 +233,11 @@ class InterpretationService:
             query = self._normalized_query(extraction.transaction_query)
             if query is not None and (
                 not self._query_semantics_valid(query)
-                or not self._query_supported_by_message(query, request.message)
+                or not self._query_supported_by_message(
+                    query,
+                    request.message,
+                    request.language,
+                )
             ):
                 last_failure = InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
                 continue
@@ -397,17 +403,12 @@ class InterpretationService:
         cls,
         query: InterpretedTransactionQuery,
         message: str,
+        language: SupportedLanguage,
     ) -> bool:
         normalized = cls._normalize_message(message)
 
         if query.amount is not None:
-            numeric_tokens = re.findall(r"(?<!\w)\d+(?:[.,]\d+)?(?!\w)", normalized)
-            observed_amounts: set[Decimal] = set()
-            for token in numeric_tokens:
-                try:
-                    observed_amounts.add(Decimal(token.replace(",", ".")))
-                except InvalidOperation:
-                    continue
+            observed_amounts = set(extract_locale_amounts(message, language))
             if query.amount not in observed_amounts:
                 return False
 
