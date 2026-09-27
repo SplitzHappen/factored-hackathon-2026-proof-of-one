@@ -302,6 +302,7 @@ class CustomerTurnResponse(ContractModel):
     intent: PolicyIntent
     response_text: str = Field(min_length=1, max_length=2000)
     reason_codes: list[PolicyReason] = Field(default_factory=list, max_length=20)
+    products: list[ProductRecord] = Field(default_factory=list, max_length=10)
     transactions: list[TransactionRecord] = Field(default_factory=list, max_length=10)
     clarification_transaction_ids: list[
         Annotated[str, Field(min_length=1, max_length=128)]
