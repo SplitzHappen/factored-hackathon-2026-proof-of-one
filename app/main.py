@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 from contextlib import asynccontextmanager
 from datetime import datetime
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 
 from app.bootstrap import AppContext, build_app_context
+from app.runtime import RateLimitExceededError, TicketLimitExceededError
 from app.schemas import (
     AuthenticatedSession,
     CustomerTurnRequest,
@@ -56,6 +58,13 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             )
         return runtime_context
 
+    @staticmethod
+    def _peer_rate_subject(request: Request) -> str:
+        host = request.client.host if request.client is not None else "unknown"
+        return hashlib.sha256(
+            f"proof-of-one-demo-session-create|{host}".encode("utf-8")
+        ).hexdigest()
+
     def customer_session(
         x_demo_session: str = Header(alias="X-Demo-Session"),
     ) -> AuthenticatedSession:
@@ -71,13 +80,20 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         if session is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unknown demo session",
+                detail="Unknown, expired, or revoked demo session",
             )
         if session.role is not SessionRole.CUSTOMER:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Customer role required",
             )
+        try:
+            runtime().store.enforce_session_request_rate(session.session_id)
+        except RateLimitExceededError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Demo session request limit reached",
+            ) from exc
         return session
 
     @app.get("/health", response_model=HealthResponse)
@@ -115,12 +131,24 @@ def create_app(context: AppContext | None = None) -> FastAPI:
     )
     def create_demo_session(
         request: DemoSessionCreateRequest,
+        http_request: Request,
     ) -> DemoSessionResponse:
         if runtime().data_mode != "synthetic":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Public demo sessions are available only in synthetic mode",
             )
+        runtime().store.cleanup_expired_state()
+        try:
+            runtime().store.enforce_session_creation_rate(
+                _peer_rate_subject(http_request)
+            )
+        except RateLimitExceededError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Demo session creation limit reached",
+            ) from exc
+
         persona = runtime().personas.get(request.persona_id)
         if persona is None:
             raise HTTPException(
@@ -161,7 +189,36 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         x_demo_session: str = Header(alias="X-Demo-Session"),
     ) -> EscalationRecord:
         session = customer_session(x_demo_session)
-        return runtime().customer_service.create_support_handoff(session=session)
+        try:
+            return runtime().customer_service.create_support_handoff(session=session)
+        except TicketLimitExceededError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Demo support ticket limit reached",
+            ) from exc
+
+    @app.delete(
+        "/api/demo/session",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    def revoke_demo_session(
+        x_demo_session: str = Header(alias="X-Demo-Session"),
+    ) -> Response:
+        try:
+            session_id = UUID(x_demo_session)
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid demo session",
+            ) from exc
+        session = runtime().store.get_authenticated_session(session_id)
+        if session is None or session.role is not SessionRole.CUSTOMER:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Unknown, expired, or revoked demo session",
+            )
+        runtime().store.revoke_session(session_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.post(
         "/api/customer/turn",
@@ -181,11 +238,17 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         reference_date = datetime.now(
             ZoneInfo(persona.timezone_name)
         ).date()
-        return runtime().customer_service.resolve_turn(
-            session=session,
-            message=request.message,
-            reference_date=reference_date,
-        )
+        try:
+            return runtime().customer_service.resolve_turn(
+                session=session,
+                message=request.message,
+                reference_date=reference_date,
+            )
+        except TicketLimitExceededError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Demo support ticket limit reached",
+            ) from exc
 
     return app
 
