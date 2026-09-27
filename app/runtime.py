@@ -212,6 +212,12 @@ class OperationalStore:
             )
             for statement in ddl_statements:
                 connection.execute(statement)
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_escalation_tickets_tenant_verified
+                ON escalation_tickets(tenant_id, verified_at, created_at)
+                """
+            )
             if not existing_tables:
                 connection.execute(
                     "INSERT INTO runtime_metadata(key, value) VALUES ('schema_version', ?)",
@@ -461,6 +467,26 @@ class OperationalStore:
             persisted=True,
             verified=True,
         )
+
+    def list_verified_escalation_ticket_ids_for_tenant(
+        self,
+        tenant_id: str,
+    ) -> list[UUID]:
+        """Return only verified tickets belonging to one server-issued tenant."""
+
+        if not 1 <= len(tenant_id) <= 128:
+            raise ValueError("tenant_id must be between 1 and 128 characters")
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT ticket_id
+                FROM escalation_tickets
+                WHERE tenant_id = ? AND verified_at IS NOT NULL
+                ORDER BY created_at, ticket_id
+                """,
+                (tenant_id,),
+            ).fetchall()
+        return [UUID(row["ticket_id"]) for row in rows]
 
     def get_escalation_record(self, ticket_id: UUID) -> EscalationRecord | None:
         snapshot = self._read_ticket_snapshot(ticket_id)
