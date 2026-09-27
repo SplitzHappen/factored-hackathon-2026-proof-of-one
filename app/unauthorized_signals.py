@@ -48,6 +48,14 @@ _CORE_ASSERTION_PATTERNS: tuple[re.Pattern[str], ...] = (
         rf"\b{_PT_ACTIVITY}\b.{{0,100}}\b"
         r"nao (?:e|foi|sao|foram) (?:meu|minha|meus|minhas)\b"
     ),
+    re.compile(
+        rf"\b{_ES_ACTIVITY}(?: [a-z0-9-]+)? "
+        r"(?:es|fue) (?:ajeno|ajena|de otra persona)\b"
+    ),
+    re.compile(
+        rf"\b{_PT_ACTIVITY}(?: [a-z0-9-]+)? "
+        r"(?:e|foi) (?:de outra pessoa|alheio|alheia)\b"
+    ),
     # First-person denial of having performed an activity.
     re.compile(
         rf"\b(?:yo )?no "
@@ -69,11 +77,23 @@ _CORE_ASSERTION_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"(?:fiz|realizei|efetuei|mandei|solicitei|paguei|saquei)"
         r"(?: (?:nenhum|nenhuma))?\b"
     ),
+    re.compile(
+        r"\b(?:yo )?no "
+        r"(?:hice|realice|efectue|ordene|mande|solicite|pague|retire) "
+        r"[a-z0-9-]+\b"
+    ),
+    re.compile(
+        r"\b(?:eu )?nao "
+        r"(?:fiz|realizei|efetuei|mandei|solicitei|paguei|saquei) "
+        r"[a-z0-9-]+\b"
+    ),
     re.compile(r"\bno (?:lo|la|los|las) (?:hice|realice|autorice|aprobe|ordene)\b"),
     re.compile(r"\bnao (?:o|a|os|as) (?:fiz|realizei|autorizei|aprovei|mandei)\b"),
+    re.compile(r"\b(?:tampoco|tambien no) (?:lo|la) (?:autorice|aprobe|hice)\b"),
+    re.compile(r"\btambem nao (?:o|a) (?:autorizei|aprovei|fiz)\b"),
     # Bare "never" forms and noun-first equivalents.
     re.compile(
-        r"\b(?:nunca|jamas) "
+        r"\b(?:yo )?(?:nunca|jamas) "
         r"(?:hice|realice|efectue|autorice|aprobe|ordene|mande|pague)\b"
         rf".{{0,80}}\b{_ES_ACTIVITY}\b"
     ),
@@ -83,7 +103,7 @@ _CORE_ASSERTION_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"(?:hice|realice|efectue|autorice|aprobe|ordene|mande|pague)\b"
     ),
     re.compile(
-        r"\b(?:nunca|jamais) "
+        r"\b(?:eu )?(?:nunca|jamais) "
         r"(?:fiz|realizei|efetuei|autorizei|aprovei|mandei|paguei)\b"
         rf".{{0,80}}\b{_PT_ACTIVITY}\b"
     ),
