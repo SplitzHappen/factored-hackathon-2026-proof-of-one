@@ -181,7 +181,14 @@ class CustomerResolutionService:
                 session.customer_id,
                 verified_transaction_id,
             )
-            return [transaction] if transaction is not None else []
+            if transaction is None:
+                return []
+            if (
+                intent is PolicyIntent.PAYMENT_HISTORY
+                and transaction.transaction_type.casefold() != "payment"
+            ):
+                return []
+            return [transaction]
 
         if intent is PolicyIntent.RECENT_TRANSACTION_HISTORY:
             return self.bank.list_recent_transactions(
