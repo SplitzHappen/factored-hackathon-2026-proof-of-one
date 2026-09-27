@@ -103,11 +103,14 @@ def _synthetic_build_lock(target: Path) -> Iterator[None]:
                 os.O_CREAT | os.O_EXCL | os.O_WRONLY,
                 0o600,
             )
-        except FileExistsError:
+        except (FileExistsError, PermissionError) as exc:
+            # Windows may report ERROR_ACCESS_DENIED/PermissionError when another
+            # local worker owns the O_EXCL lock file. Treat that as bounded
+            # contention rather than bypassing the lock or failing spuriously.
             if time.monotonic() >= deadline:
                 raise SyntheticArtifactSafetyError(
                     "Timed out waiting for the synthetic demo artifact build lock."
-                )
+                ) from exc
             time.sleep(0.05)
             continue
         else:
