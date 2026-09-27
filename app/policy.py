@@ -46,6 +46,14 @@ def route_policy(policy_input: PolicyInput) -> PolicyResult:
             mandatory_escalation=True,
         )
 
+    if policy_input.interpretation_unavailable:
+        return PolicyResult(
+            route=RouteDecision.ESCALATE,
+            reason_codes=[PolicyReason.INTERPRETATION_UNAVAILABLE],
+            safe_to_answer=False,
+            mandatory_escalation=False,
+        )
+
     escalation_reasons: list[PolicyReason] = []
     if policy_input.trusted_data_conflict:
         escalation_reasons.append(PolicyReason.TRUSTED_DATA_CONFLICT)
