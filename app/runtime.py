@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -19,13 +20,22 @@ from app.schemas import (
     TransactionQuery,
 )
 
-RUNTIME_SCHEMA_VERSION = 3
+RUNTIME_SCHEMA_VERSION = 4
 RUNTIME_TABLES = {
     "runtime_metadata",
     "sessions",
     "conversation_state",
     "escalation_tickets",
+    "rate_limit_events",
 }
+
+DEFAULT_SESSION_TTL_SECONDS = 4 * 60 * 60
+DEFAULT_TENANT_RETENTION_SECONDS = 24 * 60 * 60
+DEFAULT_SESSION_REQUEST_LIMIT = 60
+DEFAULT_SESSION_REQUEST_WINDOW_SECONDS = 60
+DEFAULT_SESSION_CREATION_LIMIT = 10
+DEFAULT_SESSION_CREATION_WINDOW_SECONDS = 60 * 60
+DEFAULT_TICKET_LIMIT_PER_SESSION = 5
 
 
 class RuntimeStoreError(RuntimeError):
@@ -52,6 +62,14 @@ class PersistenceVerificationError(RuntimeStoreError):
     """Raised when a durable write cannot be read back and verified exactly."""
 
 
+class RateLimitExceededError(RuntimeStoreError):
+    """Raised when a persistent demo abuse limit is exceeded."""
+
+
+class TicketLimitExceededError(RuntimeStoreError):
+    """Raised when one session reaches its bounded distinct-ticket limit."""
+
+
 @dataclass(frozen=True, slots=True)
 class _TicketSnapshot:
     ticket_id: UUID
@@ -60,6 +78,7 @@ class _TicketSnapshot:
     transaction_id: str | None
     reason_code: str
     summary: str
+    idempotency_key: str
     created_at: datetime
     verified_at: datetime | None
 
@@ -77,11 +96,42 @@ class VerifiedEscalationContext:
 class OperationalStore:
     """Separate writable SQLite state; never stores authoritative banking records."""
 
-    def __init__(self, path: Path, *, busy_timeout_seconds: float = 5.0) -> None:
-        if busy_timeout_seconds <= 0:
-            raise ValueError("busy_timeout_seconds must be positive")
+    def __init__(
+        self,
+        path: Path,
+        *,
+        busy_timeout_seconds: float = 5.0,
+        session_ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
+        tenant_retention_seconds: int = DEFAULT_TENANT_RETENTION_SECONDS,
+        session_request_limit: int = DEFAULT_SESSION_REQUEST_LIMIT,
+        session_request_window_seconds: int = DEFAULT_SESSION_REQUEST_WINDOW_SECONDS,
+        session_creation_limit: int = DEFAULT_SESSION_CREATION_LIMIT,
+        session_creation_window_seconds: int = DEFAULT_SESSION_CREATION_WINDOW_SECONDS,
+        ticket_limit_per_session: int = DEFAULT_TICKET_LIMIT_PER_SESSION,
+    ) -> None:
+        numeric_values = {
+            "busy_timeout_seconds": busy_timeout_seconds,
+            "session_ttl_seconds": session_ttl_seconds,
+            "tenant_retention_seconds": tenant_retention_seconds,
+            "session_request_limit": session_request_limit,
+            "session_request_window_seconds": session_request_window_seconds,
+            "session_creation_limit": session_creation_limit,
+            "session_creation_window_seconds": session_creation_window_seconds,
+            "ticket_limit_per_session": ticket_limit_per_session,
+        }
+        if any(value <= 0 for value in numeric_values.values()):
+            raise ValueError("Operational-store lifecycle and limit values must be positive")
+        if tenant_retention_seconds < session_ttl_seconds:
+            raise ValueError("tenant retention must be at least as long as session TTL")
         self.path = path
         self.busy_timeout_seconds = busy_timeout_seconds
+        self.session_ttl_seconds = int(session_ttl_seconds)
+        self.tenant_retention_seconds = int(tenant_retention_seconds)
+        self.session_request_limit = int(session_request_limit)
+        self.session_request_window_seconds = int(session_request_window_seconds)
+        self.session_creation_limit = int(session_creation_limit)
+        self.session_creation_window_seconds = int(session_creation_window_seconds)
+        self.ticket_limit_per_session = int(ticket_limit_per_session)
 
     def initialize(self, *, data_mode: str | None = None) -> None:
         if data_mode not in {None, "synthetic", "curated"}:
@@ -135,6 +185,7 @@ class OperationalStore:
                                 "sessions",
                                 "conversation_state",
                                 "escalation_tickets",
+                                "rate_limit_events",
                             )
                             if table in existing_tables
                         )
@@ -173,7 +224,8 @@ class OperationalStore:
                         CHECK(length(customer_id) BETWEEN 1 AND 128),
                     language TEXT NOT NULL CHECK(language IN ('es', 'pt')),
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    revoked_at TEXT
                 )
                 """,
                 """
@@ -205,8 +257,18 @@ class OperationalStore:
                         CHECK(length(reason_code) BETWEEN 1 AND 80),
                     summary TEXT NOT NULL
                         CHECK(length(summary) BETWEEN 1 AND 500),
+                    idempotency_key TEXT NOT NULL UNIQUE
+                        CHECK(length(idempotency_key) = 64),
                     created_at TEXT NOT NULL,
                     verified_at TEXT
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS rate_limit_events (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scope TEXT NOT NULL CHECK(length(scope) BETWEEN 1 AND 40),
+                    subject TEXT NOT NULL CHECK(length(subject) BETWEEN 1 AND 128),
+                    created_at TEXT NOT NULL
                 )
                 """,
             )
@@ -216,6 +278,12 @@ class OperationalStore:
                 """
                 CREATE INDEX IF NOT EXISTS idx_escalation_tickets_tenant_verified
                 ON escalation_tickets(tenant_id, verified_at, created_at)
+                """
+            )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_rate_limit_events_scope_subject_time
+                ON rate_limit_events(scope, subject, created_at)
                 """
             )
             if not existing_tables:
@@ -279,14 +347,123 @@ class OperationalStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT session_id, tenant_id, role, demo_persona_id, customer_id, language
+                SELECT session_id, tenant_id, role, demo_persona_id, customer_id, language,
+                       created_at, revoked_at
                 FROM sessions
                 WHERE session_id = ?
                 """,
                 (str(session_id),),
             ).fetchone()
-        if row is None:
+        if row is None or row["revoked_at"] is not None:
             return None
+        created_at = datetime.fromisoformat(row["created_at"])
+        if self._utc_now() >= created_at + timedelta(seconds=self.session_ttl_seconds):
+            return None
+        return self._session_from_row(row)
+
+    def revoke_session(self, session_id: UUID) -> bool:
+        """Revoke an active customer session without deleting retained support state."""
+
+        now = self._utc_now().isoformat()
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE sessions
+                SET revoked_at = ?, updated_at = ?
+                WHERE session_id = ? AND revoked_at IS NULL
+                """,
+                (now, now, str(session_id)),
+            )
+        return cursor.rowcount == 1
+
+    def enforce_session_creation_rate(self, subject: str) -> None:
+        self._enforce_rate_limit(
+            scope="session_create",
+            subject=subject,
+            limit=self.session_creation_limit,
+            window_seconds=self.session_creation_window_seconds,
+        )
+
+    def enforce_session_request_rate(self, session_id: UUID) -> None:
+        self._enforce_rate_limit(
+            scope="session_request",
+            subject=str(session_id),
+            limit=self.session_request_limit,
+            window_seconds=self.session_request_window_seconds,
+        )
+
+    def cleanup_expired_state(self) -> None:
+        """Delete retained visitor state after the bounded tenant-retention window."""
+
+        cutoff = self._utc_now() - timedelta(seconds=self.tenant_retention_seconds)
+        cutoff_text = cutoff.isoformat()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """
+                DELETE FROM escalation_tickets
+                WHERE session_id IN (
+                    SELECT session_id FROM sessions WHERE created_at < ?
+                )
+                """,
+                (cutoff_text,),
+            )
+            connection.execute(
+                "DELETE FROM sessions WHERE created_at < ?",
+                (cutoff_text,),
+            )
+            connection.execute(
+                "DELETE FROM rate_limit_events WHERE created_at < ?",
+                (cutoff_text,),
+            )
+
+    def _enforce_rate_limit(
+        self,
+        *,
+        scope: str,
+        subject: str,
+        limit: int,
+        window_seconds: int,
+    ) -> None:
+        if not scope or len(scope) > 40:
+            raise ValueError("rate-limit scope must be between 1 and 40 characters")
+        if not subject or len(subject) > 128:
+            raise ValueError("rate-limit subject must be between 1 and 128 characters")
+        now = self._utc_now()
+        cutoff = now - timedelta(seconds=window_seconds)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """
+                DELETE FROM rate_limit_events
+                WHERE scope = ? AND subject = ? AND created_at < ?
+                """,
+                (scope, subject, cutoff.isoformat()),
+            )
+            count = int(
+                connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM rate_limit_events
+                    WHERE scope = ? AND subject = ?
+                    """,
+                    (scope, subject),
+                ).fetchone()[0]
+            )
+            if count >= limit:
+                raise RateLimitExceededError(
+                    f"Rate limit exceeded for {scope}"
+                )
+            connection.execute(
+                """
+                INSERT INTO rate_limit_events(scope, subject, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (scope, subject, now.isoformat()),
+            )
+
+    @staticmethod
+    def _session_from_row(row: sqlite3.Row) -> AuthenticatedSession:
         return AuthenticatedSession(
             session_id=UUID(row["session_id"]),
             tenant_id=row["tenant_id"],
@@ -295,6 +472,21 @@ class OperationalStore:
             customer_id=row["customer_id"],
             language=SupportedLanguage(row["language"]),
         )
+
+    def _get_persisted_session_identity(
+        self,
+        session_id: UUID,
+    ) -> AuthenticatedSession | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT session_id, tenant_id, role, demo_persona_id, customer_id, language
+                FROM sessions
+                WHERE session_id = ?
+                """,
+                (str(session_id),),
+            ).fetchone()
+        return None if row is None else self._session_from_row(row)
 
     def save_conversation_state(
         self,
@@ -383,7 +575,7 @@ class OperationalStore:
         session: AuthenticatedSession,
         request: EscalationRequest,
     ) -> EscalationRecord:
-        """Persist, re-read, and verify a handoff before reporting success."""
+        """Persist one retry-safe verified ticket for one session/reason/transaction."""
 
         if request.session_id != session.session_id:
             raise SessionIdentityMismatchError(
@@ -391,73 +583,107 @@ class OperationalStore:
             )
         self._verify_persisted_session(session)
 
-        expected = _TicketSnapshot(
-            ticket_id=uuid4(),
-            session_id=session.session_id,
-            tenant_id=session.tenant_id,
-            transaction_id=request.transaction_id,
-            reason_code=request.reason_code,
-            summary=request.summary,
-            created_at=self._utc_now(),
-            verified_at=None,
-        )
-
+        idempotency_key = self._ticket_idempotency_key(session, request)
+        created_new = False
         with self._connect() as connection:
-            connection.execute(
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute(
                 """
-                INSERT INTO escalation_tickets(
-                    ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
-                    created_at, verified_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+                SELECT ticket_id
+                FROM escalation_tickets
+                WHERE idempotency_key = ?
                 """,
-                (
-                    str(expected.ticket_id),
-                    str(expected.session_id),
-                    expected.tenant_id,
-                    expected.transaction_id,
-                    expected.reason_code,
-                    expected.summary,
-                    expected.created_at.isoformat(),
-                ),
-            )
+                (idempotency_key,),
+            ).fetchone()
+            if existing is not None:
+                ticket_id = UUID(existing["ticket_id"])
+            else:
+                ticket_count = int(
+                    connection.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM escalation_tickets
+                        WHERE session_id = ?
+                        """,
+                        (str(session.session_id),),
+                    ).fetchone()[0]
+                )
+                if ticket_count >= self.ticket_limit_per_session:
+                    raise TicketLimitExceededError(
+                        "Support ticket limit reached for this session"
+                    )
+                ticket_id = uuid4()
+                now = self._utc_now()
+                connection.execute(
+                    """
+                    INSERT INTO escalation_tickets(
+                        ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
+                        idempotency_key, created_at, verified_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                    """,
+                    (
+                        str(ticket_id),
+                        str(session.session_id),
+                        session.tenant_id,
+                        request.transaction_id,
+                        request.reason_code,
+                        request.summary,
+                        idempotency_key,
+                        now.isoformat(),
+                    ),
+                )
+                created_new = True
 
-        persisted = self._read_ticket_snapshot(expected.ticket_id)
-        if persisted != expected:
+        persisted = self._read_ticket_snapshot(ticket_id)
+        if persisted is None:
             raise PersistenceVerificationError(
                 "Escalation ticket persistence could not be verified"
             )
-
-        verified_at = self._utc_now()
-        with self._connect() as connection:
-            cursor = connection.execute(
-                """
-                UPDATE escalation_tickets
-                SET verified_at = ?
-                WHERE ticket_id = ? AND verified_at IS NULL
-                """,
-                (verified_at.isoformat(), str(expected.ticket_id)),
+        if (
+            persisted.session_id != session.session_id
+            or persisted.tenant_id != session.tenant_id
+            or persisted.transaction_id != request.transaction_id
+            or persisted.reason_code != request.reason_code
+            or persisted.idempotency_key != idempotency_key
+        ):
+            raise PersistenceVerificationError(
+                "Escalation ticket identity changed during persistence verification"
             )
-            if cursor.rowcount != 1:
-                raise PersistenceVerificationError(
-                    "Escalation ticket verification status could not be persisted"
-                )
+        if created_new and persisted.summary != request.summary:
+            raise PersistenceVerificationError(
+                "Escalation ticket summary changed during persistence verification"
+            )
 
-        final = self._read_ticket_snapshot(expected.ticket_id)
-        if final is None or final.verified_at != verified_at:
+        if persisted.verified_at is None:
+            verified_at = self._utc_now()
+            with self._connect() as connection:
+                cursor = connection.execute(
+                    """
+                    UPDATE escalation_tickets
+                    SET verified_at = ?
+                    WHERE ticket_id = ? AND verified_at IS NULL
+                    """,
+                    (verified_at.isoformat(), str(ticket_id)),
+                )
+                if cursor.rowcount not in {0, 1}:
+                    raise PersistenceVerificationError(
+                        "Escalation ticket verification status could not be persisted"
+                    )
+
+        final = self._read_ticket_snapshot(ticket_id)
+        if final is None or final.verified_at is None:
             raise PersistenceVerificationError(
                 "Escalation ticket verification status could not be read back"
             )
         if (
-            final.ticket_id != expected.ticket_id
-            or final.session_id != expected.session_id
-            or final.tenant_id != expected.tenant_id
-            or final.transaction_id != expected.transaction_id
-            or final.reason_code != expected.reason_code
-            or final.summary != expected.summary
-            or final.created_at != expected.created_at
+            final.session_id != session.session_id
+            or final.tenant_id != session.tenant_id
+            or final.transaction_id != request.transaction_id
+            or final.reason_code != request.reason_code
+            or final.idempotency_key != idempotency_key
         ):
             raise PersistenceVerificationError(
-                "Escalation ticket changed during persistence verification"
+                "Escalation ticket changed during verification"
             )
 
         return EscalationRecord(
@@ -467,6 +693,20 @@ class OperationalStore:
             persisted=True,
             verified=True,
         )
+
+    @staticmethod
+    def _ticket_idempotency_key(
+        session: AuthenticatedSession,
+        request: EscalationRequest,
+    ) -> str:
+        raw = "|".join(
+            (
+                str(session.session_id),
+                request.transaction_id or "",
+                request.reason_code,
+            )
+        )
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def list_verified_escalation_ticket_ids_for_tenant(
         self,
@@ -518,7 +758,7 @@ class OperationalStore:
         if snapshot is None or snapshot.verified_at is None:
             return None
 
-        session = self.get_authenticated_session(snapshot.session_id)
+        session = self._get_persisted_session_identity(snapshot.session_id)
         if session is None or snapshot.tenant_id != session.tenant_id:
             return None
 
@@ -544,7 +784,7 @@ class OperationalStore:
             row = connection.execute(
                 """
                 SELECT ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
-                       created_at, verified_at
+                       idempotency_key, created_at, verified_at
                 FROM escalation_tickets
                 WHERE ticket_id = ?
                 """,
@@ -559,6 +799,7 @@ class OperationalStore:
             transaction_id=row["transaction_id"],
             reason_code=row["reason_code"],
             summary=row["summary"],
+            idempotency_key=row["idempotency_key"],
             created_at=datetime.fromisoformat(row["created_at"]),
             verified_at=(
                 datetime.fromisoformat(row["verified_at"])
