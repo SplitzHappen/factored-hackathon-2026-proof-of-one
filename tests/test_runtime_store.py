@@ -47,11 +47,15 @@ def test_runtime_schema_v3_is_refused_instead_of_partially_migrated(tmp_path) ->
         )
         connection.commit()
 
+    with sqlite3.connect(path) as connection:
+        original_journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+
     store = OperationalStore(path)
     with pytest.raises(RuntimeSchemaVersionError, match="Unsupported runtime schema version: 3"):
         store.initialize(data_mode="synthetic")
 
     with sqlite3.connect(path) as connection:
+        journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
         version = connection.execute(
             "SELECT value FROM runtime_metadata WHERE key = 'schema_version'"
         ).fetchone()[0]
@@ -63,6 +67,7 @@ def test_runtime_schema_v3_is_refused_instead_of_partially_migrated(tmp_path) ->
         }
 
     assert version == "3"
+    assert str(journal_mode).casefold() == str(original_journal_mode).casefold()
     assert "sessions" not in tables
     assert "escalation_tickets" not in tables
 
