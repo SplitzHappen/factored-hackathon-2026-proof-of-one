@@ -58,7 +58,6 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             )
         return runtime_context
 
-    @staticmethod
     def _peer_rate_subject(request: Request) -> str:
         host = request.client.host if request.client is not None else "unknown"
         return hashlib.sha256(
