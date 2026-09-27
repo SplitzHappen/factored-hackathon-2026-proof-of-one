@@ -1588,6 +1588,327 @@ def _predicate_denials(
     return output
 
 
+
+
+_ES_KNOWN_ACTORS = frozenset(
+    {
+        "hermano",
+        "hermana",
+        "esposo",
+        "esposa",
+        "pareja",
+        "amigo",
+        "amiga",
+        "hijo",
+        "hija",
+        "empleado",
+        "empleada",
+    }
+)
+_PT_KNOWN_ACTORS = frozenset(
+    {
+        "irmao",
+        "irma",
+        "marido",
+        "esposa",
+        "parceiro",
+        "parceira",
+        "amigo",
+        "amiga",
+        "filho",
+        "filha",
+        "funcionario",
+        "funcionaria",
+    }
+)
+
+
+def _authorization_participle_forms(language: str) -> frozenset[str]:
+    forms: set[str] = set()
+    for surface, entries in PARADIGMS[language].items():
+        if not any(
+            entry.family is PredicateFamily.AUTHORIZE
+            and entry.tense_aspect == "participle"
+            for entry in entries
+        ):
+            continue
+        forms.add(surface)
+        if surface.endswith("o"):
+            stem = surface[:-1]
+            forms.update({stem + "a", stem + "os", stem + "as"})
+    return frozenset(forms)
+
+
+_AUTH_PARTICIPLES = {
+    "es": _authorization_participle_forms("es"),
+    "pt": _authorization_participle_forms("pt"),
+}
+
+
+def _auth_noun_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (index, index + 1)
+        for index in range(clause.token_start, clause.token_end)
+        if LexicalTag.AUTH_NOUN in analysis.tags[index]
+    )
+
+
+def _known_actor_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], ...]:
+    actor_words = _ES_KNOWN_ACTORS if language == "es" else _PT_KNOWN_ACTORS
+    return tuple(
+        (index, index + 1)
+        for index in range(clause.token_start, clause.token_end)
+        if analysis.tokens[index].normalized in actor_words
+    )
+
+
+def _permission_denial_backlink(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[ClauseSegment, tuple[int, int], tuple[int, int] | None, PredicateMatch] | None:
+    if clause.index <= 0:
+        return None
+
+    prior = analysis.clauses[clause.index - 1]
+    actor_spans = _known_actor_spans(analysis, prior, language)
+    if not actor_spans:
+        return None
+
+    prior_activity = _nearest_activity_span(analysis, prior, None)
+    prior_instruments = tuple(
+        (index, index + 1)
+        for index in range(prior.token_start, prior.token_end)
+        if LexicalTag.INSTRUMENT in analysis.tags[index]
+    )
+    prior_self_possession = _role_spans(
+        analysis,
+        prior,
+        frozenset({SelfRole.POSSESSOR}),
+    )
+
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, prior):
+            continue
+        if predicate.form.family is PredicateFamily.PERFORM and prior_activity is not None:
+            return prior, actor_spans[0], prior_activity, predicate
+        if predicate.form.family is PredicateFamily.USE_ACCESS:
+            if prior_instruments and prior_self_possession:
+                return prior, actor_spans[0], prior_activity, predicate
+    return None
+
+
+def _authorization_denials(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    output: list[PositiveProposition] = []
+    self_subject_spans = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.SUBJECT, SelfRole.AGENT}),
+    )
+    auth_nouns = _auth_noun_spans(analysis, clause)
+
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.family not in {
+            PredicateFamily.AUTHORIZE,
+            PredicateFamily.GIVE_PERMISSION,
+        }:
+            continue
+        if not _predicate_has_denial(analysis, clause, predicate, language):
+            continue
+        if not self_subject_spans:
+            continue
+
+        if predicate.form.family is PredicateFamily.GIVE_PERMISSION:
+            nearby_auth_nouns = tuple(
+                span
+                for span in auth_nouns
+                if 0 <= span[0] - predicate.token_end <= 4
+                or 0 <= predicate.token_start - span[1] <= 2
+            )
+            if not nearby_auth_nouns:
+                continue
+        else:
+            nearby_auth_nouns = ()
+
+        activity_span = _nearest_activity_span(analysis, clause, predicate)
+        negatives = _negative_indices(analysis, clause, language)
+        denial_span = min(
+            ((index, index + 1) for index in negatives),
+            key=lambda span: min(
+                abs(span[0] - predicate.token_start),
+                abs(span[0] - predicate.token_end),
+            ),
+        )
+        nearest_self = min(
+            self_subject_spans,
+            key=lambda span: min(
+                abs(span[0] - predicate.token_start),
+                abs(span[0] - predicate.token_end),
+            ),
+        )
+
+        evidence: list[tuple[int, int]] = [denial_span, nearest_self]
+        if nearby_auth_nouns:
+            evidence.append(nearby_auth_nouns[0])
+
+        rule = "P4"
+        activity_ref = (
+            "explicit_activity"
+            if activity_span is not None
+            else "topic_transaction"
+        )
+
+        if (
+            predicate.form.family is PredicateFamily.GIVE_PERMISSION
+            and activity_span is None
+        ):
+            backlink = _permission_denial_backlink(analysis, clause, language)
+            if backlink is None:
+                continue
+            _, actor_span, prior_activity, prior_predicate = backlink
+            evidence.extend(
+                [
+                    actor_span,
+                    (prior_predicate.token_start, prior_predicate.token_end),
+                ]
+            )
+            if prior_activity is not None:
+                activity_span = prior_activity
+                activity_ref = "linked_prior_activity"
+            else:
+                activity_ref = "linked_instrument_use"
+            rule = "P4-R3-permission-backlink"
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.AUTHORIZATION_DENIAL,
+                rule=rule,
+                language=language,
+                evidence_spans=evidence,
+                activity_span=activity_span,
+                predicate=predicate,
+                activity_ref=activity_ref,
+            )
+        )
+
+    return output
+
+
+def _possessive_authorization_absence(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    words = [token.normalized for token in analysis.tokens]
+    introducer = "sin" if language == "es" else "sem"
+    activity_span = _nearest_activity_span(analysis, clause, None)
+    if activity_span is None:
+        return []
+
+    possessor_spans = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.POSSESSOR}),
+    )
+    auth_nouns = _auth_noun_spans(analysis, clause)
+    output: list[PositiveProposition] = []
+
+    for possessor_span in possessor_spans:
+        possessor_index = possessor_span[0]
+        if possessor_index <= clause.token_start:
+            continue
+        if words[possessor_index - 1] != introducer:
+            continue
+        auth_span = next(
+            (
+                span
+                for span in auth_nouns
+                if span[0] == possessor_span[1]
+            ),
+            None,
+        )
+        if auth_span is None:
+            continue
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.AUTHORIZATION_DENIAL,
+                rule="P4",
+                language=language,
+                evidence_spans=(
+                    activity_span,
+                    (possessor_index - 1, possessor_index),
+                    possessor_span,
+                    auth_span,
+                ),
+                activity_span=activity_span,
+                predicate=None,
+            )
+        )
+    return output
+
+
+def _unauthorized_participle_denials(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    activity_span = _nearest_activity_span(analysis, clause, None)
+    if activity_span is None:
+        return []
+
+    negatives = _negative_indices(analysis, clause, language)
+    output: list[PositiveProposition] = []
+    for index in range(clause.token_start, clause.token_end):
+        if analysis.tokens[index].normalized not in _AUTH_PARTICIPLES[language]:
+            continue
+        neg_index = next(
+            (
+                candidate
+                for candidate in reversed(negatives)
+                if candidate < index and index - candidate <= 2
+            ),
+            None,
+        )
+        if neg_index is None:
+            continue
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.AUTHORIZATION_DENIAL,
+                rule="P4",
+                language=language,
+                evidence_spans=(
+                    activity_span,
+                    (neg_index, neg_index + 1),
+                    (index, index + 1),
+                ),
+                activity_span=activity_span,
+                predicate=None,
+            )
+        )
+    return output
+
+
 def build_positive_propositions(
     text: str,
     language: str,
@@ -1626,6 +1947,13 @@ def build_positive_propositions(
                 rule="P3",
                 self_roles=frozenset({SelfRole.SOURCE}),
             )
+        )
+        propositions.extend(_authorization_denials(analysis, clause, language))
+        propositions.extend(
+            _possessive_authorization_absence(analysis, clause, language)
+        )
+        propositions.extend(
+            _unauthorized_participle_denials(analysis, clause, language)
         )
 
     unique: dict[

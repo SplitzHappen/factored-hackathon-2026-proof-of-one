@@ -83,3 +83,79 @@ def test_portuguese_no_contraction_does_not_create_p2_denial() -> None:
     assert PropositionFamily.PERFORMANCE_DENIAL not in {
         item.family for item in propositions
     }
+
+def test_p4_direct_authorization_denial_in_both_languages() -> None:
+    es = _families("Yo no autoricé esta transferencia.", "es")
+    pt = _families("Eu não autorizei este Pix.", "pt")
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
+
+def test_p4_possessive_authorization_absence_is_customer_anchored() -> None:
+    es = _rules("Esta transferencia llegó sin mi autorización.", "es")
+    pt = _rules("Este Pix apareceu sem minha autorização.", "pt")
+
+    assert "P4" in es
+    assert "P4" in pt
+
+
+def test_p4_unauthorized_participle_supports_gender_agreement() -> None:
+    es = _families("Esta compra no fue autorizada.", "es")
+    pt = _families("Esta compra não foi autorizada.", "pt")
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
+
+def test_r3_permission_denial_backlinks_to_immediately_prior_known_actor_use() -> None:
+    es = build_positive_propositions(
+        "Mi hermano usó mi tarjeta; yo no le di permiso.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Minha irmã usou minha conta; eu não dei permissão.",
+        "pt",
+    )
+
+    es_link = next(item for item in es if item.rule == "P4-R3-permission-backlink")
+    pt_link = next(item for item in pt if item.rule == "P4-R3-permission-backlink")
+
+    assert es_link.activity_ref == "linked_instrument_use"
+    assert pt_link.activity_ref == "linked_instrument_use"
+
+
+def test_r3_permission_backlink_can_reuse_prior_activity_referent() -> None:
+    propositions = build_positive_propositions(
+        "Mi hermana hizo esta compra; yo no le di permiso.",
+        "es",
+    )
+
+    linked = next(
+        item for item in propositions if item.rule == "P4-R3-permission-backlink"
+    )
+    assert linked.activity_ref == "linked_prior_activity"
+    assert linked.activity_token_span is not None
+
+
+def test_permission_backlink_does_not_jump_over_unrelated_clause() -> None:
+    propositions = build_positive_propositions(
+        "Mi hermano usó mi tarjeta; llamé al banco; yo no le di permiso.",
+        "es",
+    )
+
+    assert not any(
+        item.rule == "P4-R3-permission-backlink"
+        for item in propositions
+    )
+
+def test_bare_permission_denial_without_activity_or_backlink_is_not_p4() -> None:
+    es = build_positive_propositions("Yo no le di permiso.", "es")
+    pt = build_positive_propositions("Eu não dei permissão.", "pt")
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in {
+        item.family for item in es
+    }
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in {
+        item.family for item in pt
+    }
