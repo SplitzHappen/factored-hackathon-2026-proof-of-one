@@ -16,6 +16,7 @@ from app.schemas import (
     DemoPersonaSummary,
     DemoSessionCreateRequest,
     DemoSessionResponse,
+    EscalationRecord,
     HealthResponse,
     SessionRole,
     SupportedLanguage,
@@ -156,6 +157,17 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             language=session.language,
             synthetic_data=True,
         )
+
+    @app.post(
+        "/api/customer/handoff",
+        response_model=EscalationRecord,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_customer_handoff(
+        x_demo_session: str = Header(alias="X-Demo-Session"),
+    ) -> EscalationRecord:
+        session = customer_session(x_demo_session)
+        return runtime().customer_service.create_support_handoff(session=session)
 
     @app.post(
         "/api/customer/turn",
