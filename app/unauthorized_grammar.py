@@ -1353,10 +1353,11 @@ _PT_DENIAL_BRIDGE_WORDS = frozenset(
 _DENIAL_BINDING_BARRIERS = frozenset({",", ";", "?", "¿", "!", "¡", ":"})
 
 
-def _bound_denial_index(
+def _bound_denial_index_for_span(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
-    predicate: PredicateMatch,
+    token_start: int,
+    token_end: int,
     language: str,
 ) -> int | None:
     bridge_words = (
@@ -1367,10 +1368,10 @@ def _bound_denial_index(
     candidates: list[int] = []
 
     for index in _negative_indices(analysis, clause, language):
-        if index <= predicate.token_start:
-            if predicate.token_start - index > 5:
+        if index <= token_start:
+            if token_start - index > 5:
                 continue
-            between = range(index + 1, predicate.token_start)
+            between = range(index + 1, token_start)
             if any(
                 analysis.tokens[item].surface in _DENIAL_BINDING_BARRIERS
                 for item in between
@@ -1400,10 +1401,10 @@ def _bound_denial_index(
             candidates.append(index)
             continue
 
-        if index >= predicate.token_end:
-            if index - predicate.token_end > 2:
+        if index >= token_end:
+            if index - token_end > 2:
                 continue
-            between = range(predicate.token_end, index)
+            between = range(token_end, index)
             if any(
                 analysis.tokens[item].surface in _DENIAL_BINDING_BARRIERS
                 for item in between
@@ -1416,11 +1417,42 @@ def _bound_denial_index(
     return min(
         candidates,
         key=lambda index: min(
-            abs(index - predicate.token_start),
-            abs(index - predicate.token_end),
+            abs(index - token_start),
+            abs(index - token_end),
         ),
     )
 
+
+
+def _bound_denial_index(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> int | None:
+    return _bound_denial_index_for_span(
+        analysis,
+        clause,
+        predicate.token_start,
+        predicate.token_end,
+        language,
+    )
+
+
+def _span_has_bound_denial(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    token_start: int,
+    token_end: int,
+    language: str,
+) -> bool:
+    return _bound_denial_index_for_span(
+        analysis,
+        clause,
+        token_start,
+        token_end,
+        language,
+    ) is not None
 
 def _predicate_has_denial(
     analysis: FoundationAnalysis,
@@ -2125,7 +2157,14 @@ def _permission_absence_spans(
             if tuple(words[index : index + width]) == phrase:
                 spans.append((index, index + width))
 
-    return tuple(dict.fromkeys(spans))
+    negative_indices = set(_negative_indices(analysis, clause, language))
+    filtered = tuple(
+        span
+        for span in dict.fromkeys(spans)
+        if span[0] <= clause.token_start
+        or (span[0] - 1) not in negative_indices
+    )
+    return filtered
 
 
 def _permission_absence_for_predicate(
@@ -2193,6 +2232,8 @@ def _third_party_unauthorized_use(
         if not _in_clause(predicate.token_start, predicate.token_end, clause):
             continue
         if predicate.form.family is not PredicateFamily.USE_ACCESS:
+            continue
+        if _predicate_has_denial(analysis, clause, predicate, language):
             continue
 
         actor_span: tuple[int, int] | None = None
@@ -2546,6 +2587,8 @@ def _exceeded_amount_authorization(
         if not actions:
             continue
         action = max(actions, key=lambda predicate: predicate.token_start)
+        if _predicate_has_denial(analysis, clause, action, language):
+            continue
 
         actor_span = _nearest_known_actor_before_predicate(
             analysis,
@@ -2677,6 +2720,8 @@ def _exceeded_purpose_authorization(
             continue
         if not _source_accent_selects_predicate(analysis, action):
             continue
+        if _predicate_has_denial(analysis, clause, action, language):
+            continue
 
         later_permission = tuple(
             span
@@ -2777,6 +2822,14 @@ def _fraud_attributive_propositions(
         marker_word = analysis.tokens[marker_index].normalized
         if marker_word not in adjectives:
             continue
+        if _span_has_bound_denial(
+            analysis,
+            clause,
+            marker_index,
+            marker_index + 1,
+            language,
+        ):
+            continue
         activity_word = analysis.tokens[activity_span[0]].normalized
         if not _fraud_adjective_agrees(activity_word, marker_word, language):
             continue
@@ -2824,6 +2877,14 @@ def _fraud_copular_propositions(
         if token.normalized not in copulas:
             continue
         if language == "pt" and token.normalized == "e" and not token.had_acute:
+            continue
+        if _span_has_bound_denial(
+            analysis,
+            clause,
+            copula_index,
+            copula_index + 1,
+            language,
+        ):
             continue
 
         marker_index = next(
@@ -3270,6 +3331,8 @@ def _first_person_compromise(
             continue
         if not _source_accent_selects_predicate(analysis, predicate):
             continue
+        if _predicate_has_denial(analysis, clause, predicate, language):
+            continue
 
         # P8 models the customer as affected owner/experiencer, not actor.
         if predicate.form.person == 1:
@@ -3318,6 +3381,28 @@ def _first_person_compromise(
             continue
 
         participle_span = (index, index + 1)
+        directly_negated = _span_has_bound_denial(
+            analysis,
+            clause,
+            index,
+            index + 1,
+            language,
+        )
+        copulas = _ES_COPULA if language == "es" else _PT_COPULA
+        negated_auxiliary = any(
+            analysis.tokens[aux].normalized in copulas
+            and _span_has_bound_denial(
+                analysis,
+                clause,
+                aux,
+                aux + 1,
+                language,
+            )
+            for aux in range(max(clause.token_start, index - 3), index)
+        )
+        if directly_negated or negated_auxiliary:
+            continue
+
         instrument_evidence = _nearest_eligible_compromise_instrument(
             analysis,
             clause,

@@ -787,3 +787,74 @@ def test_b2r_a1_canonical_performance_denial_remains_positive() -> None:
 
     assert PropositionFamily.PERFORMANCE_DENIAL in es
     assert PropositionFamily.PERFORMANCE_DENIAL in pt
+
+
+
+def test_b2r_a2_negated_known_actor_use_is_not_positive() -> None:
+    es = _families("Mi hermano nunca usó mi tarjeta sin permiso.", "es")
+    pt = _families("Meu irmão nunca usou meu cartão sem permissão.", "pt")
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
+
+
+def test_b2r_a2_negated_fraud_characterization_is_not_positive() -> None:
+    es = _families("Esta compra no es un fraude.", "es")
+    pt = _families("Essa cobrança não é golpe.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+
+def test_b2r_a2_negated_compromise_is_not_positive() -> None:
+    es = _families("No me robaron la tarjeta, la perdí.", "es")
+    pt = _families("Não clonaram meu cartão, eu errei a senha.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in pt
+
+
+def test_b2r_a2_negated_amount_exceedance_is_not_positive() -> None:
+    es = build_positive_propositions(
+        "Mi hermano no gastó más de lo que autoricé.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Meu filho nunca gasta mais do que eu autorizo.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-amount"
+        for item in (*es, *pt)
+    )
+
+
+def test_b2r_a2_negated_purpose_exceedance_is_not_positive() -> None:
+    es = build_positive_propositions(
+        "Le di la tarjeta para la gasolina y no compró nada sin permiso.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Dei o cartão para gasolina e não comprou nada sem permissão.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-purpose"
+        for item in (*es, *pt)
+    )
+
+
+def test_b2r_a2_double_negated_permission_absence_is_not_positive() -> None:
+    es = _families(
+        "Mi hermano usó mi tarjeta, pero no sin permiso.",
+        "es",
+    )
+    pt = _families(
+        "Meu irmão usou meu cartão, mas não sem permissão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
