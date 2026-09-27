@@ -10,6 +10,7 @@ from app.schemas import (
     AuthenticatedSession,
     ConversationState,
     CustomerTurnResponse,
+    EscalationRecord,
     EscalationRequest,
     PolicyInput,
     PolicyIntent,
@@ -122,7 +123,10 @@ class CustomerResolutionService:
                     session_id=session.session_id,
                     transaction_id=interpretation.verified_transaction_id,
                     reason_code=policy.reason_codes[0].value,
-                    summary=self._escalation_summary(session.language),
+                    summary=self._escalation_summary(
+                        session.language,
+                        policy.reason_codes[0],
+                    ),
                 ),
             )
             ticket_id = escalation.ticket_id
@@ -157,11 +161,10 @@ class CustomerResolutionService:
             transactions=transactions,
             clarification_transaction_ids=clarification_ids,
             escalation_ticket_id=ticket_id,
-            handoff_available=policy.route in {
-                RouteDecision.ABSTAIN,
-                RouteDecision.ESCALATE,
-            }
-            or missing_or_unowned,
+            handoff_available=(
+                policy.route is RouteDecision.ABSTAIN
+                or missing_or_unowned
+            ),
             synthetic_data=self.synthetic_data,
         )
 
@@ -207,11 +210,58 @@ class CustomerResolutionService:
 
         return []
 
+    def create_support_handoff(
+        self,
+        *,
+        session: AuthenticatedSession,
+    ) -> EscalationRecord:
+        """Persist an explicit customer-requested demo support ticket."""
+
+        return self.store.create_escalation_ticket(
+            session,
+            EscalationRequest(
+                session_id=session.session_id,
+                transaction_id=None,
+                reason_code="customer_requested_support",
+                summary=self._support_summary(session.language),
+            ),
+        )
+
     @staticmethod
-    def _escalation_summary(language: SupportedLanguage) -> str:
+    def _support_summary(language: SupportedLanguage) -> str:
         if language is SupportedLanguage.PT:
-            return "O cliente informou atividade que não reconhece; encaminhamento humano verificado."
-        return "El cliente informó actividad que no reconoce; derivación humana verificada."
+            return "O cliente solicitou revisão humana no demo."
+        return "El cliente solicitó revisión humana en el demo."
+
+    @staticmethod
+    def _escalation_summary(
+        language: SupportedLanguage,
+        reason: PolicyReason,
+    ) -> str:
+        pt = language is SupportedLanguage.PT
+        if reason is PolicyReason.UNAUTHORIZED_ACTIVITY_REPORTED:
+            return (
+                "Caso registrado após sinal explícito de atividade não reconhecida."
+                if pt
+                else "Caso registrado tras una señal explícita de actividad no reconocida."
+            )
+        if reason is PolicyReason.TRUSTED_DATA_CONFLICT:
+            return (
+                "Caso registrado porque os dados verificados exigem revisão."
+                if pt
+                else "Caso registrado porque los datos verificados requieren revisión."
+            )
+        if reason is PolicyReason.EXCLUDED_RELATIONSHIP_REQUIRED:
+            return (
+                "Caso registrado porque a solicitação exige informação fora do escopo."
+                if pt
+                else "Caso registrado porque la solicitud requiere información fuera del alcance."
+            )
+        return (
+            "Caso registrado para revisão humana no demo."
+            if pt
+            else "Caso registrado para revisión humana en el demo."
+        )
 
     @staticmethod
     def _localized_status(
@@ -331,7 +381,7 @@ class CustomerResolutionService:
                 if missing_record:
                     return (
                         "Não consegui vincular essa referência a um registro verificável da "
-                        "sua conta. Confira a referência ou use o atendimento humano."
+                        "sua conta. Confira a referência ou solicite uma revisão humana neste demo."
                     )
                 if clarification_transaction_ids:
                     options = ", ".join(clarification_transaction_ids)
@@ -343,7 +393,7 @@ class CustomerResolutionService:
             if missing_record:
                 return (
                     "No pude vincular esa referencia a un registro verificable de tu cuenta. "
-                    "Revisa la referencia o utiliza la atención humana."
+                    "Revisa la referencia o solicita una revisión humana en este demo."
                 )
             if clarification_transaction_ids:
                 options = ", ".join(clarification_transaction_ids)
@@ -354,36 +404,50 @@ class CustomerResolutionService:
             return "Necesito más detalles para identificar el movimiento de forma segura."
 
         if route is RouteDecision.ESCALATE:
+            if PolicyReason.TRUSTED_DATA_CONFLICT in reason_codes:
+                return (
+                    "Registré este caso para revisión humana en el demo porque los datos "
+                    "verificados requieren revisión."
+                    if not pt
+                    else "Registrei este caso para revisão humana no demo porque os dados "
+                    "verificados exigem revisão."
+                )
+            if PolicyReason.EXCLUDED_RELATIONSHIP_REQUIRED in reason_codes:
+                return (
+                    "Registré este caso para revisión humana en el demo porque requiere "
+                    "información fuera del alcance de este asistente."
+                    if not pt
+                    else "Registrei este caso para revisão humana no demo porque exige "
+                    "informação fora do alcance deste assistente."
+                )
             return (
-                "Registré una derivación humana verificada por la actividad que indicaste "
-                "que no reconoces."
+                "Registré este caso para revisión humana en el demo."
                 if not pt
-                else "Registrei um encaminhamento humano verificado para a atividade que "
-                "você informou não reconhecer."
+                else "Registrei este caso para revisão humana no demo."
             )
 
         if PolicyReason.PROHIBITED_BANKING_ACTION in reason_codes:
             return (
                 "No puedo ejecutar cambios o movimientos bancarios desde este asistente. "
-                "La atención humana está disponible para continuar."
+                "Puedes solicitar una revisión humana en este demo."
                 if not pt
                 else "Não posso executar alterações ou movimentações bancárias neste "
-                "assistente. O atendimento humano está disponível para continuar."
+                "assistente. Você pode solicitar uma revisão humana neste demo."
             )
 
         if PolicyReason.UNSUPPORTED_CAUSAL_EXPLANATION in reason_codes:
             return (
                 "No tengo una causa verificada para explicar por qué esa operación tuvo "
-                "ese resultado y no voy a inventarla. La atención humana está disponible "
-                "para revisarlo."
+                "ese resultado y no voy a inventarla. Puedes solicitar una revisión humana "
+                "en este demo."
                 if not pt
                 else "Não tenho uma causa verificada para explicar por que essa operação "
-                "teve esse resultado e não vou inventá-la. O atendimento humano está "
-                "disponível para revisar."
+                "teve esse resultado e não vou inventá-la. Você pode solicitar uma revisão "
+                "humana neste demo."
             )
 
         return (
-            "No puedo resolver esa solicitud de forma segura aquí. La atención humana está disponible."
+            "No puedo resolver esa solicitud de forma segura aquí. Puedes solicitar una revisión humana en este demo."
             if not pt
-            else "Não consigo resolver essa solicitação com segurança aqui. O atendimento humano está disponível."
+            else "Não consigo resolver essa solicitação com segurança aqui. Você pode solicitar uma revisão humana neste demo."
         )
