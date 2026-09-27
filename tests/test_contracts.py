@@ -8,6 +8,7 @@ from app.schemas import (
     AuthenticatedSession,
     PolicyInput,
     PolicyIntent,
+    SessionRole,
     SupportedLanguage,
     TransactionQuery,
     TransactionRecord,
@@ -34,14 +35,26 @@ def test_type_coercion_fails_closed() -> None:
 
 
 def test_authenticated_session_requires_server_context_shape() -> None:
+    with pytest.raises(ValidationError):
+        AuthenticatedSession(
+            session_id=uuid4(),
+            demo_persona_id="demo-es-001",
+            customer_id="customer-001",
+            language=SupportedLanguage.ES,
+        )
+
     session = AuthenticatedSession(
         session_id=uuid4(),
+        tenant_id="demo-test-tenant",
+        role=SessionRole.CUSTOMER,
         demo_persona_id="demo-es-001",
         customer_id="customer-001",
         language=SupportedLanguage.ES,
     )
 
     assert session.customer_id == "customer-001"
+    assert session.tenant_id == "demo-test-tenant"
+    assert session.role is SessionRole.CUSTOMER
 
 
 def test_policy_input_has_no_fraud_label_or_score_surface() -> None:

@@ -6,7 +6,7 @@ import duckdb
 from fastapi.testclient import TestClient
 
 from app.bootstrap import build_app_context
-from app.demo_data import DEMO_TENANT_ID, build_synthetic_demo_bank
+from app.demo_data import build_synthetic_demo_bank
 from app.main import create_app
 from app.schemas import (
     AuthenticatedSession,
@@ -58,7 +58,8 @@ def test_session_identity_tenant_and_role_are_server_issued(tmp_path) -> None:
 
     assert response.status_code == 201
     body = response.json()
-    assert body["tenant_id"] == DEMO_TENANT_ID
+    assert body["tenant_id"].startswith("demo-")
+    assert len(body["tenant_id"]) == 37
     assert body["role"] == "customer"
     assert body["persona_id"] == "lucia"
     assert "customer_id" not in body
@@ -68,7 +69,7 @@ def test_session_identity_tenant_and_role_are_server_issued(tmp_path) -> None:
     )
     assert persisted is not None
     assert persisted.customer_id == "DEMO-CUST-ES-001"
-    assert persisted.tenant_id == DEMO_TENANT_ID
+    assert persisted.tenant_id == body["tenant_id"]
     assert persisted.role is SessionRole.CUSTOMER
 
 
@@ -222,7 +223,7 @@ def test_customer_endpoint_rejects_server_persisted_analyst_role(tmp_path) -> No
     client, context = _client(tmp_path)
     analyst = AuthenticatedSession(
         session_id=uuid4(),
-        tenant_id=DEMO_TENANT_ID,
+        tenant_id="demo-test-analyst",
         role=SessionRole.ANALYST,
         demo_persona_id="lucia",
         customer_id="DEMO-CUST-ES-001",
@@ -239,25 +240,25 @@ def test_customer_endpoint_rejects_server_persisted_analyst_role(tmp_path) -> No
     assert response.status_code == 403
 
 
-def test_customer_endpoint_rejects_wrong_tenant_even_with_valid_session(tmp_path) -> None:
-    client, context = _client(tmp_path)
-    foreign = AuthenticatedSession(
-        session_id=uuid4(),
-        tenant_id="other-demo-tenant",
-        role=SessionRole.CUSTOMER,
-        demo_persona_id="lucia",
-        customer_id="DEMO-CUST-ES-001",
-        language=SupportedLanguage.ES,
-    )
-    context.store.save_authenticated_session(foreign)
+def test_demo_sessions_receive_distinct_server_tenants(tmp_path) -> None:
+    client, _ = _client(tmp_path)
 
-    response = client.post(
-        "/api/customer/turn",
-        headers={"X-Demo-Session": str(foreign.session_id)},
-        json={"message": "Muéstrame mis últimos movimientos."},
-    )
+    first = _session(client, "lucia")
+    second = _session(client, "lucia")
 
-    assert response.status_code == 403
+    assert first["session_id"] != second["session_id"]
+    assert first["tenant_id"] != second["tenant_id"]
+    assert first["tenant_id"].startswith("demo-")
+    assert second["tenant_id"].startswith("demo-")
+
+    for session in (first, second):
+        response = client.post(
+            "/api/customer/turn",
+            headers={"X-Demo-Session": session["session_id"]},
+            json={"message": "Muéstrame mis últimos movimientos."},
+        )
+        assert response.status_code == 200
+        assert response.json()["route"] == "ANSWER"
 
 
 def test_curated_mode_disables_public_demo_issuance(tmp_path) -> None:

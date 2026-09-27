@@ -19,7 +19,7 @@ from app.schemas import (
     TransactionQuery,
 )
 
-RUNTIME_SCHEMA_VERSION = 2
+RUNTIME_SCHEMA_VERSION = 3
 RUNTIME_TABLES = {
     "runtime_metadata",
     "sessions",
@@ -56,6 +56,7 @@ class PersistenceVerificationError(RuntimeStoreError):
 class _TicketSnapshot:
     ticket_id: UUID
     session_id: UUID
+    tenant_id: str
     transaction_id: str | None
     reason_code: str
     summary: str
@@ -196,6 +197,8 @@ class OperationalStore:
                     ticket_id TEXT PRIMARY KEY,
                     session_id TEXT NOT NULL
                         REFERENCES sessions(session_id) ON DELETE RESTRICT,
+                    tenant_id TEXT NOT NULL
+                        CHECK(length(tenant_id) BETWEEN 1 AND 128),
                     transaction_id TEXT
                         CHECK(transaction_id IS NULL OR length(transaction_id) BETWEEN 1 AND 128),
                     reason_code TEXT NOT NULL
@@ -209,6 +212,12 @@ class OperationalStore:
             )
             for statement in ddl_statements:
                 connection.execute(statement)
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_escalation_tickets_tenant_verified
+                ON escalation_tickets(tenant_id, verified_at, created_at)
+                """
+            )
             if not existing_tables:
                 connection.execute(
                     "INSERT INTO runtime_metadata(key, value) VALUES ('schema_version', ?)",
@@ -385,6 +394,7 @@ class OperationalStore:
         expected = _TicketSnapshot(
             ticket_id=uuid4(),
             session_id=session.session_id,
+            tenant_id=session.tenant_id,
             transaction_id=request.transaction_id,
             reason_code=request.reason_code,
             summary=request.summary,
@@ -396,13 +406,14 @@ class OperationalStore:
             connection.execute(
                 """
                 INSERT INTO escalation_tickets(
-                    ticket_id, session_id, transaction_id, reason_code, summary,
+                    ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
                     created_at, verified_at
-                ) VALUES (?, ?, ?, ?, ?, ?, NULL)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
                 """,
                 (
                     str(expected.ticket_id),
                     str(expected.session_id),
+                    expected.tenant_id,
                     expected.transaction_id,
                     expected.reason_code,
                     expected.summary,
@@ -439,6 +450,7 @@ class OperationalStore:
         if (
             final.ticket_id != expected.ticket_id
             or final.session_id != expected.session_id
+            or final.tenant_id != expected.tenant_id
             or final.transaction_id != expected.transaction_id
             or final.reason_code != expected.reason_code
             or final.summary != expected.summary
@@ -455,6 +467,29 @@ class OperationalStore:
             persisted=True,
             verified=True,
         )
+
+    def list_verified_escalation_ticket_ids_for_tenant(
+        self,
+        tenant_id: str,
+    ) -> list[UUID]:
+        """Return only verified tickets belonging to one server-issued tenant."""
+
+        if not 1 <= len(tenant_id) <= 128:
+            raise ValueError("tenant_id must be between 1 and 128 characters")
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT t.ticket_id
+                FROM escalation_tickets AS t
+                JOIN sessions AS s
+                  ON s.session_id = t.session_id
+                 AND s.tenant_id = t.tenant_id
+                WHERE t.tenant_id = ? AND t.verified_at IS NOT NULL
+                ORDER BY t.created_at, t.ticket_id
+                """,
+                (tenant_id,),
+            ).fetchall()
+        return [UUID(row["ticket_id"]) for row in rows]
 
     def get_escalation_record(self, ticket_id: UUID) -> EscalationRecord | None:
         snapshot = self._read_ticket_snapshot(ticket_id)
@@ -484,7 +519,7 @@ class OperationalStore:
             return None
 
         session = self.get_authenticated_session(snapshot.session_id)
-        if session is None:
+        if session is None or snapshot.tenant_id != session.tenant_id:
             return None
 
         return VerifiedEscalationContext(
@@ -508,7 +543,7 @@ class OperationalStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT ticket_id, session_id, transaction_id, reason_code, summary,
+                SELECT ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
                        created_at, verified_at
                 FROM escalation_tickets
                 WHERE ticket_id = ?
@@ -520,6 +555,7 @@ class OperationalStore:
         return _TicketSnapshot(
             ticket_id=UUID(row["ticket_id"]),
             session_id=UUID(row["session_id"]),
+            tenant_id=row["tenant_id"],
             transaction_id=row["transaction_id"],
             reason_code=row["reason_code"],
             summary=row["summary"],

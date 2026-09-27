@@ -17,7 +17,6 @@ from app.artifact_identity import (
 from app.schemas import SupportedLanguage
 
 
-DEMO_TENANT_ID = "proof-of-one-demo"
 SYNTHETIC_BUILD_LOCK_TIMEOUT_SECONDS = 10.0
 
 

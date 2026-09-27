@@ -96,8 +96,8 @@ class AuthenticatedSession(ContractModel):
     """Server-controlled authenticated context; never model-controlled."""
 
     session_id: UUID
-    tenant_id: str = Field(default="proof-of-one-demo", min_length=1, max_length=128)
-    role: SessionRole = SessionRole.CUSTOMER
+    tenant_id: str = Field(min_length=1, max_length=128)
+    role: SessionRole
     demo_persona_id: str = Field(min_length=1, max_length=128)
     customer_id: str = Field(min_length=1, max_length=128)
     language: SupportedLanguage

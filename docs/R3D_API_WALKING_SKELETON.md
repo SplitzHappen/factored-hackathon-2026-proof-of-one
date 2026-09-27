@@ -58,13 +58,15 @@ The client cannot supply:
 `AuthenticatedSession` containing:
 
 - generated UUID session ID;
-- fixed demo tenant ID;
+- fresh opaque per-visitor tenant ID;
 - server-issued customer role;
 - server-side customer ID;
 - selected language.
 
 Tenant, role, persona, customer identity, and language are persisted together in the
-operational SQLite store and are immutable for the life of that session.
+operational SQLite store and are immutable for the life of that session. Every escalation
+ticket also persists the originating tenant ID and is resolved only when that tenant still
+matches the immutable session identity.
 
 ## HTTP surfaces
 
@@ -108,7 +110,7 @@ Body:
 The server:
 
 1. resolves the persisted session;
-2. rejects unknown tenant/role/session context;
+2. rejects unknown sessions and non-customer roles while preserving the persisted tenant binding;
 3. derives `reference_date` from the server-side persona timezone;
 4. calls the provider-neutral interpretation boundary;
 5. verifies transaction ownership inside `BankRepository`;
@@ -142,7 +144,10 @@ HTTP tests prove:
 - a cross-customer transaction reference returns no other-customer data;
 - malformed and unknown session IDs are rejected;
 - a persisted analyst-role session cannot call the customer endpoint;
-- a persisted session from another tenant cannot call the customer endpoint;
+- separate public demo sessions receive distinct server-issued tenants;
+- an existing session ID cannot be rebound to another tenant or role;
+- verified escalation-ticket listing is tenant-scoped and joins back through the immutable
+  session tenant; direct ticket-tenant tampering therefore fails closed;
 - `customer_id` never appears in persona/session API responses;
 - recent history is restricted to the authenticated customer's records.
 

@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Header, HTTPException, status
 
 from app.bootstrap import AppContext, build_app_context
-from app.demo_data import DEMO_TENANT_ID
 from app.schemas import (
     AuthenticatedSession,
     CustomerTurnRequest,
@@ -74,11 +73,6 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Unknown demo session",
             )
-        if session.tenant_id != DEMO_TENANT_ID:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Session tenant is not permitted",
-            )
         if session.role is not SessionRole.CUSTOMER:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -141,7 +135,7 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         )
         session = AuthenticatedSession(
             session_id=uuid4(),
-            tenant_id=DEMO_TENANT_ID,
+            tenant_id=f"demo-{uuid4().hex}",
             role=SessionRole.CUSTOMER,
             demo_persona_id=persona.persona_id,
             customer_id=persona.customer_id,
