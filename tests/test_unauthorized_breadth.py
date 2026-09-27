@@ -46,6 +46,7 @@ def _session(client: TestClient, persona_id: str) -> dict:
         ("lucia", "none", "Esa compra es ajena; yo no hice esa operación."),
         ("lucia", "none", "Me hicieron un cobro sin mi permiso."),
         ("lucia", "none", "No fui yo quien hizo esa compra."),
+        ("lucia", "none", "No hice ese pago; alguien usó mi tarjeta."),
         # Portuguese — owned reference.
         ("rafael", "owned", "Essa cobrança DEMO-PT-2001 não é minha."),
         ("rafael", "owned", "Eu jamais autorizei a transação DEMO-PT-2001."),
