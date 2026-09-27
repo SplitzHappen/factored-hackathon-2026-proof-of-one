@@ -2729,11 +2729,24 @@ def _nearest_eligible_compromise_instrument(
     language: str,
     anchor_span: tuple[int, int],
 ) -> tuple[tuple[int, int], tuple[int, int] | None] | None:
-    customer_pairs = _customer_instrument_spans(analysis, clause)
-    explicit_customer = {
-        instrument: possessor
-        for instrument, possessor in customer_pairs
-    }
+    possessors = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.POSSESSOR}),
+    )
+    explicit_customer: dict[tuple[int, int], tuple[int, int]] = {}
+    for instrument in _instrument_spans(analysis, clause):
+        direct_possessor = next(
+            (
+                possessor
+                for possessor in possessors
+                if possessor[1] == instrument[0]
+                or possessor[0] == instrument[1]
+            ),
+            None,
+        )
+        if direct_possessor is not None:
+            explicit_customer[instrument] = direct_possessor
 
     candidates: list[
         tuple[tuple[int, int], tuple[int, int] | None]
