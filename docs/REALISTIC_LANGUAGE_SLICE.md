@@ -1,6 +1,6 @@
 # Supplementary Realistic-Language Slice
 
-Status: **frozen before live provider execution**  
+Status: **frozen selection/development surface; not admissible for baseline-vs-LLM uplift evidence**  
 Suite: `factored-realistic-language-v1`  
 Cases SHA-256: `e04071c19ae5ab239ba1fac8725eb35d1e5c262b45f3cd29ec5af84711eef459`
 
@@ -100,6 +100,26 @@ reliability, latency, and cost as later discriminators.
 
 No provider output has been observed before this freeze.
 
+## Post-freeze evidence-role correction
+
+The deterministic demo interpreter was authored after this v1 freeze and later incorporated
+several distinctive v1 phrasings or near-equivalents. That does not invalidate v1 for raw-provider
+selection/stress diagnostics, because the provider bake-off scores provider output rather than the
+deterministic post-backstop result. It does invalidate v1 as an independent surface for measuring
+incremental LLM value over the deterministic baseline.
+
+Therefore v1 is now governed as **selection/development evidence only**:
+
+- allowed: provider selection diagnostics;
+- allowed: language stress diagnostics;
+- prohibited: deterministic-baseline scoring presented as evidence;
+- prohibited: baseline-vs-LLM uplift claims;
+- prohibited: any claim that v1 independently validates the later-authored stub.
+
+Any baseline-vs-LLM uplift claim requires the separately sealed
+`factored-realistic-language-v2` protocol described in
+`docs/REALISTIC_LANGUAGE_V2_FREEZE_PROTOCOL.md`.
+
 ## What this slice may support
 
 After execution, it may support bounded statements about performance on:
@@ -108,6 +128,8 @@ After execution, it may support bounded statements about performance on:
 
 It may **not** support claims that:
 
+- an LLM beats the deterministic baseline on an independent realistic-language surface;
+- the later-authored deterministic stub generalizes beyond wording it may have mirrored from v1;
 - the system has been validated on naturally occurring customer conversations;
 - the Spanish cases came from organizer transcripts;
 - the Portuguese cases were native-reviewed;
