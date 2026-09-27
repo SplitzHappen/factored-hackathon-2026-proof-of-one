@@ -2416,6 +2416,22 @@ def _fraud_copular_propositions(
         if head_between:
             continue
 
+        predicate_path_blocked = any(
+            words[index] in non_activity_heads
+            or LexicalTag.ACTIVITY in analysis.tags[index]
+            or (
+                words[index] in copulas
+                and not (
+                    language == "pt"
+                    and words[index] == "e"
+                    and not analysis.tokens[index].had_acute
+                )
+            )
+            for index in range(copula_index + 1, marker_index)
+        )
+        if predicate_path_blocked:
+            continue
+
         marker_word = words[marker_index]
         if marker_word in fraud_adjectives:
             activity_word = words[activity_index]
