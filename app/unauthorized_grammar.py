@@ -1715,6 +1715,168 @@ def _bound_self_evidence(
     )
 
 
+_DENIAL_ASSERTIVE_TENSES = frozenset(
+    {"preterite", "present_perfect", "pluperfect", "participle"}
+)
+_ES_DIRECTIVE_MARKERS = (
+    ("por", "favor"),
+    ("para", "que"),
+    ("ojala",),
+)
+_PT_DIRECTIVE_MARKERS = (
+    ("por", "favor"),
+    ("para", "que"),
+    ("tomara", "que"),
+)
+
+
+def _phrase_before_predicate(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    phrase: tuple[str, ...],
+    *,
+    max_gap: int = 6,
+) -> bool:
+    width = len(phrase)
+    start = max(clause.token_start, predicate.token_start - max_gap)
+    words = [token.normalized for token in analysis.tokens]
+    for index in range(start, predicate.token_start - width + 1):
+        if tuple(words[index : index + width]) == phrase:
+            return True
+    return False
+
+
+def _relative_specific_activity_before_predicate(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> bool:
+    words = [token.normalized for token in analysis.tokens]
+    for index in range(
+        max(clause.token_start, predicate.token_start - 6),
+        predicate.token_start,
+    ):
+        if words[index] != "que":
+            continue
+        activity_span = next(
+            (
+                span
+                for span in _activity_spans(analysis, clause)
+                if span[1] <= index
+                and index - span[1] <= 2
+                and _customer_anchored_activity(
+                    analysis,
+                    clause,
+                    span,
+                    language,
+                )
+            ),
+            None,
+        )
+        if activity_span is not None:
+            return True
+    return False
+
+
+def _explicit_self_subject_binds(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+) -> bool:
+    for item in _self_roles_in_clause(analysis, clause):
+        if item.role is not SelfRole.SUBJECT or item.implicit_from_predicate:
+            continue
+        distance = min(
+            abs(item.token_start - predicate.token_end),
+            abs(predicate.token_start - item.token_end),
+        )
+        if distance > 5:
+            continue
+        left = min(item.token_start, predicate.token_start)
+        right = max(item.token_end, predicate.token_end)
+        if any(
+            other.token_start >= left
+            and other.token_end <= right
+            and not (
+                other.token_start == predicate.token_start
+                and other.token_end == predicate.token_end
+            )
+            and other.form.person is not None
+            for other in analysis.predicates
+            if _in_clause(other.token_start, other.token_end, clause)
+        ):
+            continue
+        return True
+    return False
+
+
+def _has_directive_marker_before_predicate(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> bool:
+    markers = (
+        _ES_DIRECTIVE_MARKERS
+        if language == "es"
+        else _PT_DIRECTIVE_MARKERS
+    )
+    words = [token.normalized for token in analysis.tokens]
+    for marker in markers:
+        width = len(marker)
+        for index in range(
+            clause.token_start,
+            max(clause.token_start, predicate.token_start - width + 1),
+        ):
+            if tuple(words[index : index + width]) == marker:
+                return True
+    return False
+
+
+def _denial_reference_allowed(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> bool:
+    form = predicate.form
+
+    if predicate.accent_ambiguous and form.person == 1:
+        if not _explicit_self_subject_binds(analysis, clause, predicate):
+            return False
+        if _has_directive_marker_before_predicate(
+            analysis,
+            clause,
+            predicate,
+            language,
+        ):
+            return False
+
+    if form.tense_aspect in _DENIAL_ASSERTIVE_TENSES:
+        return True
+
+    if form.mood == "subjunctive":
+        introducer = ("sin", "que") if language == "es" else ("sem", "que")
+        return _phrase_before_predicate(
+            analysis,
+            clause,
+            predicate,
+            introducer,
+        )
+
+    if form.tense_aspect in {"present", "imperfect"}:
+        return _relative_specific_activity_before_predicate(
+            analysis,
+            clause,
+            predicate,
+            language,
+        )
+
+    return False
+
+
 def _predicate_denials(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -1730,6 +1892,13 @@ def _predicate_denials(
         if not _in_clause(predicate.token_start, predicate.token_end, clause):
             continue
         if predicate.form.family is not predicate_family:
+            continue
+        if not _denial_reference_allowed(
+            analysis,
+            clause,
+            predicate,
+            language,
+        ):
             continue
         if not _predicate_has_denial(analysis, clause, predicate, language):
             continue
@@ -1909,6 +2078,13 @@ def _authorization_denials(
             PredicateFamily.AUTHORIZE,
             PredicateFamily.GIVE_PERMISSION,
         }:
+            continue
+        if not _denial_reference_allowed(
+            analysis,
+            clause,
+            predicate,
+            language,
+        ):
             continue
         if not _predicate_has_denial(analysis, clause, predicate, language):
             continue
