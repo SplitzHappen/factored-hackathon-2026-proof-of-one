@@ -14,8 +14,10 @@ from app.schemas import (
     PolicyInput,
     PolicyIntent,
     PolicyReason,
+    ProductRecord,
     RouteDecision,
     SupportedLanguage,
+    TransactionQuery,
     TransactionRecord,
     TransactionReferenceStatus,
 )
@@ -61,6 +63,18 @@ class CustomerResolutionService:
         missing_or_unowned = (
             reference_status is TransactionReferenceStatus.NOT_FOUND_OR_NOT_OWNED
         )
+        account_products = (
+            self.bank.list_customer_products(session.customer_id)
+            if interpretation.intent is PolicyIntent.ACCOUNT_PRODUCT_INFO
+            else []
+        )
+        trusted_record_missing = (
+            missing_or_unowned
+            or (
+                interpretation.intent is PolicyIntent.ACCOUNT_PRODUCT_INFO
+                and not account_products
+            )
+        )
         policy = route_policy(
             PolicyInput(
                 intent=interpretation.intent,
@@ -68,7 +82,7 @@ class CustomerResolutionService:
                     interpretation.unauthorized_activity_asserted
                 ),
                 ownership_verified=not missing_or_unowned,
-                trusted_record_found=not missing_or_unowned,
+                trusted_record_found=not trusted_record_missing,
                 trusted_data_conflict=False,
                 excluded_relationship_required=False,
                 ambiguous_transaction_match=(
@@ -80,6 +94,12 @@ class CustomerResolutionService:
             )
         )
 
+        products = (
+            account_products
+            if policy.safe_to_answer
+            and interpretation.intent is PolicyIntent.ACCOUNT_PRODUCT_INFO
+            else []
+        )
         transactions = self._answer_transactions(
             session=session,
             intent=interpretation.intent,
@@ -126,11 +146,14 @@ class CustomerResolutionService:
             response_text=self._response_text(
                 language=session.language,
                 route=policy.route,
+                intent=interpretation.intent,
                 reason_codes=policy.reason_codes,
+                products=products,
                 transactions=transactions,
                 clarification_transaction_ids=clarification_ids,
             ),
             reason_codes=policy.reason_codes,
+            products=products,
             transactions=transactions,
             clarification_transaction_ids=clarification_ids,
             escalation_ticket_id=ticket_id,
@@ -160,13 +183,19 @@ class CustomerResolutionService:
             )
             return [transaction] if transaction is not None else []
 
-        if intent in {
-            PolicyIntent.RECENT_TRANSACTION_HISTORY,
-            PolicyIntent.PAYMENT_HISTORY,
-        }:
+        if intent is PolicyIntent.RECENT_TRANSACTION_HISTORY:
             return self.bank.list_recent_transactions(
                 session.customer_id,
                 limit=3,
+            )
+
+        if intent is PolicyIntent.PAYMENT_HISTORY:
+            return self.bank.find_transactions(
+                session.customer_id,
+                TransactionQuery(
+                    transaction_type="Payment",
+                    limit=3,
+                ),
             )
 
         return []
@@ -207,13 +236,41 @@ class CustomerResolutionService:
         *,
         language: SupportedLanguage,
         route: RouteDecision,
+        intent: PolicyIntent,
         reason_codes: list[PolicyReason],
+        products: list[ProductRecord],
         transactions: list[TransactionRecord],
         clarification_transaction_ids: list[str],
     ) -> str:
         pt = language is SupportedLanguage.PT
 
         if route is RouteDecision.ANSWER:
+            if intent is PolicyIntent.ACCOUNT_PRODUCT_INFO:
+                if not products:
+                    raise RuntimeError(
+                        "ACCOUNT_PRODUCT_INFO cannot answer without verified product facts"
+                    )
+                if pt:
+                    details = "; ".join(
+                        f"{product.product_type}: saldo {product.current_balance} "
+                        f"{product.currency} ({product.product_status})"
+                        for product in products
+                    )
+                    return f"Produtos verificados da sua conta: {details}."
+                details = "; ".join(
+                    f"{product.product_type}: saldo {product.current_balance} "
+                    f"{product.currency} ({product.product_status})"
+                    for product in products
+                )
+                return f"Productos verificados de tu cuenta: {details}."
+
+            if intent is PolicyIntent.PAYMENT_HISTORY and not transactions:
+                return (
+                    "No encontré pagos recientes verificables en tu cuenta."
+                    if not pt
+                    else "Não encontrei pagamentos recentes verificáveis na sua conta."
+                )
+
             if len(transactions) == 1:
                 tx = transactions[0]
                 localized_status = CustomerResolutionService._localized_status(
@@ -230,6 +287,16 @@ class CustomerResolutionService:
                     f"Importe registrado: {tx.amount} {tx.currency}."
                 )
             if transactions:
+                if intent is PolicyIntent.PAYMENT_HISTORY:
+                    if pt:
+                        return (
+                            f"Encontrei {len(transactions)} pagamentos recentes verificados "
+                            "na sua conta."
+                        )
+                    return (
+                        f"Encontré {len(transactions)} pagos recientes verificados "
+                        "en tu cuenta."
+                    )
                 if pt:
                     return (
                         f"Encontrei {len(transactions)} lançamentos recentes verificados "
@@ -299,11 +366,13 @@ class CustomerResolutionService:
 
         if PolicyReason.UNSUPPORTED_CAUSAL_EXPLANATION in reason_codes:
             return (
-                "No tengo una causa verificada para ese rechazo y no voy a inventarla. "
-                "La atención humana está disponible para revisarlo."
+                "No tengo una causa verificada para explicar por qué esa operación tuvo "
+                "ese resultado y no voy a inventarla. La atención humana está disponible "
+                "para revisarlo."
                 if not pt
-                else "Não tenho uma causa verificada para essa recusa e não vou inventá-la. "
-                "O atendimento humano está disponível para revisar."
+                else "Não tenho uma causa verificada para explicar por que essa operação "
+                "teve esse resultado e não vou inventá-la. O atendimento humano está "
+                "disponível para revisar."
             )
 
         return (
