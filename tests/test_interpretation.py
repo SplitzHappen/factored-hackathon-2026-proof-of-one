@@ -25,6 +25,7 @@ from app.schemas import (
     InterpretationStatus,
     PolicyIntent,
     SupportedLanguage,
+    SessionRole,
     TransactionReferenceStatus,
 )
 
@@ -128,6 +129,8 @@ def _make_bank(path: Path) -> None:
 def _session(language: SupportedLanguage = SupportedLanguage.ES) -> AuthenticatedSession:
     return AuthenticatedSession(
         session_id=uuid4(),
+        tenant_id="test-tenant-c001",
+        role=SessionRole.CUSTOMER,
         demo_persona_id="persona-c001",
         customer_id="C001",
         language=language,
