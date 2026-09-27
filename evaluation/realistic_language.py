@@ -20,6 +20,20 @@ CANONICAL_REALISTIC_LANGUAGE_SHA256 = (
     "e04071c19ae5ab239ba1fac8725eb35d1e5c262b45f3cd29ec5af84711eef459"
 )
 
+REALISTIC_LANGUAGE_V1_ALLOWED_EVIDENCE_USES = frozenset(
+    {"provider_selection", "language_stress"}
+)
+
+
+def assert_realistic_language_v1_evidence_use(purpose: str) -> None:
+    """Fail closed if v1 is used as baseline-vs-LLM uplift evidence."""
+
+    if purpose not in REALISTIC_LANGUAGE_V1_ALLOWED_EVIDENCE_USES:
+        raise ValueError(
+            "factored-realistic-language-v1 is selection/development evidence only; "
+            "baseline-vs-LLM uplift claims require the independently sealed v2 suite"
+        )
+
 # Exact legacy public generator surfaces, with organizer-backed values abstracted.
 # This list exists only to prove the supplementary freeze is phrasing-distinct from
 # the template families that produced the original development/held-out suites.
