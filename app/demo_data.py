@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 import duckdb
 
@@ -9,6 +11,12 @@ from app.schemas import SupportedLanguage
 
 
 DEMO_TENANT_ID = "proof-of-one-demo"
+SYNTHETIC_SCHEMA_VERSION = 1
+SYNTHETIC_BUILDER_VERSION = "synthetic-demo-v1"
+
+
+class SyntheticArtifactSafetyError(ValueError):
+    """Raised when a configured demo artifact cannot be replaced safely."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,22 +46,44 @@ DEMO_PERSONAS: dict[str, DemoPersona] = {
 }
 
 
-def build_synthetic_demo_bank(path: Path) -> Path:
-    """Create the public synthetic banking artifact used by the walking skeleton.
+def _is_recognized_synthetic_demo_bank(path: Path) -> bool:
+    """Return True only for the exact synthetic artifact version we may replace."""
 
-    This artifact contains no organizer rows or identifiers. It intentionally mirrors
-    the curated runtime schema consumed by BankRepository so the same repository and
-    policy path are exercised in demo mode.
-    """
-
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists():
-        target.unlink()
-
-    con = duckdb.connect(str(target))
+    connection: duckdb.DuckDBPyConnection | None = None
     try:
-        con.execute(
+        connection = duckdb.connect(str(path), read_only=True)
+        rows = connection.execute(
+            "SELECT schema_version, builder_version FROM build_metadata"
+        ).fetchall()
+    except Exception:
+        return False
+    finally:
+        if connection is not None:
+            connection.close()
+
+    return rows == [
+        (SYNTHETIC_SCHEMA_VERSION, SYNTHETIC_BUILDER_VERSION)
+    ]
+
+
+def _assert_replaceable_synthetic_target(target: Path) -> None:
+    if target.is_symlink():
+        raise SyntheticArtifactSafetyError(
+            "Refusing to replace BANK_DB_PATH through a symbolic link."
+        )
+    if not target.exists():
+        return
+    if not target.is_file() or not _is_recognized_synthetic_demo_bank(target):
+        raise SyntheticArtifactSafetyError(
+            "Refusing to replace existing BANK_DB_PATH because it is not a "
+            "recognized Proof of One synthetic demo artifact."
+        )
+
+
+def _write_synthetic_demo_bank(path: Path) -> None:
+    connection = duckdb.connect(str(path))
+    try:
+        connection.execute(
             """
             CREATE TABLE build_metadata (
                 schema_version INTEGER NOT NULL,
@@ -61,10 +91,11 @@ def build_synthetic_demo_bank(path: Path) -> Path:
             )
             """
         )
-        con.execute(
-            "INSERT INTO build_metadata VALUES (1, 'synthetic-demo-v1')"
+        connection.execute(
+            "INSERT INTO build_metadata VALUES (?, ?)",
+            [SYNTHETIC_SCHEMA_VERSION, SYNTHETIC_BUILDER_VERSION],
         )
-        con.execute(
+        connection.execute(
             """
             CREATE TABLE customers (
                 customer_id VARCHAR,
@@ -74,14 +105,14 @@ def build_synthetic_demo_bank(path: Path) -> Path:
             )
             """
         )
-        con.execute(
+        connection.execute(
             """
             INSERT INTO customers VALUES
             ('DEMO-CUST-ES-001', 'Colombia', 'synthetic', 'Active'),
             ('DEMO-CUST-PT-001', 'Brazil', 'synthetic', 'Active')
             """
         )
-        con.execute(
+        connection.execute(
             """
             CREATE TABLE products (
                 product_id VARCHAR,
@@ -96,7 +127,7 @@ def build_synthetic_demo_bank(path: Path) -> Path:
             )
             """
         )
-        con.execute(
+        connection.execute(
             """
             INSERT INTO products VALUES
             ('DEMO-PROD-ES-001', 'DEMO-CUST-ES-001', 'Checking Account',
@@ -107,7 +138,7 @@ def build_synthetic_demo_bank(path: Path) -> Path:
              TIMESTAMP '2026-09-25 17:15:00')
             """
         )
-        con.execute(
+        connection.execute(
             """
             CREATE TABLE transactions (
                 transaction_id VARCHAR,
@@ -129,7 +160,7 @@ def build_synthetic_demo_bank(path: Path) -> Path:
             )
             """
         )
-        con.execute(
+        connection.execute(
             """
             INSERT INTO transactions VALUES
             ('DEMO-ES-1001', TIMESTAMP '2026-09-25 18:30:00',
@@ -174,7 +205,41 @@ def build_synthetic_demo_bank(path: Path) -> Path:
              'Approved', NULL, NULL)
             """
         )
+        connection.execute("CHECKPOINT")
     finally:
-        con.close()
+        connection.close()
+
+
+def build_synthetic_demo_bank(path: Path) -> Path:
+    """Create or safely refresh the public synthetic banking artifact.
+
+    An existing target is replaceable only when its build metadata positively
+    identifies the exact Proof of One synthetic artifact version. Curated,
+    unrelated, malformed, directory, and symlink targets fail closed.
+
+    New bytes are built and validated beside the target first, then installed
+    with os.replace so a build/replace failure cannot destroy the prior artifact.
+    """
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _assert_replaceable_synthetic_target(target)
+
+    temporary = target.with_name(
+        f".{target.name}.{uuid4().hex}.building"
+    )
+    temporary_wal = Path(str(temporary) + ".wal")
+
+    try:
+        _write_synthetic_demo_bank(temporary)
+        if not _is_recognized_synthetic_demo_bank(temporary):
+            raise RuntimeError(
+                "Synthetic demo artifact failed post-build identity validation."
+            )
+        os.replace(temporary, target)
+    finally:
+        for stale in (temporary, temporary_wal):
+            if stale.exists():
+                stale.unlink()
 
     return target
