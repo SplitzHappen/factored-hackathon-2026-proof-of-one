@@ -479,10 +479,13 @@ class OperationalStore:
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT ticket_id
-                FROM escalation_tickets
-                WHERE tenant_id = ? AND verified_at IS NOT NULL
-                ORDER BY created_at, ticket_id
+                SELECT t.ticket_id
+                FROM escalation_tickets AS t
+                JOIN sessions AS s
+                  ON s.session_id = t.session_id
+                 AND s.tenant_id = t.tenant_id
+                WHERE t.tenant_id = ? AND t.verified_at IS NOT NULL
+                ORDER BY t.created_at, t.ticket_id
                 """,
                 (tenant_id,),
             ).fetchall()
