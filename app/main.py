@@ -138,6 +138,12 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 detail="Public demo sessions are available only in synthetic mode",
             )
         runtime().store.cleanup_expired_state()
+        persona = runtime().personas.get(request.persona_id)
+        if persona is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Unknown demo persona",
+            )
         try:
             runtime().store.enforce_session_creation_rate(
                 _peer_rate_subject(http_request)
@@ -147,13 +153,6 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Demo session creation limit reached",
             ) from exc
-
-        persona = runtime().personas.get(request.persona_id)
-        if persona is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Unknown demo persona",
-            )
 
         language = (
             SupportedLanguage(request.language)
