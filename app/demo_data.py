@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -13,6 +16,7 @@ from app.schemas import SupportedLanguage
 DEMO_TENANT_ID = "proof-of-one-demo"
 SYNTHETIC_SCHEMA_VERSION = 1
 SYNTHETIC_BUILDER_VERSION = "synthetic-demo-v1"
+SYNTHETIC_BUILD_LOCK_TIMEOUT_SECONDS = 10.0
 
 
 class SyntheticArtifactSafetyError(ValueError):
@@ -78,6 +82,63 @@ def _assert_replaceable_synthetic_target(target: Path) -> None:
             "Refusing to replace existing BANK_DB_PATH because it is not a "
             "recognized Proof of One synthetic demo artifact."
         )
+
+
+@contextmanager
+def _synthetic_build_lock(target: Path) -> Iterator[None]:
+    """Serialize first-time synthetic artifact creation across local workers."""
+
+    lock_path = target.with_name(f".{target.name}.build.lock")
+    deadline = time.monotonic() + SYNTHETIC_BUILD_LOCK_TIMEOUT_SECONDS
+
+    while True:
+        try:
+            descriptor = os.open(
+                lock_path,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                0o600,
+            )
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise SyntheticArtifactSafetyError(
+                    "Timed out waiting for the synthetic demo artifact build lock."
+                )
+            time.sleep(0.05)
+            continue
+        else:
+            os.close(descriptor)
+            break
+
+    try:
+        yield
+    finally:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def ensure_synthetic_demo_bank(path: Path) -> Path:
+    """Ensure one valid synthetic demo artifact exists without refreshing it.
+
+    Repeated startup is read-only once the exact synthetic artifact exists. If the
+    target is absent, first-time creation is serialized so concurrent local workers
+    cannot build over one another. Public multi-worker deployment remains separately
+    gated until the broader deployment/concurrency repair set is complete.
+    """
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _assert_replaceable_synthetic_target(target)
+    if target.exists():
+        return target
+
+    with _synthetic_build_lock(target):
+        _assert_replaceable_synthetic_target(target)
+        if not target.exists():
+            build_synthetic_demo_bank(target)
+
+    return target
 
 
 def _write_synthetic_demo_bank(path: Path) -> None:
