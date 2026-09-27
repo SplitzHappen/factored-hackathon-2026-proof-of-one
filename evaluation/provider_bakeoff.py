@@ -39,7 +39,10 @@ from app.schemas import (
 )
 from evaluation.contracts import CaseCategory, DevelopmentAnswerKey, DevelopmentCase, StepExpectation
 from evaluation.portuguese_stress import PORTUGUESE_STRESS_CASES
-from evaluation.realistic_language import load_realistic_language_suite
+from evaluation.realistic_language import (
+    assert_realistic_language_v1_evidence_use,
+    load_realistic_language_suite,
+)
 from evaluation.suite import load_jsonl
 
 
@@ -813,6 +816,7 @@ def run_candidate(
             parsed.unauthorized_activity_asserted
         )
 
+    assert_realistic_language_v1_evidence_use("provider_selection")
     realistic_cases, realistic_manifest = load_realistic_language_suite()
     realistic_correct = 0
     realistic_es = 0
