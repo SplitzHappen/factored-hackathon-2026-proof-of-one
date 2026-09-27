@@ -23,10 +23,9 @@ from typing import Iterable
 
 import duckdb
 
-from app.artifact_identity import CURATED_BUILDER_VERSION, CURATED_SCHEMA_VERSION
 
-
-BUILDER_VERSION = CURATED_BUILDER_VERSION
+BUILDER_VERSION = "r3b-1"
+CURATED_SCHEMA_VERSION = 1
 
 TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
     "customers": (
