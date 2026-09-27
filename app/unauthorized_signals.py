@@ -26,6 +26,7 @@ _UNAUTHORIZED_PATTERNS: tuple[re.Pattern[str], ...] = (
     # Spanish: explicit first-person denial / not mine.
     re.compile(r"\bno fui yo\b"),
     re.compile(r"\byo no (?:hice|realice|efectue|autorice|aprobe)\b"),
+    re.compile(r"\bno (?:hice|realice|efectue|autorice|aprobe) (?:ese|esa|este|esta|el|la)?\s*(?:cargo|cobro|compra|pago|movimiento|operacion|transaccion)\b"),
     re.compile(r"\bno (?:lo|la) (?:hice|realice|autorice|aprobe)\b"),
     re.compile(r"\b(?:ese|esa|este|esta|el|la) (?:cargo|cobro|compra|pago|movimiento|operacion|transaccion)(?: [a-z0-9-]+)? no (?:es|fue) mi[oa]\b"),
     re.compile(r"\bno (?:es|fue) mi[oa] (?:compra|operacion|transaccion)\b"),
