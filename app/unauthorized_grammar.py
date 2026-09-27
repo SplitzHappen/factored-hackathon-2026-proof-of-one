@@ -1334,18 +1334,106 @@ def _self_roles_in_clause(
     )
 
 
+_ES_DENIAL_BRIDGE_WORDS = frozenset(
+    {
+        "yo", "nosotros", "nosotras",
+        "me", "te", "se", "lo", "la", "los", "las", "le", "les",
+        "de", "mi", "mis", "nuestro", "nuestra", "nuestros", "nuestras",
+        "nunca", "jamas", "tampoco", "ni",
+    }
+)
+_PT_DENIAL_BRIDGE_WORDS = frozenset(
+    {
+        "eu", "nos",
+        "me", "te", "se", "o", "a", "os", "as", "lhe", "lhes",
+        "de", "do", "da", "dos", "das", "meu", "minha", "meus", "minhas",
+        "nunca", "jamais", "tambem", "tampouco", "nem", "que",
+    }
+)
+_DENIAL_BINDING_BARRIERS = frozenset({",", ";", "?", "¿", "!", "¡", ":"})
+
+
+def _bound_denial_index(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> int | None:
+    bridge_words = (
+        _ES_DENIAL_BRIDGE_WORDS
+        if language == "es"
+        else _PT_DENIAL_BRIDGE_WORDS
+    )
+    candidates: list[int] = []
+
+    for index in _negative_indices(analysis, clause, language):
+        if index <= predicate.token_start:
+            if predicate.token_start - index > 5:
+                continue
+            between = range(index + 1, predicate.token_start)
+            if any(
+                analysis.tokens[item].surface in _DENIAL_BINDING_BARRIERS
+                for item in between
+            ):
+                continue
+            non_bridge = tuple(
+                item
+                for item in between
+                if analysis.tokens[item].normalized not in bridge_words
+            )
+            if non_bridge:
+                token_tags = analysis.tags[index]
+                has_prior_correlative = (
+                    LexicalTag.COORD_NEGATION in token_tags
+                    and any(
+                        prior < index
+                        and LexicalTag.COORD_NEGATION in analysis.tags[prior]
+                        for prior in _negative_indices(
+                            analysis,
+                            clause,
+                            language,
+                        )
+                    )
+                )
+                if not has_prior_correlative:
+                    continue
+            candidates.append(index)
+            continue
+
+        if index >= predicate.token_end:
+            if index - predicate.token_end > 2:
+                continue
+            between = range(predicate.token_end, index)
+            if any(
+                analysis.tokens[item].surface in _DENIAL_BINDING_BARRIERS
+                for item in between
+            ):
+                continue
+            candidates.append(index)
+
+    if not candidates:
+        return None
+    return min(
+        candidates,
+        key=lambda index: min(
+            abs(index - predicate.token_start),
+            abs(index - predicate.token_end),
+        ),
+    )
+
+
 def _predicate_has_denial(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     predicate: PredicateMatch,
     language: str,
 ) -> bool:
-    for index in _negative_indices(analysis, clause, language):
-        if index <= predicate.token_start and predicate.token_start - index <= 5:
-            return True
-        if index >= predicate.token_end and index - predicate.token_end <= 2:
-            return True
-    return False
+    return _bound_denial_index(
+        analysis,
+        clause,
+        predicate,
+        language,
+    ) is not None
 
 
 def _source_span_for_token_span(
@@ -1555,14 +1643,15 @@ def _predicate_denials(
             continue
 
         activity_span = _nearest_activity_span(analysis, clause, predicate)
-        negatives = _negative_indices(analysis, clause, language)
-        denial_span = min(
-            ((index, index + 1) for index in negatives),
-            key=lambda span: min(
-                abs(span[0] - predicate.token_start),
-                abs(span[0] - predicate.token_end),
-            ),
+        denial_index = _bound_denial_index(
+            analysis,
+            clause,
+            predicate,
+            language,
         )
+        if denial_index is None:
+            continue
+        denial_span = (denial_index, denial_index + 1)
         nearest_self = min(
             self_spans,
             key=lambda span: min(
@@ -1746,14 +1835,15 @@ def _authorization_denials(
             nearby_auth_nouns = ()
 
         activity_span = _nearest_activity_span(analysis, clause, predicate)
-        negatives = _negative_indices(analysis, clause, language)
-        denial_span = min(
-            ((index, index + 1) for index in negatives),
-            key=lambda span: min(
-                abs(span[0] - predicate.token_start),
-                abs(span[0] - predicate.token_end),
-            ),
+        denial_index = _bound_denial_index(
+            analysis,
+            clause,
+            predicate,
+            language,
         )
+        if denial_index is None:
+            continue
+        denial_span = (denial_index, denial_index + 1)
         nearest_self = min(
             self_subject_spans,
             key=lambda span: min(
@@ -2953,14 +3043,15 @@ def _activity_nonrecognition(
         if target_kind == "descriptor":
             continue
 
-        negatives = _negative_indices(analysis, clause, language)
-        denial_span = min(
-            ((index, index + 1) for index in negatives),
-            key=lambda span: min(
-                abs(span[0] - predicate.token_start),
-                abs(span[0] - predicate.token_end),
-            ),
+        denial_index = _bound_denial_index(
+            analysis,
+            clause,
+            predicate,
+            language,
         )
+        if denial_index is None:
+            continue
+        denial_span = (denial_index, denial_index + 1)
         nearest_self = min(
             self_subjects,
             key=lambda span: min(
@@ -3429,17 +3520,16 @@ def _d1_prior_frame(
         return None
 
     predicate = max(candidates, key=lambda item: item.token_start)
-    negatives = _negative_indices(analysis, prefix, language)
-    if not negatives:
+    denial_index = _bound_denial_index(
+        analysis,
+        prefix,
+        predicate,
+        language,
+    )
+    if denial_index is None:
         return None
 
-    denial_span = min(
-        ((index, index + 1) for index in negatives),
-        key=lambda span: min(
-            abs(span[0] - predicate.token_start),
-            abs(span[0] - predicate.token_end),
-        ),
-    )
+    denial_span = (denial_index, denial_index + 1)
     activity_span = _nearest_activity_span(analysis, prefix, predicate)
     family = _D1_INHERITABLE_FAMILIES[predicate.form.family]
     return predicate, activity_span, denial_span, family
