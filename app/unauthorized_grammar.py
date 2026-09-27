@@ -2044,28 +2044,44 @@ def _permission_absence_for_predicate(
     predicate: PredicateMatch,
     permission_spans: tuple[tuple[int, int], ...],
 ) -> tuple[int, int] | None:
-    following = tuple(
+    local_spans = tuple(
         span
         for span in permission_spans
-        if span[0] >= predicate.token_end
+        if min(
+            abs(span[0] - predicate.token_end),
+            abs(predicate.token_start - span[1]),
+        )
+        <= 6
     )
-    if not following:
-        return None
+    ordered = sorted(
+        local_spans,
+        key=lambda span: min(
+            abs(span[0] - predicate.token_end),
+            abs(predicate.token_start - span[1]),
+        ),
+    )
 
-    span = min(following, key=lambda item: item[0])
-    intervening_action = any(
-        candidate.token_start >= predicate.token_end
-        and candidate.token_start < span[0]
-        and candidate.form.family in {
-            PredicateFamily.PERFORM,
-            PredicateFamily.USE_ACCESS,
-        }
-        for candidate in analysis.predicates
-        if _in_clause(candidate.token_start, candidate.token_end, clause)
-    )
-    if intervening_action:
-        return None
-    return span
+    for span in ordered:
+        left = min(span[0], predicate.token_start)
+        right = max(span[1], predicate.token_end)
+        intervening_action = any(
+            candidate.token_start > left
+            and candidate.token_start < right
+            and not (
+                candidate.token_start == predicate.token_start
+                and candidate.token_end == predicate.token_end
+            )
+            and candidate.form.family in {
+                PredicateFamily.PERFORM,
+                PredicateFamily.USE_ACCESS,
+            }
+            for candidate in analysis.predicates
+            if _in_clause(candidate.token_start, candidate.token_end, clause)
+        )
+        if not intervening_action:
+            return span
+
+    return None
 
 
 def _third_party_unauthorized_use(
