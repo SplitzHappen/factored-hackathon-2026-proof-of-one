@@ -90,6 +90,32 @@ def test_concurrent_first_start_builds_once_and_initializes_runtime_safely(
     assert residue == set()
 
 
+def test_synthetic_build_lock_retries_windows_permission_contention(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "demo.duckdb"
+    lock_path = target.with_name(f".{target.name}.build.lock")
+    original_open = demo_data.os.open
+    open_calls = 0
+
+    def transient_permission_error(*args, **kwargs):
+        nonlocal open_calls
+        open_calls += 1
+        if open_calls == 1:
+            raise PermissionError(13, "simulated Windows lock contention")
+        return original_open(*args, **kwargs)
+
+    monkeypatch.setattr(demo_data.os, "open", transient_permission_error)
+    monkeypatch.setattr(demo_data.time, "sleep", lambda _: None)
+
+    with demo_data._synthetic_build_lock(target):
+        assert lock_path.is_file()
+
+    assert open_calls >= 2
+    assert not lock_path.exists()
+
+
 def test_default_app_builds_runtime_during_lifespan_before_requests(
     tmp_path,
     monkeypatch,
