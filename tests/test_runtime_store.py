@@ -36,6 +36,37 @@ def make_session(*, customer_id: str = "customer-demo-001") -> AuthenticatedSess
     )
 
 
+def test_runtime_schema_v2_is_refused_instead_of_partially_migrated(tmp_path) -> None:
+    path = tmp_path / "runtime.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE runtime_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        connection.execute(
+            "INSERT INTO runtime_metadata(key, value) VALUES ('schema_version', '2')"
+        )
+        connection.commit()
+
+    store = OperationalStore(path)
+    with pytest.raises(RuntimeSchemaVersionError, match="Unsupported runtime schema version: 2"):
+        store.initialize(data_mode="synthetic")
+
+    with sqlite3.connect(path) as connection:
+        version = connection.execute(
+            "SELECT value FROM runtime_metadata WHERE key = 'schema_version'"
+        ).fetchone()[0]
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+
+    assert version == "2"
+    assert "sessions" not in tables
+    assert "escalation_tickets" not in tables
+
+
 def test_session_identity_is_persisted_and_cannot_be_rebound(tmp_path) -> None:
     store = OperationalStore(tmp_path / "runtime.sqlite")
     store.initialize()
