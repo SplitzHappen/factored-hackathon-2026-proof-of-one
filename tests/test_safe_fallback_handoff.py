@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import AppContext, build_app_context
@@ -17,7 +18,13 @@ class FailingProvider:
         raise InterpretationProviderError("provider unavailable")
 
 
-def _client(tmp_path) -> tuple[TestClient, AppContext]:
+class InvalidOutputProvider:
+    def extract(self, request, *, system_prompt, response_schema):
+        del request, system_prompt, response_schema
+        return "{not-json"
+
+
+def _client(tmp_path, provider=None) -> tuple[TestClient, AppContext]:
     base = build_app_context(
         Settings(
             bank_db_path=tmp_path / "demo.duckdb",
@@ -28,7 +35,7 @@ def _client(tmp_path) -> tuple[TestClient, AppContext]:
     interpreter = InterpretationService(
         bank=base.bank,
         store=base.store,
-        provider=FailingProvider(),
+        provider=provider or FailingProvider(),
         max_attempts=1,
     )
     service = CustomerResolutionService(
@@ -53,14 +60,49 @@ def _session(client: TestClient, persona_id: str = "lucia") -> dict:
     return response.json()
 
 
-def test_provider_failure_creates_nonmandatory_interpretation_handoff(tmp_path) -> None:
-    client, context = _client(tmp_path)
-    session = _session(client)
+@pytest.mark.parametrize(
+    ("persona_id", "message", "provider", "copy_phrase"),
+    [
+        (
+            "lucia",
+            "Muéstrame mis pagos recientes.",
+            FailingProvider(),
+            "No pude interpretar",
+        ),
+        (
+            "rafael",
+            "Mostre meus pagamentos recentes.",
+            FailingProvider(),
+            "Não consegui interpretar",
+        ),
+        (
+            "lucia",
+            "Muéstrame mis pagos recientes.",
+            InvalidOutputProvider(),
+            "No pude interpretar",
+        ),
+        (
+            "rafael",
+            "Mostre meus pagamentos recentes.",
+            InvalidOutputProvider(),
+            "Não consegui interpretar",
+        ),
+    ],
+)
+def test_safe_fallback_creates_nonmandatory_interpretation_handoff(
+    tmp_path,
+    persona_id: str,
+    message: str,
+    provider,
+    copy_phrase: str,
+) -> None:
+    client, context = _client(tmp_path, provider=provider)
+    session = _session(client, persona_id)
 
     response = client.post(
         "/api/customer/turn",
         headers={"X-Demo-Session": session["session_id"]},
-        json={"message": "Muéstrame mis pagos recientes."},
+        json={"message": message},
     )
 
     assert response.status_code == 200
@@ -71,7 +113,7 @@ def test_provider_failure_creates_nonmandatory_interpretation_handoff(tmp_path) 
     assert body["clarification_transaction_ids"] == []
     assert body["escalation_ticket_id"] is not None
     assert body["handoff_available"] is False
-    assert "No pude interpretar" in body["response_text"]
+    assert copy_phrase in body["response_text"]
 
     verified = context.store.resolve_verified_escalation_context(
         UUID(body["escalation_ticket_id"])
@@ -81,14 +123,25 @@ def test_provider_failure_creates_nonmandatory_interpretation_handoff(tmp_path) 
     assert verified.reason_code == "interpretation_unavailable"
 
 
-def test_provider_failure_does_not_lower_explicit_unauthorized_assertion(tmp_path) -> None:
+@pytest.mark.parametrize(
+    ("persona_id", "message"),
+    [
+        ("lucia", "No hice ese pago, alguien usó mi tarjeta."),
+        ("rafael", "Eu não fiz esse pagamento, alguém usou meu cartão."),
+    ],
+)
+def test_provider_failure_does_not_lower_explicit_unauthorized_assertion(
+    tmp_path,
+    persona_id: str,
+    message: str,
+) -> None:
     client, context = _client(tmp_path)
-    session = _session(client)
+    session = _session(client, persona_id)
 
     response = client.post(
         "/api/customer/turn",
         headers={"X-Demo-Session": session["session_id"]},
-        json={"message": "No hice ese pago, alguien usó mi tarjeta."},
+        json={"message": message},
     )
 
     assert response.status_code == 200
