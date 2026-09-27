@@ -1776,20 +1776,21 @@ def _authorization_denials(
             and activity_span is None
         ):
             backlink = _permission_denial_backlink(analysis, clause, language)
-            if backlink is not None:
-                _, actor_span, prior_activity, prior_predicate = backlink
-                evidence.extend(
-                    [
-                        actor_span,
-                        (prior_predicate.token_start, prior_predicate.token_end),
-                    ]
-                )
-                if prior_activity is not None:
-                    activity_span = prior_activity
-                    activity_ref = "linked_prior_activity"
-                else:
-                    activity_ref = "linked_instrument_use"
-                rule = "P4-R3-permission-backlink"
+            if backlink is None:
+                continue
+            _, actor_span, prior_activity, prior_predicate = backlink
+            evidence.extend(
+                [
+                    actor_span,
+                    (prior_predicate.token_start, prior_predicate.token_end),
+                ]
+            )
+            if prior_activity is not None:
+                activity_span = prior_activity
+                activity_ref = "linked_prior_activity"
+            else:
+                activity_ref = "linked_instrument_use"
+            rule = "P4-R3-permission-backlink"
 
         output.append(
             _make_proposition(
