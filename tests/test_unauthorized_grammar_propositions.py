@@ -858,3 +858,44 @@ def test_b2r_a2_double_negated_permission_absence_is_not_positive() -> None:
 
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
+
+
+
+def test_b2r_a3_third_person_denial_does_not_borrow_customer_subject() -> None:
+    es = _families("Mi hijo no hizo esa compra, la hice yo.", "es")
+    pt = _families("Meu filho não fez essa compra, eu fiz.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in es
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+def test_b2r_a3_authorization_denial_does_not_borrow_customer_subject() -> None:
+    es = _families("Yo hice la compra y mi esposa no la aprobó.", "es")
+    pt = _families("Eu fiz a compra e minha esposa não a aprovou.", "pt")
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in pt
+
+
+def test_b2r_a3_incoming_transfer_denial_does_not_use_unrelated_customer_subject() -> None:
+    es = _families("Yo pedí un reembolso y no me hicieron la transferencia.", "es")
+    pt = _families("Eu pedi um reembolso e não me fizeram a transferência.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in es
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+def test_b2r_a3_explicit_customer_subject_still_binds_to_first_person_predicate() -> None:
+    es = _families("Yo no hice esa compra.", "es")
+    pt = _families("Eu não fiz essa compra.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL in es
+    assert PropositionFamily.PERFORMANCE_DENIAL in pt
+
+
+def test_b2r_a3_pro_drop_customer_subject_still_binds_to_first_person_predicate() -> None:
+    es = _families("No hice esa compra.", "es")
+    pt = _families("Não fiz essa compra.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL in es
+    assert PropositionFamily.PERFORMANCE_DENIAL in pt
