@@ -390,3 +390,17 @@ def test_p7_generic_activity_category_is_not_specific_transaction_target() -> No
 
     assert PropositionFamily.ACTIVITY_NONRECOGNITION not in es
     assert PropositionFamily.ACTIVITY_NONRECOGNITION not in pt
+
+def test_p7_d2_does_not_link_generic_prior_activity_category() -> None:
+    propositions = build_positive_propositions(
+        "Transferencias internacionales son una categoría; no lo reconozco.",
+        "es",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.ACTIVITY_NONRECOGNITION
+    )
+    assert item.activity_ref == "topic_transaction"
+    assert item.activity_token_span is None
