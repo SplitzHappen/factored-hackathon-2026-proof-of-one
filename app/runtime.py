@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -19,13 +20,22 @@ from app.schemas import (
     TransactionQuery,
 )
 
-RUNTIME_SCHEMA_VERSION = 3
+RUNTIME_SCHEMA_VERSION = 4
 RUNTIME_TABLES = {
     "runtime_metadata",
     "sessions",
     "conversation_state",
     "escalation_tickets",
+    "rate_limit_events",
 }
+
+DEFAULT_SESSION_TTL_SECONDS = 4 * 60 * 60
+DEFAULT_TENANT_RETENTION_SECONDS = 24 * 60 * 60
+DEFAULT_SESSION_REQUEST_LIMIT = 60
+DEFAULT_SESSION_REQUEST_WINDOW_SECONDS = 60
+DEFAULT_SESSION_CREATION_LIMIT = 10
+DEFAULT_SESSION_CREATION_WINDOW_SECONDS = 60 * 60
+DEFAULT_TICKET_LIMIT_PER_SESSION = 5
 
 
 class RuntimeStoreError(RuntimeError):
@@ -52,6 +62,14 @@ class PersistenceVerificationError(RuntimeStoreError):
     """Raised when a durable write cannot be read back and verified exactly."""
 
 
+class RateLimitExceededError(RuntimeStoreError):
+    """Raised when a persistent demo abuse limit is exceeded."""
+
+
+class TicketLimitExceededError(RuntimeStoreError):
+    """Raised when one session reaches its bounded distinct-ticket limit."""
+
+
 @dataclass(frozen=True, slots=True)
 class _TicketSnapshot:
     ticket_id: UUID
@@ -60,6 +78,7 @@ class _TicketSnapshot:
     transaction_id: str | None
     reason_code: str
     summary: str
+    idempotency_key: str
     created_at: datetime
     verified_at: datetime | None
 
@@ -77,11 +96,42 @@ class VerifiedEscalationContext:
 class OperationalStore:
     """Separate writable SQLite state; never stores authoritative banking records."""
 
-    def __init__(self, path: Path, *, busy_timeout_seconds: float = 5.0) -> None:
-        if busy_timeout_seconds <= 0:
-            raise ValueError("busy_timeout_seconds must be positive")
+    def __init__(
+        self,
+        path: Path,
+        *,
+        busy_timeout_seconds: float = 5.0,
+        session_ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
+        tenant_retention_seconds: int = DEFAULT_TENANT_RETENTION_SECONDS,
+        session_request_limit: int = DEFAULT_SESSION_REQUEST_LIMIT,
+        session_request_window_seconds: int = DEFAULT_SESSION_REQUEST_WINDOW_SECONDS,
+        session_creation_limit: int = DEFAULT_SESSION_CREATION_LIMIT,
+        session_creation_window_seconds: int = DEFAULT_SESSION_CREATION_WINDOW_SECONDS,
+        ticket_limit_per_session: int = DEFAULT_TICKET_LIMIT_PER_SESSION,
+    ) -> None:
+        numeric_values = {
+            "busy_timeout_seconds": busy_timeout_seconds,
+            "session_ttl_seconds": session_ttl_seconds,
+            "tenant_retention_seconds": tenant_retention_seconds,
+            "session_request_limit": session_request_limit,
+            "session_request_window_seconds": session_request_window_seconds,
+            "session_creation_limit": session_creation_limit,
+            "session_creation_window_seconds": session_creation_window_seconds,
+            "ticket_limit_per_session": ticket_limit_per_session,
+        }
+        if any(value <= 0 for value in numeric_values.values()):
+            raise ValueError("Operational-store lifecycle and limit values must be positive")
+        if tenant_retention_seconds < session_ttl_seconds:
+            raise ValueError("tenant retention must be at least as long as session TTL")
         self.path = path
         self.busy_timeout_seconds = busy_timeout_seconds
+        self.session_ttl_seconds = int(session_ttl_seconds)
+        self.tenant_retention_seconds = int(tenant_retention_seconds)
+        self.session_request_limit = int(session_request_limit)
+        self.session_request_window_seconds = int(session_request_window_seconds)
+        self.session_creation_limit = int(session_creation_limit)
+        self.session_creation_window_seconds = int(session_creation_window_seconds)
+        self.ticket_limit_per_session = int(ticket_limit_per_session)
 
     def initialize(self, *, data_mode: str | None = None) -> None:
         if data_mode not in {None, "synthetic", "curated"}:
