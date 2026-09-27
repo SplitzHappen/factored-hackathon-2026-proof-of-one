@@ -227,3 +227,66 @@ def test_p5_explicit_other_person_counts_as_unknown_actor() -> None:
 
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
+
+def test_p6_attributive_fraud_characterization_is_customer_anchored() -> None:
+    es = _families("Este cargo fraudulento apareció hoy.", "es")
+    pt = _families("Esta cobrança fraudulenta apareceu hoje.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+
+
+def test_p6_attributive_requires_gender_number_agreement() -> None:
+    es = _families("Esta transferencia fraudulento apareció hoy.", "es")
+    pt = _families("Estas cobranças fraudulento apareceram hoje.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+
+def test_p6_copular_fraud_characterization_supports_noun_markers() -> None:
+    es = _families("Esta transferencia es un fraude.", "es")
+    pt = _families("Este Pix é um golpe.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+
+
+def test_p6_copular_link_can_cross_bounded_contextual_modifiers() -> None:
+    es = _families("Esta transferencia de ayer realmente es un fraude.", "es")
+    pt = _families("Este Pix de ontem realmente é um golpe.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+
+
+def test_p6_non_activity_fraud_heads_do_not_create_transaction_proposition() -> None:
+    es = _families("Este correo es un fraude.", "es")
+    pt = _families("Este site é um golpe.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+
+def test_p6_bare_generic_activity_is_not_customer_anchored() -> None:
+    es = _families("Cargo fraudulento es una categoría.", "es")
+    pt = _families("Cobrança fraudulenta é uma categoria.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+
+def test_p6_explicit_third_person_possession_blocks_customer_anchor() -> None:
+    es = _families("Su compra fue un fraude.", "es")
+    pt = _families("Sua compra foi um golpe.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+
+def test_p6_transaction_id_can_anchor_copular_characterization() -> None:
+    es = _families("DEMO-ES-1001 es un fraude.", "es")
+    pt = _families("DEMO-PT-2001 é um golpe.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
