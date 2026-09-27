@@ -1,0 +1,3 @@
+# Frozen evaluation artifacts must retain byte-identical LF line endings on every checkout.
+.gitattributes text eol=lf
+evaluation/frozen/** text eol=lf
