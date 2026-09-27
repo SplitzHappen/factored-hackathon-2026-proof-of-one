@@ -59,6 +59,17 @@ def test_ids_dates_and_times_do_not_supply_amount_provenance() -> None:
     assert extract_locale_amounts(message, SupportedLanguage.ES) == []
 
 
+def test_sentence_punctuation_does_not_hide_valid_locale_amount() -> None:
+    assert extract_single_locale_amount(
+        "Busca las transacciones de 54000.",
+        SupportedLanguage.ES,
+    ) == Decimal("54000")
+    assert extract_single_locale_amount(
+        "Mostre as transações de 142,75.",
+        SupportedLanguage.PT,
+    ) == Decimal("142.75")
+
+
 def test_non_locale_dot_decimal_is_not_partially_parsed() -> None:
     assert extract_locale_amounts("status do pagamento de 219.90", SupportedLanguage.PT) == []
     assert extract_single_locale_amount(
