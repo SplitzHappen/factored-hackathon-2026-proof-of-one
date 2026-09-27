@@ -81,8 +81,12 @@ class RequestBodyLimitMiddleware:
         send: Send,
     ) -> None:
         del receive
+
+        async def disconnected() -> Message:
+            return {"type": "http.disconnect"}
+
         response = JSONResponse(
             status_code=413,
             content={"detail": "Request body too large"},
         )
-        await response(scope, lambda: None, send)
+        await response(scope, disconnected, send)
