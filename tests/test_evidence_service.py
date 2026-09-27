@@ -334,13 +334,14 @@ def test_ticket_without_verified_transaction_context_returns_no_evidence(
         connection.execute(
             """
             INSERT INTO escalation_tickets(
-                ticket_id, session_id, transaction_id, reason_code, summary,
+                ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
                 created_at, verified_at
-            ) VALUES (?, ?, ?, ?, ?, datetime('now'), NULL)
+            ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), NULL)
             """,
             (
                 str(unverified_id),
                 str(session.session_id),
+                session.tenant_id,
                 "T006",
                 "manual_support_required",
                 "Unverified test record.",
