@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from app.amounts import extract_single_locale_amount
 from app.interpretation import StructuredInterpretationProvider
-from app.schemas import ModelInterpretationRequest, PolicyIntent
+from app.schemas import ModelInterpretationRequest, PolicyIntent, SupportedLanguage
 from app.unauthorized_signals import is_explicit_unauthorized_assertion
 
 
@@ -73,7 +73,7 @@ class DeterministicDemoInterpretationProvider(StructuredInterpretationProvider):
     @staticmethod
     def _explicit_amount(
         message: str,
-        language,
+        language: SupportedLanguage,
     ) -> Decimal | None:
         return extract_single_locale_amount(message, language)
 
