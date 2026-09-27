@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.schemas import SupportedLanguage
 from evaluation.realistic_language import (
     CANONICAL_REALISTIC_LANGUAGE_SHA256,
+    assert_realistic_language_v1_evidence_use,
     load_realistic_language_suite,
 )
 
@@ -66,3 +67,18 @@ def test_realistic_language_freeze_contains_positive_unauthorized_cases_in_both_
     }
     assert sum(case.language is SupportedLanguage.ES for case in positives) == 3
     assert sum(case.language is SupportedLanguage.PT for case in positives) == 3
+
+
+def test_realistic_language_v1_allows_selection_and_stress_only() -> None:
+    assert_realistic_language_v1_evidence_use("provider_selection")
+    assert_realistic_language_v1_evidence_use("language_stress")
+
+
+def test_realistic_language_v1_rejects_baseline_uplift_evidence() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="uplift claims require"):
+        assert_realistic_language_v1_evidence_use("baseline_uplift")
+
+    with pytest.raises(ValueError, match="selection/development evidence only"):
+        assert_realistic_language_v1_evidence_use("deterministic_baseline_evidence")
