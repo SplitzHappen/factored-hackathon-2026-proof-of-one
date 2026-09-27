@@ -197,13 +197,13 @@ def test_r3e_safe_handoff_for_prohibited_action_is_bilingual(
             "lucia",
             "No reconozco la transacción DEMO-ES-1001; yo no la hice.",
             "DEMO-ES-1001",
-            "derivación humana verificada",
+            "revisión humana en el demo",
         ),
         (
             "rafael",
             "Não reconheço a transação DEMO-PT-2001; eu não fiz isso.",
             "DEMO-PT-2001",
-            "encaminhamento humano verificado",
+            "revisão humana no demo",
         ),
     ],
 )
@@ -229,7 +229,7 @@ def test_r3e_verified_unauthorized_escalation_is_bilingual(
     assert body["reason_codes"] == ["unauthorized_activity_reported"]
     assert body["transactions"] == []
     assert body["clarification_transaction_ids"] == []
-    assert body["handoff_available"] is True
+    assert body["handoff_available"] is False
     assert body["escalation_ticket_id"] is not None
     assert expected_phrase in body["response_text"]
 
