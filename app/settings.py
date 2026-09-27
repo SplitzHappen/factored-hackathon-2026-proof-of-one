@@ -23,9 +23,14 @@ def load_settings() -> Settings:
         if data_mode == "synthetic"
         else "data/curated/bank.duckdb"
     )
+    default_runtime = (
+        "runtime/synthetic-runtime.sqlite"
+        if data_mode == "synthetic"
+        else "runtime/curated-runtime.sqlite"
+    )
     return Settings(
         bank_db_path=Path(os.getenv("BANK_DB_PATH", default_bank)),
-        runtime_db_path=Path(os.getenv("RUNTIME_DB_PATH", "runtime/runtime.sqlite")),
+        runtime_db_path=Path(os.getenv("RUNTIME_DB_PATH", default_runtime)),
         data_mode=data_mode,
     )
 
