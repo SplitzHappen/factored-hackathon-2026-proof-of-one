@@ -46,6 +46,10 @@ REFERENCE_DATE = date(2026, 6, 4)
             ResolvedDateRange(date(2026, 6, 1), date(2026, 6, 4)),
         ),
         (
+            "Mostre os movimentos deste mês.",
+            ResolvedDateRange(date(2026, 6, 1), date(2026, 6, 4)),
+        ),
+        (
             "Busca 2026-06-02.",
             ResolvedDateRange(date(2026, 6, 2), date(2026, 6, 2)),
         ),
@@ -80,6 +84,7 @@ def test_supported_date_phrases_resolve_deterministically(
         "Mostre amanhã.",
         "Busca 2030-01-01.",
         "Busca entre 2026-06-01 y 2030-01-01.",
+        "Busca entre 2026-06-03 y 2026-06-01.",
         "Busca ayer 2026-06-01.",
     ],
 )
