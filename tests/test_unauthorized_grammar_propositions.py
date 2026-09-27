@@ -404,3 +404,97 @@ def test_p7_d2_does_not_link_generic_prior_activity_category() -> None:
     )
     assert item.activity_ref == "topic_transaction"
     assert item.activity_token_span is None
+
+def test_p8_explicit_customer_possession_is_positive_without_activity() -> None:
+    es = build_positive_propositions("Clonaron mi tarjeta.", "es")
+    pt = build_positive_propositions("Hackearam minha conta.", "pt")
+
+    es_item = next(
+        item
+        for item in es
+        if item.family is PropositionFamily.COMPROMISE_LINKED_ACTIVITY
+    )
+    pt_item = next(
+        item
+        for item in pt
+        if item.family is PropositionFamily.COMPROMISE_LINKED_ACTIVITY
+    )
+
+    assert es_item.activity_ref == "customer_instrument_compromise"
+    assert pt_item.activity_ref == "customer_instrument_compromise"
+
+
+def test_p8_dative_experiencer_can_anchor_customer_instrument() -> None:
+    es = _families("Me robaron la tarjeta.", "es")
+    pt = _families("Me roubaram o cartão.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in pt
+
+
+def test_p8_passive_participle_supports_customer_owned_instrument() -> None:
+    es = _families("Mi tarjeta fue clonada.", "es")
+    pt = _families("Minha conta foi invadida.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in pt
+
+
+def test_p8_passive_participle_supports_dative_experiencer() -> None:
+    es = _families("Me fue robada la tarjeta.", "es")
+    pt = _families("Me foi roubado o cartão.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in pt
+
+
+def test_p8_generic_instrument_without_customer_anchor_is_not_positive() -> None:
+    es = _families("Clonaron la tarjeta.", "es")
+    pt = _families("Clonaram o cartão.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in pt
+
+
+def test_p8_explicit_third_person_instrument_is_not_customer_compromise() -> None:
+    es = _families("Clonaron su tarjeta.", "es")
+    pt = _families("Hackearam a conta dela.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in pt
+
+
+def test_p8_first_person_actor_does_not_count_as_customer_experiencer() -> None:
+    es = _families("Cloné mi tarjeta.", "es")
+    pt = _families("Clonei meu cartão.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in pt
+
+
+def test_p8_known_actor_theft_of_customer_instrument_remains_positive() -> None:
+    es = _families("Mi hermano robó mi tarjeta.", "es")
+    pt = _families("Meu irmão roubou meu cartão.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in pt
+
+def test_p8_possessive_on_other_noun_cannot_anchor_instrument() -> None:
+    es = _families("Mi hermano dijo que clonaron la tarjeta.", "es")
+    pt = _families("Meu irmão disse que clonaram o cartão.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in pt
+
+
+def test_p8_postnominal_customer_possession_is_supported() -> None:
+    es = _families("Clonaron la tarjeta mía.", "es")
+    pt = _families("Hackearam a conta minha.", "pt")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in pt
+
+def test_p8_accented_third_person_predicate_remains_positive() -> None:
+    propositions = _families("Clonó mi tarjeta.", "es")
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in propositions

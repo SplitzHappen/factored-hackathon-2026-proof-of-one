@@ -2670,6 +2670,242 @@ def _activity_nonrecognition(
     return output
 
 
+
+
+_ES_COMPROMISE_PARTICIPLES = frozenset(
+    {
+        "robado", "robada", "robados", "robadas",
+        "clonado", "clonada", "clonados", "clonadas",
+        "hackeado", "hackeada", "hackeados", "hackeadas",
+    }
+)
+_PT_COMPROMISE_PARTICIPLES = frozenset(
+    {
+        "roubado", "roubada", "roubados", "roubadas",
+        "furtado", "furtada", "furtados", "furtadas",
+        "clonado", "clonada", "clonados", "clonadas",
+        "hackeado", "hackeada", "hackeados", "hackeadas",
+        "invadido", "invadida", "invadidos", "invadidas",
+    }
+)
+
+
+def _instrument_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (index, index + 1)
+        for index in range(clause.token_start, clause.token_end)
+        if LexicalTag.INSTRUMENT in analysis.tags[index]
+    )
+
+
+def _self_dative_near_span(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    span: tuple[int, int],
+    *,
+    max_before_gap: int,
+) -> tuple[int, int] | None:
+    datives = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.DATIVE}),
+    )
+    preceding = tuple(
+        item
+        for item in datives
+        if item[1] <= span[0] and span[0] - item[1] <= max_before_gap
+    )
+    if not preceding:
+        return None
+    return min(preceding, key=lambda item: span[0] - item[1])
+
+
+def _nearest_eligible_compromise_instrument(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+    anchor_span: tuple[int, int],
+) -> tuple[tuple[int, int], tuple[int, int] | None] | None:
+    possessors = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.POSSESSOR}),
+    )
+    explicit_customer: dict[tuple[int, int], tuple[int, int]] = {}
+    for instrument in _instrument_spans(analysis, clause):
+        direct_possessor = next(
+            (
+                possessor
+                for possessor in possessors
+                if possessor[1] == instrument[0]
+                or possessor[0] == instrument[1]
+            ),
+            None,
+        )
+        if direct_possessor is not None:
+            explicit_customer[instrument] = direct_possessor
+
+    candidates: list[
+        tuple[tuple[int, int], tuple[int, int] | None]
+    ] = []
+    for instrument in _instrument_spans(analysis, clause):
+        if _explicit_third_person_activity_possession(
+            analysis,
+            clause,
+            instrument,
+            language,
+        ):
+            continue
+        if instrument in explicit_customer:
+            candidates.append((instrument, explicit_customer[instrument]))
+            continue
+
+        dative = _self_dative_near_span(
+            analysis,
+            clause,
+            anchor_span,
+            max_before_gap=2,
+        )
+        if dative is not None:
+            candidates.append((instrument, dative))
+
+    if not candidates:
+        return None
+
+    return min(
+        candidates,
+        key=lambda item: min(
+            abs(item[0][0] - anchor_span[0]),
+            abs(item[0][0] - anchor_span[1]),
+        ),
+    )
+
+
+def _source_accent_selects_predicate(
+    analysis: FoundationAnalysis,
+    predicate: PredicateMatch,
+) -> bool:
+    if predicate.token_end - predicate.token_start != 1:
+        return True
+
+    token = analysis.tokens[predicate.token_start]
+    if not token.had_acute:
+        return True
+
+    same_span_family = tuple(
+        candidate
+        for candidate in analysis.predicates
+        if candidate.token_start == predicate.token_start
+        and candidate.token_end == predicate.token_end
+        and candidate.form.family is predicate.form.family
+    )
+    if not any(candidate.form.accent_required for candidate in same_span_family):
+        return True
+
+    return predicate.form.accent_required
+
+
+def _first_person_compromise(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    output: list[PositiveProposition] = []
+    activity_span = _nearest_activity_span(analysis, clause, None)
+
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.family is not PredicateFamily.COMPROMISE:
+            continue
+        if not _source_accent_selects_predicate(analysis, predicate):
+            continue
+
+        # P8 models the customer as affected owner/experiencer, not actor.
+        if predicate.form.person == 1:
+            continue
+
+        predicate_span = (predicate.token_start, predicate.token_end)
+        instrument_evidence = _nearest_eligible_compromise_instrument(
+            analysis,
+            clause,
+            language,
+            predicate_span,
+        )
+        if instrument_evidence is None:
+            continue
+
+        instrument_span, customer_span = instrument_evidence
+        evidence: list[tuple[int, int]] = [instrument_span]
+        if customer_span is not None:
+            evidence.append(customer_span)
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.COMPROMISE_LINKED_ACTIVITY,
+                rule="P8-first-person-compromise",
+                language=language,
+                evidence_spans=evidence,
+                activity_span=activity_span,
+                predicate=predicate,
+                activity_ref=(
+                    "explicit_activity"
+                    if activity_span is not None
+                    else "customer_instrument_compromise"
+                ),
+            )
+        )
+
+    participles = (
+        _ES_COMPROMISE_PARTICIPLES
+        if language == "es"
+        else _PT_COMPROMISE_PARTICIPLES
+    )
+    for index in range(clause.token_start, clause.token_end):
+        if analysis.tokens[index].normalized not in participles:
+            continue
+
+        participle_span = (index, index + 1)
+        instrument_evidence = _nearest_eligible_compromise_instrument(
+            analysis,
+            clause,
+            language,
+            participle_span,
+        )
+        if instrument_evidence is None:
+            continue
+
+        instrument_span, customer_span = instrument_evidence
+        evidence: list[tuple[int, int]] = [instrument_span, participle_span]
+        if customer_span is not None:
+            evidence.append(customer_span)
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.COMPROMISE_LINKED_ACTIVITY,
+                rule="P8-first-person-compromise-participle",
+                language=language,
+                evidence_spans=evidence,
+                activity_span=activity_span,
+                predicate=None,
+                activity_ref=(
+                    "explicit_activity"
+                    if activity_span is not None
+                    else "customer_instrument_compromise"
+                ),
+            )
+        )
+
+    return output
+
+
 def build_positive_propositions(
     text: str,
     language: str,
@@ -2724,6 +2960,9 @@ def build_positive_propositions(
         )
         propositions.extend(
             _activity_nonrecognition(analysis, clause, language)
+        )
+        propositions.extend(
+            _first_person_compromise(analysis, clause, language)
         )
 
     unique: dict[
