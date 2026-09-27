@@ -29,7 +29,7 @@ _UNAUTHORIZED_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bno (?:lo|la) (?:hice|realice|autorice|aprobe)\b"),
     re.compile(r"\b(?:ese|esa|este|esta|el|la) (?:cargo|cobro|compra|pago|movimiento|operacion|transaccion)(?: [a-z0-9-]+)? no (?:es|fue) mi[oa]\b"),
     re.compile(r"\bno (?:es|fue) mi[oa] (?:compra|operacion|transaccion)\b"),
-    re.compile(r"\b(?:es|fue) (?:ajeno|ajena|de otra persona)\b"),
+    re.compile(r"\b(?:cargo|cobro|compra|pago|movimiento|operacion|transaccion)(?: [a-z0-9-]+)? (?:es|fue) (?:ajeno|ajena|de otra persona)\b"),
     re.compile(r"\b(?:lo|la|eso|esto) hizo otra persona\b"),
     # Spanish: explicit absence of authorization.
     re.compile(r"\bno (?:autorice|di autorizacion|di permiso|aprobe)\b"),
@@ -46,7 +46,7 @@ _UNAUTHORIZED_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bnao (?:fiz|realizei|autorizei|aprovei) (?:isso|essa|esta|esse|este)?\s*(?:compra|operacao|transacao)?\b"),
     re.compile(r"\b(?:essa|esta|esse|este|a|o) (?:cobranca|compra|pagamento|lancamento|operacao|transacao)(?: [a-z0-9-]+)? nao (?:e|foi) minh[ao]\b"),
     re.compile(r"\bnao (?:e|foi) minh[ao] (?:compra|operacao|transacao)\b"),
-    re.compile(r"\b(?:e|foi) (?:de outra pessoa|alheia|alheio)\b"),
+    re.compile(r"\b(?:cobranca|compra|pagamento|lancamento|operacao|transacao)(?: [a-z0-9-]+)? (?:e|foi) (?:de outra pessoa|alheia|alheio)\b"),
     re.compile(r"\b(?:isso|isto|ela|ele) foi feito por outra pessoa\b"),
     # Portuguese: explicit absence of authorization.
     re.compile(r"\bnao (?:autorizei|dei autorizacao|dei permissao|aprovei)\b"),
