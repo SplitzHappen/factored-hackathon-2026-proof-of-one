@@ -519,6 +519,17 @@ _PT_LEMMAS: dict[PredicateFamily, tuple[str, ...]] = {
 }
 
 
+_ES_FUTURE_STEMS = {
+    "hacer": "har",
+    "salir": "saldr",
+    "venir": "vendr",
+}
+_PT_FUTURE_STEMS = {
+    "fazer": "far",
+    "vir": "vir",
+}
+
+
 def _irregular_forms(
     language: str,
     family: PredicateFamily,
@@ -550,6 +561,33 @@ def _irregular_forms(
                     tense_aspect,
                     mood,
                     surface,
+                )
+            )
+
+    if language == "es":
+        future_stem = _ES_FUTURE_STEMS.get(lemma, lemma)
+        future_endings = ("é", "ás", "á", "emos", "éis", "án")
+        conditional_endings = ("ía", "ías", "ía", "íamos", "íais", "ían")
+    else:
+        future_stem = _PT_FUTURE_STEMS.get(lemma, lemma)
+        future_endings = ("ei", "ás", "á", "emos", "eis", "ão")
+        conditional_endings = ("ia", "ias", "ia", "íamos", "íeis", "iam")
+
+    for tense_aspect, endings in (
+        ("future", future_endings),
+        ("conditional", conditional_endings),
+    ):
+        for (person, number), ending in zip(person_number, endings, strict=True):
+            output.append(
+                _form(
+                    family,
+                    lemma,
+                    language,
+                    person,
+                    number,
+                    tense_aspect,
+                    "indicative",
+                    future_stem + ending,
                 )
             )
     return output
@@ -1023,11 +1061,17 @@ def find_self_evidence(
     words = [token.normalized for token in token_tuple]
 
     for index, word in enumerate(words):
-        if word in subject_words:
+        if word in subject_words and not (
+            language == "pt"
+            and word == "nos"
+            and not token_tuple[index].had_acute
+        ):
             evidence.append(SelfEvidence(SelfRole.SUBJECT, index, index + 1))
         if language == "pt" and index + 1 < len(words) and (word, words[index + 1]) == ("a", "gente"):
             evidence.append(SelfEvidence(SelfRole.SUBJECT, index, index + 2))
-        if word in possessor_words:
+        if word in possessor_words and not (
+            language == "es" and word == "mi" and token_tuple[index].had_acute
+        ):
             evidence.append(SelfEvidence(SelfRole.POSSESSOR, index, index + 1))
         if word in dative_words:
             evidence.append(SelfEvidence(SelfRole.DATIVE, index, index + 1))
