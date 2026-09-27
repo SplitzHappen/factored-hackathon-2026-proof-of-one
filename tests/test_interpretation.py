@@ -635,3 +635,128 @@ def test_model_invented_amount_filter_is_rejected(runtime_parts) -> None:
 
     assert result.status is InterpretationStatus.SAFE_FALLBACK
     assert result.fallback_reason is InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
+
+
+@pytest.mark.parametrize(
+    ("language", "message", "query"),
+    [
+        (
+            SupportedLanguage.ES,
+            "Muéstrame los movimientos de este mes.",
+            {"date_from": "2026-06-01", "date_to": "2026-06-04"},
+        ),
+        (
+            SupportedLanguage.PT,
+            "Mostre os movimentos deste mês.",
+            {"date_from": "2026-06-01", "date_to": "2026-06-04"},
+        ),
+        (
+            SupportedLanguage.ES,
+            "Muéstrame lo de ayer.",
+            {"date_from": "2026-06-03", "date_to": "2026-06-03"},
+        ),
+        (
+            SupportedLanguage.PT,
+            "Mostre o que aconteceu ontem.",
+            {"date_from": "2026-06-03", "date_to": "2026-06-03"},
+        ),
+        (
+            SupportedLanguage.ES,
+            "Busca desde 2026-06-01.",
+            {"date_from": "2026-06-01", "date_to": "2026-06-04"},
+        ),
+        (
+            SupportedLanguage.PT,
+            "Busque até 03/06/2026.",
+            {"date_to": "2026-06-03"},
+        ),
+    ],
+)
+def test_model_date_filters_must_match_server_resolved_provenance(
+    runtime_parts,
+    language,
+    message,
+    query,
+) -> None:
+    bank, store = runtime_parts
+    session = _session(language)
+    store.save_authenticated_session(session)
+    provider = FakeProvider(
+        _output(
+            transaction_id=None,
+            transaction_query=query,
+        )
+    )
+    service = InterpretationService(
+        bank=bank,
+        store=store,
+        provider=provider,
+        max_attempts=1,
+    )
+
+    result = service.interpret(
+        session=session,
+        message=message,
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status is InterpretationStatus.VERIFIED
+    assert result.transaction_query is not None
+
+
+@pytest.mark.parametrize(
+    ("message", "query"),
+    [
+        (
+            "Muéstrame el movimiento de este mes.",
+            {"date_from": "2026-06-02", "date_to": "2026-06-02"},
+        ),
+        (
+            "Muéstrame lo que hay entre mis movimientos.",
+            {"date_from": "2026-06-01", "date_to": "2026-06-01"},
+        ),
+        (
+            "Busca 2026-06-02.",
+            {"date_from": "2026-06-01", "date_to": "2026-06-01"},
+        ),
+        (
+            "Busca desde 2026-06-01.",
+            {"date_from": "2026-06-01"},
+        ),
+        (
+            "Busca hasta 2030-01-01.",
+            {"date_to": "2030-01-01"},
+        ),
+    ],
+)
+def test_invented_or_future_model_dates_fail_closed(
+    runtime_parts,
+    message,
+    query,
+) -> None:
+    bank, store = runtime_parts
+    session = _session()
+    store.save_authenticated_session(session)
+    provider = FakeProvider(
+        _output(
+            transaction_id=None,
+            transaction_query=query,
+        )
+    )
+    service = InterpretationService(
+        bank=bank,
+        store=store,
+        provider=provider,
+        max_attempts=1,
+    )
+
+    result = service.interpret(
+        session=session,
+        message=message,
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status is InterpretationStatus.SAFE_FALLBACK
+    assert result.fallback_reason is InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
+    assert result.verified_transaction_id is None
+    assert result.candidate_transaction_ids == []

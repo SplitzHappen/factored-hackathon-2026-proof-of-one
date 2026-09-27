@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from app.amounts import extract_locale_amounts
 from app.bank import BankRepository
+from app.date_provenance import resolve_message_date_range
 from app.runtime import OperationalStore
 from app.unauthorized_signals import is_explicit_unauthorized_assertion
 from app.schemas import (
@@ -73,45 +74,6 @@ _TRANSACTION_STATUS_CUES: dict[TransactionStatusFilter, tuple[str, ...]] = {
     TransactionStatusFilter.PENDING: ("pendiente", "pendente", "pending"),
     TransactionStatusFilter.REVERSED: ("revertida", "revertido", "estornada", "estornado", "reversed"),
 }
-
-_DATE_CUES = (
-    "ayer",
-    "hoy",
-    "manana",
-    "ontem",
-    "hoje",
-    "amanha",
-    "desde",
-    "hasta",
-    "entre",
-    "antes",
-    "despues",
-    "depois",
-    "semana",
-    "mes",
-    "enero",
-    "febrero",
-    "marzo",
-    "abril",
-    "mayo",
-    "junio",
-    "julio",
-    "agosto",
-    "septiembre",
-    "octubre",
-    "noviembre",
-    "diciembre",
-    "janeiro",
-    "fevereiro",
-    "marco",
-    "maio",
-    "junho",
-    "julho",
-    "setembro",
-    "outubro",
-    "novembro",
-    "dezembro",
-)
 
 
 def interpretation_contract_sha256() -> str:
@@ -232,11 +194,12 @@ class InterpretationService:
 
             query = self._normalized_query(extraction.transaction_query)
             if query is not None and (
-                not self._query_semantics_valid(query)
+                not self._query_semantics_valid(query, request.reference_date)
                 or not self._query_supported_by_message(
                     query,
                     request.message,
                     request.language,
+                    request.reference_date,
                 )
             ):
                 last_failure = InterpretationFallbackReason.INVALID_STRUCTURED_OUTPUT
@@ -371,7 +334,14 @@ class InterpretationService:
         return query if any(value is not None for value in values) else None
 
     @staticmethod
-    def _query_semantics_valid(query: InterpretedTransactionQuery) -> bool:
+    def _query_semantics_valid(
+        query: InterpretedTransactionQuery,
+        reference_date: date,
+    ) -> bool:
+        if query.date_from is not None and query.date_from > reference_date:
+            return False
+        if query.date_to is not None and query.date_to > reference_date:
+            return False
         if (
             query.date_from is not None
             and query.date_to is not None
@@ -404,6 +374,7 @@ class InterpretationService:
         query: InterpretedTransactionQuery,
         message: str,
         language: SupportedLanguage,
+        reference_date: date,
     ) -> bool:
         normalized = cls._normalize_message(message)
 
@@ -423,17 +394,10 @@ class InterpretationService:
                 return False
 
         if query.date_from is not None or query.date_to is not None:
-            has_numeric_date = bool(
-                re.search(
-                    r"\b(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}(?:[-/]\d{2,4})?)\b",
-                    normalized,
-                )
-            )
-            has_date_cue = any(
-                re.search(rf"\b{re.escape(cue)}\b", normalized)
-                for cue in _DATE_CUES
-            )
-            if not (has_numeric_date or has_date_cue):
+            resolved = resolve_message_date_range(message, reference_date)
+            if resolved is None:
+                return False
+            if query.date_from != resolved.date_from or query.date_to != resolved.date_to:
                 return False
 
         return True
