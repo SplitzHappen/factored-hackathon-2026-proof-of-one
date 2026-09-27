@@ -68,6 +68,11 @@ Model output is not banking truth.
 - Every extracted amount/type/status/date filter must have deterministic semantic
   provenance in the customer message; invented narrowing filters are rejected rather
   than allowed to manufacture a unique match.
+- Date filters are stricter than cue-word matching: supported ES/PT relative phrases and
+  explicit dates are resolved server-side against the supplied reference date, and the
+  model's date bounds must equal that resolved range exactly.
+- Vague date cue words do not authorize model-invented dates, and any upper date bound
+  after the server reference date is rejected before banking lookup.
 - Search breadth is server-controlled at 50 results. The model-facing query schema has
   no `limit` field, so the model cannot manufacture uniqueness by asking for one row.
 - Multiple owned matches remain `AMBIGUOUS`.
