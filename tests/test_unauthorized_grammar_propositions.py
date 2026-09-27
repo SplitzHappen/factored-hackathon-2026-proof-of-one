@@ -498,3 +498,119 @@ def test_p8_accented_third_person_predicate_remains_positive() -> None:
     propositions = _families("Clonó mi tarjeta.", "es")
 
     assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in propositions
+
+def test_r3_d1_inherits_denied_perform_frame_across_semicolon() -> None:
+    es = build_positive_propositions(
+        "Nadie hizo este pago; ni yo ni mi hijo.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Ninguém fez este saque; nem eu, nem meu filho.",
+        "pt",
+    )
+
+    es_item = next(
+        item
+        for item in es
+        if item.rule == "R3-D1-elliptical-continuation"
+    )
+    pt_item = next(
+        item
+        for item in pt
+        if item.rule == "R3-D1-elliptical-continuation"
+    )
+
+    assert es_item.family is PropositionFamily.PERFORMANCE_DENIAL
+    assert pt_item.family is PropositionFamily.PERFORMANCE_DENIAL
+    assert es_item.activity_ref == "linked_prior_activity"
+    assert pt_item.activity_ref == "linked_prior_activity"
+
+
+def test_r3_d1_supports_whitespace_dash_boundary() -> None:
+    propositions = build_positive_propositions(
+        "Ninguém fez este saque — nem eu, nem meu irmão.",
+        "pt",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.rule == "R3-D1-elliptical-continuation"
+    )
+    assert item.family is PropositionFamily.PERFORMANCE_DENIAL
+
+
+def test_r3_d1_supports_comma_continuation_without_global_coreference() -> None:
+    propositions = build_positive_propositions(
+        "Nadie hizo este pago, ni yo ni mi hija.",
+        "es",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.rule == "R3-D1-elliptical-continuation"
+    )
+    assert item.family is PropositionFamily.PERFORMANCE_DENIAL
+
+
+def test_r3_d1_supports_additive_self_inclusion_forms() -> None:
+    es = _families("Nadie hizo este pago; yo tampoco.", "es")
+    pt = _families("Ninguém fez este saque; eu também não.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL in es
+    assert PropositionFamily.PERFORMANCE_DENIAL in pt
+
+
+def test_r3_d1_requires_denied_prior_frame() -> None:
+    es = build_positive_propositions(
+        "Mi hermano hizo este pago; yo tampoco.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Meu irmão fez este saque; eu também não.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "R3-D1-elliptical-continuation"
+        for item in (*es, *pt)
+    )
+
+
+def test_r3_d1_rejects_continuation_with_finite_domain_predicate() -> None:
+    propositions = build_positive_propositions(
+        "Nadie hizo este pago; yo tampoco autoricé este pago.",
+        "es",
+    )
+
+    assert not any(
+        item.rule == "R3-D1-elliptical-continuation"
+        for item in propositions
+    )
+
+
+def test_r3_d1_does_not_cross_sentence_boundary() -> None:
+    propositions = build_positive_propositions(
+        "Nadie hizo este pago. Yo tampoco.",
+        "es",
+    )
+
+    assert not any(
+        item.rule == "R3-D1-elliptical-continuation"
+        for item in propositions
+    )
+
+
+def test_r3_d1_can_inherit_authorization_denial() -> None:
+    propositions = build_positive_propositions(
+        "Nadie autorizó este pago; ni yo ni mi esposa.",
+        "es",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.rule == "R3-D1-elliptical-continuation"
+    )
+    assert item.family is PropositionFamily.AUTHORIZATION_DENIAL
