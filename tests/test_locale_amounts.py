@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -98,6 +99,7 @@ def test_amount_provenance_compares_locale_normalized_values(
         query,
         message,
         language,
+        date(2026, 9, 27),
     ) is expected
 
 
