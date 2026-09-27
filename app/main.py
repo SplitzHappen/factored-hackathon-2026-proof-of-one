@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 from contextlib import asynccontextmanager
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -54,6 +55,17 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         max_bytes=64 * 1024,
     )
 
+    @app.exception_handler(sqlite3.Error)
+    async def sqlite_runtime_error_handler(
+        request: Request,
+        exc: sqlite3.Error,
+    ) -> JSONResponse:
+        del request, exc
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "Operational state is temporarily unavailable"},
+        )
+
     @app.exception_handler(RequestValidationError)
     async def request_validation_error_handler(
         request: Request,
@@ -93,8 +105,13 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         ).hexdigest()
 
     def customer_session(
-        x_demo_session: str = Header(alias="X-Demo-Session"),
+        x_demo_session: str | None = Header(default=None, alias="X-Demo-Session"),
     ) -> AuthenticatedSession:
+        if x_demo_session is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Demo session required",
+            )
         try:
             session_id = UUID(x_demo_session)
         except (ValueError, TypeError) as exc:
@@ -266,7 +283,7 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         status_code=status.HTTP_201_CREATED,
     )
     def create_customer_handoff(
-        x_demo_session: str = Header(alias="X-Demo-Session"),
+        x_demo_session: str | None = Header(default=None, alias="X-Demo-Session"),
     ) -> EscalationRecord:
         session = customer_session(x_demo_session)
         try:
@@ -282,8 +299,13 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         status_code=status.HTTP_204_NO_CONTENT,
     )
     def revoke_demo_session(
-        x_demo_session: str = Header(alias="X-Demo-Session"),
+        x_demo_session: str | None = Header(default=None, alias="X-Demo-Session"),
     ) -> Response:
+        if x_demo_session is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Demo session required",
+            )
         try:
             session_id = UUID(x_demo_session)
         except (ValueError, TypeError) as exc:
@@ -306,7 +328,7 @@ def create_app(context: AppContext | None = None) -> FastAPI:
     )
     def customer_turn(
         request: CustomerTurnRequest,
-        x_demo_session: str = Header(alias="X-Demo-Session"),
+        x_demo_session: str | None = Header(default=None, alias="X-Demo-Session"),
     ) -> CustomerTurnResponse:
         session = customer_session(x_demo_session)
         persona = runtime().personas.get(session.demo_persona_id)

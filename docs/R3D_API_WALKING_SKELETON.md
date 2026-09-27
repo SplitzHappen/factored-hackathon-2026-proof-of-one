@@ -195,6 +195,32 @@ deployment. Session authentication and per-session throttling share one SQLite
 transaction, reducing one connection from the authenticated request path. Broader
 multi-client/container concurrency stress remains a separate RD4 assurance step.
 
+## Integration and concurrency assurance
+
+The post-hardening integration suite exercises the boundaries that unit and injected-context
+tests do not cover by themselves:
+
+- a fresh Python process imports the module-level `app`, reads environment settings, runs the
+  real FastAPI lifespan, builds the synthetic artifact/runtime store, and reaches `/ready`;
+- missing `X-Demo-Session` headers return an intentional HTTP `401` rather than FastAPI's
+  default validation `422`;
+- a write-locked operational SQLite store fails closed as HTTP `503` with generic copy;
+- eight concurrent customer flows share the WAL-backed runtime store while preserving
+  customer/tenant isolation;
+- a deliberately inconsistent mixed-ownership transaction row cannot enter another
+  customer's clarification candidates or response text;
+- explicit unauthorized assertions retain escalation precedence over ambiguity and prohibited
+  action requests;
+- prompt-injection wording cannot bypass the deterministic prohibited-action policy;
+- HTTP clarification with twelve owned matches exposes only ten candidates and states
+  `Mostrando 10 de 12 resultados.`;
+- unknown intents abstain without banking-record disclosure;
+- Linux CI starts the production container and performs a bounded readiness -> session ->
+  customer-turn smoke sequence against the running image.
+
+These tests remain synthetic-only and do not execute organizer-backed rows, private development
+prompts, live providers, or held-out evaluation cases.
+
 ## Time semantics
 
 Relative-date interpretation is anchored by a server-authoritative `reference_date`.

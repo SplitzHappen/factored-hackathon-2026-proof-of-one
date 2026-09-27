@@ -9,6 +9,8 @@ COPY requirements.txt .
 RUN python -m pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+RUN mkdir -p /app/ml
+COPY ml/__init__.py ml/null_result_contract.py ./ml/
 
 RUN mkdir -p /app/data /app/runtime
 
