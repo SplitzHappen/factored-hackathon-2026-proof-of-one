@@ -69,7 +69,9 @@ class VerifiedEscalationContext:
 
     ticket_id: UUID
     session: AuthenticatedSession
-    transaction_id: str
+    transaction_id: str | None
+    reason_code: str
+    summary: str
 
 class OperationalStore:
     """Separate writable SQLite state; never stores authoritative banking records."""
@@ -478,11 +480,7 @@ class OperationalStore:
         """
 
         snapshot = self._read_ticket_snapshot(ticket_id)
-        if (
-            snapshot is None
-            or snapshot.verified_at is None
-            or snapshot.transaction_id is None
-        ):
+        if snapshot is None or snapshot.verified_at is None:
             return None
 
         session = self.get_authenticated_session(snapshot.session_id)
@@ -493,6 +491,8 @@ class OperationalStore:
             ticket_id=snapshot.ticket_id,
             session=session,
             transaction_id=snapshot.transaction_id,
+            reason_code=snapshot.reason_code,
+            summary=snapshot.summary,
         )
 
     def _verify_persisted_session(self, session: AuthenticatedSession) -> None:
