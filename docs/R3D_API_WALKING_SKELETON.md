@@ -224,6 +224,23 @@ tests do not cover by themselves:
 These tests remain synthetic-only and do not execute organizer-backed rows, private development
 prompts, live providers, or held-out evaluation cases.
 
+## Runtime schema lifecycle
+
+The operational SQLite store is versioned and **does not perform in-place schema migration**.
+A database created by an older runtime schema is rejected before application startup mutates it.
+This is deliberate fail-closed behavior for authorization/lifecycle state.
+
+For the current public synthetic demo, runtime state is bounded and ephemeral. When upgrading
+across an incompatible runtime schema:
+
+1. stop the service;
+2. preserve a copy of the old `runtime.sqlite` only if diagnostic/audit retention is useful;
+3. remove or move the old mode-specific runtime database;
+4. restart so the current schema is created from scratch.
+
+Do not edit `runtime_metadata.schema_version` by hand, and do not reuse one runtime database
+across synthetic and curated data modes. Curated/local evaluation must use its own runtime path.
+
 ## Time semantics
 
 Relative-date interpretation is anchored by a server-authoritative `reference_date`.
