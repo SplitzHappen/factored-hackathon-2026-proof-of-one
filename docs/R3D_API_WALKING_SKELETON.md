@@ -11,7 +11,7 @@ The walking skeleton is intentionally narrow:
 
 `public demo persona -> server-issued session -> deterministic interpretation -> verified
 read-only retrieval -> deterministic policy -> deterministic ES/PT response -> optional
-verified human handoff`
+verified escalation/support-ticket handoff`
 
 The current interpreter is a deterministic stub behind the same
 `StructuredInterpretationProvider` protocol used by later model adapters.
@@ -128,7 +128,8 @@ Supported answer paths include:
 
 Deterministic non-answer paths include:
 
-- ambiguous/missing/unowned references -> `CLARIFY` plus support availability;
+- genuine owned ambiguity -> `CLARIFY` with owned/re-verified candidate context and no automatic handoff flag;
+- missing/unowned supported references -> `CLARIFY` with an actionable opt-in support-handoff path;
 - prohibited banking mutations -> `ABSTAIN` plus support availability;
 - unsupported decline-cause explanation -> `ABSTAIN` without inventing causality;
 - explicit customer unauthorized/non-recognition assertion -> `ESCALATE` with verified ticket persistence.
@@ -192,8 +193,10 @@ value.
 
 The operational SQLite database runs in **WAL** mode on a single-host/local-volume
 deployment. Session authentication and per-session throttling share one SQLite
-transaction, reducing one connection from the authenticated request path. Broader
-multi-client/container concurrency stress remains a separate RD4 assurance step.
+transaction, reducing one connection from the authenticated request path. The subsequent
+RD4 assurance suite covers concurrent customer flows, locked-SQLite failure, mixed ownership,
+and a running production-container smoke without changing this single-host/local-volume
+storage assumption.
 
 ## Integration and concurrency assurance
 
