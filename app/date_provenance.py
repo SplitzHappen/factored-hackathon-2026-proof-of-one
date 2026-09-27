@@ -40,27 +40,24 @@ def _previous_week(reference_date: date) -> tuple[date, date]:
 
 
 def _parse_explicit_dates(message: str) -> list[date] | None:
-    values: list[date] = []
-    spans: list[tuple[int, int]] = []
+    values: list[tuple[int, date]] = []
 
     for match in _ISO_DATE.finditer(message):
         try:
             value = date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
         except ValueError:
             return None
-        values.append(value)
-        spans.append(match.span())
+        values.append((match.start(), value))
 
     for match in _DMY_DATE.finditer(message):
-        if any(not (match.end() <= start or match.start() >= end) for start, end in spans):
-            continue
         try:
             value = date(int(match.group(3)), int(match.group(2)), int(match.group(1)))
         except ValueError:
             return None
-        values.append(value)
+        values.append((match.start(), value))
 
-    return values
+    values.sort(key=lambda item: item[0])
+    return [value for _, value in values]
 
 
 def resolve_message_date_range(
@@ -75,8 +72,8 @@ def resolve_message_date_range(
         (("ayer", "ontem"), (reference_date - timedelta(days=1),) * 2),
         (("hoy", "hoje"), (reference_date, reference_date)),
         (("semana pasada", "semana passada"), _previous_week(reference_date)),
-        (("esta semana",), _current_week(reference_date)),
-        (("este mes",), (reference_date.replace(day=1), reference_date)),
+        (("esta semana", "nesta semana"), _current_week(reference_date)),
+        (("este mes", "deste mes", "neste mes"), (reference_date.replace(day=1), reference_date)),
         (("mes pasado", "mes passado"), _previous_month(reference_date)),
     )
 
@@ -91,7 +88,6 @@ def resolve_message_date_range(
     if explicit_dates:
         if len(explicit_dates) > 2 or matched_ranges:
             return None
-        explicit_dates = sorted(explicit_dates)
         if len(explicit_dates) == 2:
             matched_ranges.append((explicit_dates[0], explicit_dates[1]))
         else:
