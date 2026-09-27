@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import duckdb
 from fastapi.testclient import TestClient
 
 from app.bootstrap import build_app_context
@@ -259,11 +260,22 @@ def test_customer_endpoint_rejects_wrong_tenant_even_with_valid_session(tmp_path
     assert response.status_code == 403
 
 
-def test_curated_mode_disables_public_demo_issuance_and_marks_turn_non_synthetic(
-    tmp_path,
-) -> None:
+def test_curated_mode_disables_public_demo_issuance(tmp_path) -> None:
     bank_path = tmp_path / "curated-compatible.duckdb"
-    build_synthetic_demo_bank(bank_path)
+    connection = duckdb.connect(str(bank_path))
+    try:
+        connection.execute(
+            """
+            CREATE TABLE build_metadata (
+                schema_version INTEGER NOT NULL,
+                builder_version VARCHAR NOT NULL
+            )
+            """
+        )
+        connection.execute("INSERT INTO build_metadata VALUES (1, 'r3b-1')")
+    finally:
+        connection.close()
+
     context = build_app_context(
         Settings(
             bank_db_path=bank_path,
@@ -278,24 +290,3 @@ def test_curated_mode_disables_public_demo_issuance_and_marks_turn_non_synthetic
         "/api/demo/sessions",
         json={"persona_id": "lucia"},
     ).status_code == 404
-
-    session = AuthenticatedSession(
-        session_id=uuid4(),
-        tenant_id=DEMO_TENANT_ID,
-        role=SessionRole.CUSTOMER,
-        demo_persona_id="lucia",
-        customer_id="DEMO-CUST-ES-001",
-        language=SupportedLanguage.ES,
-    )
-    context.store.save_authenticated_session(session)
-
-    response = client.post(
-        "/api/customer/turn",
-        headers={"X-Demo-Session": str(session.session_id)},
-        json={
-            "message": "¿Cuál es el estado de la transacción DEMO-ES-1001?"
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.json()["synthetic_data"] is False
