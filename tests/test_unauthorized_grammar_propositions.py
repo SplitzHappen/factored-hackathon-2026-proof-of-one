@@ -209,3 +209,21 @@ def test_p5_does_not_turn_generic_third_party_performance_into_use() -> None:
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in {
         item.family for item in propositions
     }
+
+def test_p5_bare_person_noun_does_not_bypass_known_actor_permission_rule() -> None:
+    propositions = build_positive_propositions(
+        "Mi hermano, una persona adulta, usó mi tarjeta.",
+        "es",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in {
+        item.family for item in propositions
+    }
+
+
+def test_p5_explicit_other_person_counts_as_unknown_actor() -> None:
+    es = _families("Otra persona usó mi tarjeta.", "es")
+    pt = _families("Outra pessoa usou minha conta.", "pt")
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
