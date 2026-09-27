@@ -22,7 +22,7 @@ The default runtime mode is:
 
 `DATA_MODE=synthetic`
 
-On first application use, the service builds a small deterministic DuckDB artifact containing
+During application startup, the service ensures a small deterministic DuckDB artifact exists containing
 two public demo personas:
 
 - Lucía — Spanish / Colombia
@@ -37,7 +37,9 @@ For private/local organizer-backed execution:
 
 `DATA_MODE=curated`
 
-and `BANK_DB_PATH` points at the locally built curated `bank.duckdb`.
+and `BANK_DB_PATH` points at the locally built curated `bank.duckdb`. A separate curated runtime SQLite path is used.
+
+At startup, the runtime reads immutable `build_metadata` from the DuckDB and fails closed if the configured mode does not match the artifact identity. The operational SQLite store is also bound to that resolved mode so synthetic and curated session/ticket state cannot be silently mixed. The default Docker Compose surface remains synthetic-only and does not mount curated organizer-derived data.
 
 The application code and repository boundary do not change.
 
