@@ -575,7 +575,7 @@ class OperationalStore:
         session: AuthenticatedSession,
         request: EscalationRequest,
     ) -> EscalationRecord:
-        """Persist, re-read, and verify a handoff before reporting success."""
+        """Persist one retry-safe verified ticket for one session/reason/transaction."""
 
         if request.session_id != session.session_id:
             raise SessionIdentityMismatchError(
@@ -583,73 +583,107 @@ class OperationalStore:
             )
         self._verify_persisted_session(session)
 
-        expected = _TicketSnapshot(
-            ticket_id=uuid4(),
-            session_id=session.session_id,
-            tenant_id=session.tenant_id,
-            transaction_id=request.transaction_id,
-            reason_code=request.reason_code,
-            summary=request.summary,
-            created_at=self._utc_now(),
-            verified_at=None,
-        )
-
+        idempotency_key = self._ticket_idempotency_key(session, request)
+        created_new = False
         with self._connect() as connection:
-            connection.execute(
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute(
                 """
-                INSERT INTO escalation_tickets(
-                    ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
-                    created_at, verified_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+                SELECT ticket_id
+                FROM escalation_tickets
+                WHERE idempotency_key = ?
                 """,
-                (
-                    str(expected.ticket_id),
-                    str(expected.session_id),
-                    expected.tenant_id,
-                    expected.transaction_id,
-                    expected.reason_code,
-                    expected.summary,
-                    expected.created_at.isoformat(),
-                ),
-            )
+                (idempotency_key,),
+            ).fetchone()
+            if existing is not None:
+                ticket_id = UUID(existing["ticket_id"])
+            else:
+                ticket_count = int(
+                    connection.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM escalation_tickets
+                        WHERE session_id = ?
+                        """,
+                        (str(session.session_id),),
+                    ).fetchone()[0]
+                )
+                if ticket_count >= self.ticket_limit_per_session:
+                    raise TicketLimitExceededError(
+                        "Support ticket limit reached for this session"
+                    )
+                ticket_id = uuid4()
+                now = self._utc_now()
+                connection.execute(
+                    """
+                    INSERT INTO escalation_tickets(
+                        ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
+                        idempotency_key, created_at, verified_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                    """,
+                    (
+                        str(ticket_id),
+                        str(session.session_id),
+                        session.tenant_id,
+                        request.transaction_id,
+                        request.reason_code,
+                        request.summary,
+                        idempotency_key,
+                        now.isoformat(),
+                    ),
+                )
+                created_new = True
 
-        persisted = self._read_ticket_snapshot(expected.ticket_id)
-        if persisted != expected:
+        persisted = self._read_ticket_snapshot(ticket_id)
+        if persisted is None:
             raise PersistenceVerificationError(
                 "Escalation ticket persistence could not be verified"
             )
-
-        verified_at = self._utc_now()
-        with self._connect() as connection:
-            cursor = connection.execute(
-                """
-                UPDATE escalation_tickets
-                SET verified_at = ?
-                WHERE ticket_id = ? AND verified_at IS NULL
-                """,
-                (verified_at.isoformat(), str(expected.ticket_id)),
+        if (
+            persisted.session_id != session.session_id
+            or persisted.tenant_id != session.tenant_id
+            or persisted.transaction_id != request.transaction_id
+            or persisted.reason_code != request.reason_code
+            or persisted.idempotency_key != idempotency_key
+        ):
+            raise PersistenceVerificationError(
+                "Escalation ticket identity changed during persistence verification"
             )
-            if cursor.rowcount != 1:
-                raise PersistenceVerificationError(
-                    "Escalation ticket verification status could not be persisted"
-                )
+        if created_new and persisted.summary != request.summary:
+            raise PersistenceVerificationError(
+                "Escalation ticket summary changed during persistence verification"
+            )
 
-        final = self._read_ticket_snapshot(expected.ticket_id)
-        if final is None or final.verified_at != verified_at:
+        if persisted.verified_at is None:
+            verified_at = self._utc_now()
+            with self._connect() as connection:
+                cursor = connection.execute(
+                    """
+                    UPDATE escalation_tickets
+                    SET verified_at = ?
+                    WHERE ticket_id = ? AND verified_at IS NULL
+                    """,
+                    (verified_at.isoformat(), str(ticket_id)),
+                )
+                if cursor.rowcount not in {0, 1}:
+                    raise PersistenceVerificationError(
+                        "Escalation ticket verification status could not be persisted"
+                    )
+
+        final = self._read_ticket_snapshot(ticket_id)
+        if final is None or final.verified_at is None:
             raise PersistenceVerificationError(
                 "Escalation ticket verification status could not be read back"
             )
         if (
-            final.ticket_id != expected.ticket_id
-            or final.session_id != expected.session_id
-            or final.tenant_id != expected.tenant_id
-            or final.transaction_id != expected.transaction_id
-            or final.reason_code != expected.reason_code
-            or final.summary != expected.summary
-            or final.created_at != expected.created_at
+            final.session_id != session.session_id
+            or final.tenant_id != session.tenant_id
+            or final.transaction_id != request.transaction_id
+            or final.reason_code != request.reason_code
+            or final.idempotency_key != idempotency_key
         ):
             raise PersistenceVerificationError(
-                "Escalation ticket changed during persistence verification"
+                "Escalation ticket changed during verification"
             )
 
         return EscalationRecord(
@@ -659,6 +693,20 @@ class OperationalStore:
             persisted=True,
             verified=True,
         )
+
+    @staticmethod
+    def _ticket_idempotency_key(
+        session: AuthenticatedSession,
+        request: EscalationRequest,
+    ) -> str:
+        raw = "|".join(
+            (
+                str(session.session_id),
+                request.transaction_id or "",
+                request.reason_code,
+            )
+        )
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def list_verified_escalation_ticket_ids_for_tenant(
         self,
@@ -710,7 +758,7 @@ class OperationalStore:
         if snapshot is None or snapshot.verified_at is None:
             return None
 
-        session = self.get_authenticated_session(snapshot.session_id)
+        session = self._get_persisted_session_identity(snapshot.session_id)
         if session is None or snapshot.tenant_id != session.tenant_id:
             return None
 
@@ -736,7 +784,7 @@ class OperationalStore:
             row = connection.execute(
                 """
                 SELECT ticket_id, session_id, tenant_id, transaction_id, reason_code, summary,
-                       created_at, verified_at
+                       idempotency_key, created_at, verified_at
                 FROM escalation_tickets
                 WHERE ticket_id = ?
                 """,
@@ -751,6 +799,7 @@ class OperationalStore:
             transaction_id=row["transaction_id"],
             reason_code=row["reason_code"],
             summary=row["summary"],
+            idempotency_key=row["idempotency_key"],
             created_at=datetime.fromisoformat(row["created_at"]),
             verified_at=(
                 datetime.fromisoformat(row["verified_at"])
