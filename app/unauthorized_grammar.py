@@ -2122,6 +2122,337 @@ def _third_party_unauthorized_use(
     return output
 
 
+
+
+_ES_FRAUD_NOUNS = frozenset({"fraude", "golpe"})
+_PT_FRAUD_NOUNS = frozenset({"fraude", "golpe"})
+_ES_FRAUD_ADJECTIVES = frozenset(
+    {"fraudulento", "fraudulenta", "fraudulentos", "fraudulentas"}
+)
+_PT_FRAUD_ADJECTIVES = frozenset(
+    {"fraudulento", "fraudulenta", "fraudulentos", "fraudulentas"}
+)
+
+_ES_ACTIVITY_FEMININE = frozenset(
+    {"compra", "compras", "operacion", "operaciones", "transaccion", "transacciones",
+     "transferencia", "transferencias"}
+)
+_PT_ACTIVITY_FEMININE = frozenset(
+    {"cobranca", "cobrancas", "compra", "compras", "operacao", "operacoes",
+     "transacao", "transacoes", "transferencia", "transferencias",
+     "movimentacao", "movimentacoes", "ted"}
+)
+
+_ES_SPECIFIC_DETERMINERS = frozenset(
+    {"este", "esta", "estos", "estas", "ese", "esa", "esos", "esas",
+     "aquel", "aquella", "aquellos", "aquellas", "el", "la", "los", "las"}
+)
+_PT_SPECIFIC_DETERMINERS = frozenset(
+    {"este", "esta", "estes", "estas", "esse", "essa", "esses", "essas",
+     "aquele", "aquela", "aqueles", "aquelas", "o", "a", "os", "as"}
+)
+
+_ES_THIRD_POSSESSIVES = frozenset({"su", "sus"})
+_PT_THIRD_POSSESSIVES = frozenset({"seu", "sua", "seus", "suas"})
+
+_ES_EXPERIENCER_VERBS = frozenset({"tengo", "veo", "recibo", "recibi"})
+_PT_EXPERIENCER_VERBS = frozenset({"tenho", "vejo", "recebo", "recebi"})
+_ES_DATIVE_EXPERIENCER_VERBS = frozenset({"aparece", "aparecio", "salio"})
+_PT_DATIVE_EXPERIENCER_VERBS = frozenset({"aparece", "apareceu", "saiu"})
+
+_ES_PREPOSITIONAL_ACTIVITY = frozenset({"de", "del", "sobre", "para", "por", "con", "en"})
+_PT_PREPOSITIONAL_ACTIVITY = frozenset({"de", "do", "da", "sobre", "para", "por", "com", "em", "no", "na"})
+
+_ES_NON_ACTIVITY_FRAUD_HEADS = frozenset(
+    {"correo", "email", "mensaje", "sms", "enlace", "link", "sitio", "pagina",
+     "llamada", "comercio", "establecimiento", "descriptor", "nombre"}
+)
+_PT_NON_ACTIVITY_FRAUD_HEADS = frozenset(
+    {"email", "mensagem", "sms", "link", "site", "pagina", "ligacao",
+     "comercio", "estabelecimento", "descritor", "nome"}
+)
+
+
+def _activity_number(word: str) -> str:
+    return "plural" if word.endswith("s") and word not in {"pix"} else "singular"
+
+
+def _activity_gender(word: str, language: str) -> str:
+    feminine = _ES_ACTIVITY_FEMININE if language == "es" else _PT_ACTIVITY_FEMININE
+    return "feminine" if word in feminine else "masculine"
+
+
+def _fraud_adjective_agrees(activity_word: str, fraud_word: str, language: str) -> bool:
+    number = _activity_number(activity_word)
+    gender = _activity_gender(activity_word, language)
+
+    expected = {
+        ("masculine", "singular"): "fraudulento",
+        ("feminine", "singular"): "fraudulenta",
+        ("masculine", "plural"): "fraudulentos",
+        ("feminine", "plural"): "fraudulentas",
+    }[(gender, number)]
+    return fraud_word == expected
+
+
+def _explicit_third_person_activity_possession(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+) -> bool:
+    words = [token.normalized for token in analysis.tokens]
+    index = activity_span[0]
+    third_possessives = (
+        _ES_THIRD_POSSESSIVES if language == "es" else _PT_THIRD_POSSESSIVES
+    )
+    if index > clause.token_start and words[index - 1] in third_possessives:
+        return True
+
+    if language == "es":
+        third_patterns = {
+            ("de", "ella"),
+            ("de", "ellos"),
+            ("de", "ellas"),
+            ("de", "otra"),
+        }
+    else:
+        third_patterns = {
+            ("de", "outra"),
+            ("da", "outra"),
+        }
+
+    for start in range(index + 1, min(clause.token_end - 1, index + 4)):
+        if (words[start], words[start + 1]) in third_patterns:
+            return True
+        if language == "pt" and words[start] in {"dela", "dele", "delas", "deles"}:
+            return True
+    return False
+
+
+def _customer_anchored_activity(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+) -> bool:
+    if _explicit_third_person_activity_possession(
+        analysis, clause, activity_span, language
+    ):
+        return False
+
+    index = activity_span[0]
+    token = analysis.tokens[index]
+    words = [item.normalized for item in analysis.tokens]
+    if token.is_txid:
+        return True
+
+    possessors = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.POSSESSOR}),
+    )
+    if any(
+        span[1] <= index and index - span[1] <= 1
+        for span in possessors
+    ):
+        return True
+
+    determiners = (
+        _ES_SPECIFIC_DETERMINERS
+        if language == "es"
+        else _PT_SPECIFIC_DETERMINERS
+    )
+    if index > clause.token_start and words[index - 1] in determiners:
+        return True
+
+    if index > clause.token_start:
+        previous = analysis.tokens[index - 1]
+        if previous.normalized.isdigit() or previous.is_txid:
+            return True
+
+    experiencer_verbs = (
+        _ES_EXPERIENCER_VERBS if language == "es" else _PT_EXPERIENCER_VERBS
+    )
+    for verb_index in range(max(clause.token_start, index - 5), index):
+        if words[verb_index] in experiencer_verbs:
+            return True
+
+    dative_verbs = (
+        _ES_DATIVE_EXPERIENCER_VERBS
+        if language == "es"
+        else _PT_DATIVE_EXPERIENCER_VERBS
+    )
+    dative_spans = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.DATIVE}),
+    )
+    if dative_spans:
+        for verb_index in range(max(clause.token_start, index - 5), index):
+            if words[verb_index] in dative_verbs:
+                return True
+
+    return False
+
+
+def _fraud_marker_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], ...]:
+    nouns = _ES_FRAUD_NOUNS if language == "es" else _PT_FRAUD_NOUNS
+    adjectives = (
+        _ES_FRAUD_ADJECTIVES if language == "es" else _PT_FRAUD_ADJECTIVES
+    )
+    return tuple(
+        (index, index + 1)
+        for index in range(clause.token_start, clause.token_end)
+        if analysis.tokens[index].normalized in nouns | adjectives
+    )
+
+
+def _fraud_attributive_propositions(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    adjectives = (
+        _ES_FRAUD_ADJECTIVES if language == "es" else _PT_FRAUD_ADJECTIVES
+    )
+    output: list[PositiveProposition] = []
+
+    for activity_span in _activity_spans(analysis, clause):
+        if not _customer_anchored_activity(analysis, clause, activity_span, language):
+            continue
+        marker_index = activity_span[1]
+        if marker_index >= clause.token_end:
+            continue
+        marker_word = analysis.tokens[marker_index].normalized
+        if marker_word not in adjectives:
+            continue
+        activity_word = analysis.tokens[activity_span[0]].normalized
+        if not _fraud_adjective_agrees(activity_word, marker_word, language):
+            continue
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.FRAUD_CHARACTERIZATION,
+                rule="P6-attributive",
+                language=language,
+                evidence_spans=(activity_span, (marker_index, marker_index + 1)),
+                activity_span=activity_span,
+                predicate=None,
+            )
+        )
+    return output
+
+
+def _fraud_copular_propositions(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    words = [token.normalized for token in analysis.tokens]
+    copulas = _ES_COPULA if language == "es" else _PT_COPULA
+    fraud_nouns = _ES_FRAUD_NOUNS if language == "es" else _PT_FRAUD_NOUNS
+    fraud_adjectives = (
+        _ES_FRAUD_ADJECTIVES if language == "es" else _PT_FRAUD_ADJECTIVES
+    )
+    non_activity_heads = (
+        _ES_NON_ACTIVITY_FRAUD_HEADS
+        if language == "es"
+        else _PT_NON_ACTIVITY_FRAUD_HEADS
+    )
+    prepositions = (
+        _ES_PREPOSITIONAL_ACTIVITY
+        if language == "es"
+        else _PT_PREPOSITIONAL_ACTIVITY
+    )
+    output: list[PositiveProposition] = []
+
+    for copula_index in range(clause.token_start, clause.token_end):
+        token = analysis.tokens[copula_index]
+        if token.normalized not in copulas:
+            continue
+        if language == "pt" and token.normalized == "e" and not token.had_acute:
+            continue
+
+        marker_index = next(
+            (
+                index
+                for index in range(copula_index + 1, min(clause.token_end, copula_index + 7))
+                if words[index] in fraud_nouns | fraud_adjectives
+            ),
+            None,
+        )
+        if marker_index is None:
+            continue
+
+        candidate_activities = [
+            span
+            for span in _activity_spans(analysis, clause)
+            if span[0] < copula_index
+            and copula_index - span[0] <= 8
+            and _customer_anchored_activity(analysis, clause, span, language)
+        ]
+        if not candidate_activities:
+            continue
+
+        activity_span = max(candidate_activities, key=lambda span: span[0])
+        activity_index = activity_span[0]
+        if (
+            activity_index > clause.token_start
+            and words[activity_index - 1] in prepositions
+        ):
+            continue
+
+        head_between = any(
+            words[index] in non_activity_heads
+            for index in range(activity_span[1], copula_index)
+        )
+        if head_between:
+            continue
+
+        marker_word = words[marker_index]
+        if marker_word in fraud_adjectives:
+            activity_word = words[activity_index]
+            if not _fraud_adjective_agrees(activity_word, marker_word, language):
+                continue
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.FRAUD_CHARACTERIZATION,
+                rule="P6-copular",
+                language=language,
+                evidence_spans=(
+                    activity_span,
+                    (copula_index, copula_index + 1),
+                    (marker_index, marker_index + 1),
+                ),
+                activity_span=activity_span,
+                predicate=None,
+            )
+        )
+
+    return output
+
+
+def _fraud_characterizations(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    return [
+        *_fraud_attributive_propositions(analysis, clause, language),
+        *_fraud_copular_propositions(analysis, clause, language),
+    ]
+
+
 def build_positive_propositions(
     text: str,
     language: str,
@@ -2170,6 +2501,9 @@ def build_positive_propositions(
         )
         propositions.extend(
             _third_party_unauthorized_use(analysis, clause, language)
+        )
+        propositions.extend(
+            _fraud_characterizations(analysis, clause, language)
         )
 
     unique: dict[
