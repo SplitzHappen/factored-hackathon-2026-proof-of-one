@@ -736,11 +736,92 @@ def _compound_match(
 
 
 _ES_NOMINAL_DETERMINERS = frozenset(
-    {"el", "la", "los", "las", "un", "una", "unos", "unas", "este", "esta", "ese", "esa", "mi", "mis", "su", "sus"}
+    {
+        "el", "la", "los", "las", "un", "una", "unos", "unas",
+        "este", "esta", "estos", "estas", "ese", "esa", "esos", "esas",
+        "aquel", "aquella", "aquellos", "aquellas",
+        "mi", "mis", "su", "sus",
+        "del", "al", "otro", "otra", "otros", "otras",
+    }
 )
 _PT_NOMINAL_DETERMINERS = frozenset(
-    {"o", "a", "os", "as", "um", "uma", "uns", "umas", "este", "esta", "esse", "essa", "meu", "minha", "meus", "minhas", "seu", "sua"}
+    {
+        "o", "a", "os", "as", "um", "uma", "uns", "umas",
+        "este", "esta", "estes", "estas", "esse", "essa", "esses", "essas",
+        "aquele", "aquela", "aqueles", "aquelas",
+        "meu", "minha", "meus", "minhas", "seu", "sua", "seus", "suas",
+        "deste", "desta", "destes", "destas",
+        "desse", "dessa", "desses", "dessas",
+        "neste", "nesta", "nestes", "nestas",
+        "nesse", "nessa", "nesses", "nessas",
+        "outro", "outra", "outros", "outras",
+    }
 )
+_ES_NOMINAL_QUANTIFIERS = frozenset(
+    {
+        "ningun", "ninguno", "ninguna", "ningunos", "ningunas",
+        "algun", "alguno", "alguna", "algunos", "algunas",
+        "varios", "varias", "muchos", "muchas", "pocos", "pocas",
+        "cada",
+    }
+)
+_PT_NOMINAL_QUANTIFIERS = frozenset(
+    {
+        "nenhum", "nenhuma", "nenhuns", "nenhumas",
+        "algum", "alguma", "alguns", "algumas",
+        "varios", "varias", "muitos", "muitas", "poucos", "poucas",
+        "cada",
+    }
+)
+_ES_NOMINAL_NUMERALS = frozenset(
+    {"uno", "una", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez"}
+)
+_PT_NOMINAL_NUMERALS = frozenset(
+    {"um", "uma", "dois", "duas", "tres", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez"}
+)
+_ES_NOMINAL_EXISTENTIALS = frozenset(
+    {"tengo", "tenemos", "hay", "habia", "hubo", "aparecio", "aparecieron"}
+)
+_PT_NOMINAL_EXISTENTIALS = frozenset(
+    {"tenho", "temos", "ha", "havia", "houve", "apareceu", "apareceram"}
+)
+_ES_NOMINAL_ACTIVITY_ADJECTIVES = frozenset(
+    {
+        "fraudulento", "fraudulenta", "fraudulentos", "fraudulentas",
+        "autorizado", "autorizada", "autorizados", "autorizadas",
+    }
+)
+_PT_NOMINAL_ACTIVITY_ADJECTIVES = frozenset(
+    {
+        "fraudulento", "fraudulenta", "fraudulentos", "fraudulentas",
+        "autorizado", "autorizada", "autorizados", "autorizadas",
+    }
+)
+_NOMINAL_ACTIVITY_BOUNDARIES = frozenset({".", "?", "!", ";", ":", "¿", "¡"})
+
+
+def _activity_nominal_modifier_follows(
+    tokens: tuple[Token, ...],
+    index: int,
+    language: str,
+) -> bool:
+    adjectives = (
+        _ES_NOMINAL_ACTIVITY_ADJECTIVES
+        if language == "es"
+        else _PT_NOMINAL_ACTIVITY_ADJECTIVES
+    )
+    following = index + 1
+    if following >= len(tokens):
+        return False
+    if tokens[following].normalized in adjectives:
+        return True
+
+    denial = "no" if language == "es" else "nao"
+    return (
+        tokens[following].normalized == denial
+        and following + 1 < len(tokens)
+        and tokens[following + 1].normalized in adjectives
+    )
 
 
 def _looks_nominal(
@@ -757,12 +838,40 @@ def _looks_nominal(
         if language == "es"
         else _PT_NOMINAL_DETERMINERS
     )
+    quantifiers = (
+        _ES_NOMINAL_QUANTIFIERS
+        if language == "es"
+        else _PT_NOMINAL_QUANTIFIERS
+    )
+    numerals = (
+        _ES_NOMINAL_NUMERALS
+        if language == "es"
+        else _PT_NOMINAL_NUMERALS
+    )
+    existentials = (
+        _ES_NOMINAL_EXISTENTIALS
+        if language == "es"
+        else _PT_NOMINAL_EXISTENTIALS
+    )
+
     if index > 0:
         previous = tokens[index - 1]
-        if previous.normalized in determiners:
+        if previous.normalized in determiners | quantifiers | numerals | existentials:
             return True
         if previous.normalized.isdigit() or previous.is_txid:
             return True
+
+    clause_initial = (
+        index == 0
+        or tokens[index - 1].normalized in _NOMINAL_ACTIVITY_BOUNDARIES
+    )
+    if clause_initial and _activity_nominal_modifier_follows(
+        tokens,
+        index,
+        language,
+    ):
+        return True
+
     if index + 1 < len(tokens) and tokens[index + 1].is_txid:
         return True
     return False

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from app.unauthorized_grammar import (
+    LexicalTag,
+    PredicateFamily,
     PropositionFamily,
+    analyze_foundation,
     build_positive_propositions,
     dump_positive_propositions,
 )
@@ -1288,3 +1291,99 @@ def test_b2r_b1_self_exculpation_does_not_become_general_fui_parser() -> None:
 
     assert PropositionFamily.PERFORMANCE_DENIAL not in es
     assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+
+def test_b2r_b2_existential_activity_nouns_recover_authorization_denial() -> None:
+    es = _families(
+        "Tengo compras no autorizadas en mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Há compras não autorizadas no meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
+
+def test_b2r_b2_bare_clause_initial_activity_before_denied_participle_is_nominal() -> None:
+    es = _families(
+        "Compra no autorizada.",
+        "es",
+    )
+    pt = _families(
+        "Compra não autorizada.",
+        "pt",
+    )
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
+
+def test_b2r_b2_mixed_message_keeps_unauthorized_activity_positive() -> None:
+    propositions = build_positive_propositions(
+        "Tengo compras no autorizadas; ¿cómo puedo protegerme ahora?",
+        "es",
+    )
+
+    assert any(
+        item.family is PropositionFamily.AUTHORIZATION_DENIAL
+        for item in propositions
+    )
+
+
+def test_b2r_b2_quantifier_and_numeral_contexts_keep_activity_nominal() -> None:
+    es = analyze_foundation(
+        "Tengo dos pagos no autorizados.",
+        "es",
+    )
+    pt = analyze_foundation(
+        "Há muitas compras não autorizadas.",
+        "pt",
+    )
+
+    es_activity = next(
+        index
+        for index, token in enumerate(es.tokens)
+        if token.normalized == "pagos"
+    )
+    pt_activity = next(
+        index
+        for index, token in enumerate(pt.tokens)
+        if token.normalized == "compras"
+    )
+
+    assert LexicalTag.ACTIVITY in es.tags[es_activity]
+    assert LexicalTag.ACTIVITY in pt.tags[pt_activity]
+    assert not any(
+        predicate.token_start == es_activity
+        and predicate.form.family is PredicateFamily.PERFORM
+        for predicate in es.predicates
+    )
+    assert not any(
+        predicate.token_start == pt_activity
+        and predicate.form.family is PredicateFamily.PERFORM
+        for predicate in pt.predicates
+    )
+
+
+def test_b2r_b2_contracted_determiner_context_keeps_activity_nominal() -> None:
+    pt = analyze_foundation(
+        "O detalhe desta compra apareceu.",
+        "pt",
+    )
+
+    activity_index = next(
+        index
+        for index, token in enumerate(pt.tokens)
+        if token.normalized == "compra"
+    )
+
+    assert LexicalTag.ACTIVITY in pt.tags[activity_index]
+    assert not any(
+        predicate.token_start == activity_index
+        and predicate.form.family is PredicateFamily.PERFORM
+        for predicate in pt.predicates
+    )
