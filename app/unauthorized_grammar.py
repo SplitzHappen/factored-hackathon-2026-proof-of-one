@@ -1693,6 +1693,96 @@ def _make_proposition(
     )
 
 
+_ES_P1_NEG_QUANT_BRIDGES = frozenset(
+    {
+        "de", "del",
+        "el", "la", "los", "las",
+        "este", "esta", "estos", "estas",
+        "ese", "esa", "esos", "esas",
+        "aquel", "aquella", "aquellos", "aquellas",
+    }
+)
+_PT_P1_NEG_QUANT_BRIDGES = frozenset(
+    {
+        "de", "do", "da", "dos", "das",
+        "o", "a", "os", "as",
+        "deste", "desta", "destes", "destas",
+        "desse", "dessa", "desses", "dessas",
+        "daquele", "daquela", "daqueles", "daquelas",
+    }
+)
+
+
+def _p1_negative_quantifier_anchor(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    copula_index: int,
+    language: str,
+) -> int | None:
+    bridges = (
+        _ES_P1_NEG_QUANT_BRIDGES
+        if language == "es"
+        else _PT_P1_NEG_QUANT_BRIDGES
+    )
+    activity_start, activity_end = activity_span
+    if activity_end > copula_index or copula_index - activity_end > 2:
+        return None
+
+    for index in range(activity_start - 1, clause.token_start - 1, -1):
+        if activity_start - index > 4:
+            break
+        if LexicalTag.NEG_QUANTIFIER not in analysis.tags[index]:
+            continue
+        if all(
+            analysis.tokens[item].normalized in bridges
+            for item in range(index + 1, activity_start)
+        ):
+            return index
+    return None
+
+
+def _p1_correlative_negative_anchors(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    copula_index: int,
+) -> tuple[int, int] | None:
+    activity_start, activity_end = activity_span
+    markers = [
+        index
+        for index in range(clause.token_start, copula_index)
+        if LexicalTag.COORD_NEGATION in analysis.tags[index]
+    ]
+
+    for second in reversed(markers):
+        if second < activity_end or copula_index - second > 5:
+            continue
+        if any(
+            predicate.token_start > second
+            and predicate.token_start < copula_index
+            and _in_clause(predicate.token_start, predicate.token_end, clause)
+            for predicate in analysis.predicates
+        ):
+            continue
+
+        first = next(
+            (
+                index
+                for index in reversed(markers)
+                if index < activity_start
+                and activity_start - index <= 3
+            ),
+            None,
+        )
+        if first is None:
+            continue
+        if second < activity_end or second - activity_end > 1:
+            continue
+        return first, second
+    return None
+
+
 def _ownership_denials(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -1718,16 +1808,6 @@ def _ownership_denials(
         if language == "pt" and token.normalized == "e" and not token.had_acute:
             continue
 
-        neg_index = next(
-            (
-                index
-                for index in reversed(negatives)
-                if index < copula_index and copula_index - index <= 3
-            ),
-            None,
-        )
-        if neg_index is None:
-            continue
         owner_index = next(
             (
                 index
@@ -1743,16 +1823,56 @@ def _ownership_denials(
             activity_spans,
             key=lambda span: abs(span[0] - copula_index),
         )
+        neg_index = next(
+            (
+                index
+                for index in reversed(negatives)
+                if index < copula_index and copula_index - index <= 3
+            ),
+            None,
+        )
+
+        rule = "P1"
+        denial_evidence: tuple[tuple[int, int], ...]
+        if neg_index is not None:
+            denial_evidence = ((neg_index, neg_index + 1),)
+        else:
+            quantifier_index = _p1_negative_quantifier_anchor(
+                analysis,
+                clause,
+                activity_span,
+                copula_index,
+                language,
+            )
+            if quantifier_index is not None:
+                rule = "P1-neg-quantifier"
+                denial_evidence = ((quantifier_index, quantifier_index + 1),)
+            else:
+                correlative = _p1_correlative_negative_anchors(
+                    analysis,
+                    clause,
+                    activity_span,
+                    copula_index,
+                )
+                if correlative is None:
+                    continue
+                first, second = correlative
+                rule = "P1-correlative"
+                denial_evidence = (
+                    (first, first + 1),
+                    (second, second + 1),
+                )
+
         output.append(
             _make_proposition(
                 analysis,
                 clause,
                 family=PropositionFamily.OWNERSHIP_DENIAL,
-                rule="P1",
+                rule=rule,
                 language=language,
                 evidence_spans=(
                     activity_span,
-                    (neg_index, neg_index + 1),
+                    *denial_evidence,
                     (copula_index, copula_index + 1),
                     (owner_index, owner_index + 1),
                 ),
