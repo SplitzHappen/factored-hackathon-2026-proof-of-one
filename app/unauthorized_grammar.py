@@ -4627,6 +4627,11 @@ def _p7_has_activity_anaphor(
     language: str,
 ) -> tuple[int, int] | None:
     anaphors = _ES_ACTIVITY_ANAPHORS if language == "es" else _PT_ACTIVITY_ANAPHORS
+    article_anaphors = (
+        {"la", "los", "las"}
+        if language == "es"
+        else {"o", "a"}
+    )
     words = [token.normalized for token in analysis.tokens]
 
     candidates: list[int] = []
@@ -4634,8 +4639,31 @@ def _p7_has_activity_anaphor(
         max(clause.token_start, predicate.token_start - 3),
         min(clause.token_end, predicate.token_end + 4),
     ):
-        if words[index] in anaphors:
-            candidates.append(index)
+        if words[index] not in anaphors:
+            continue
+
+        if words[index] in article_anaphors and index + 1 < clause.token_end:
+            head = _closed_nominal_head_index(
+                analysis,
+                index + 1,
+                clause.token_end,
+                language,
+            )
+            if head is not None:
+                head_is_predicate = any(
+                    other.token_start == head
+                    for other in analysis.predicates
+                    if _in_clause(other.token_start, other.token_end, clause)
+                )
+                if (
+                    not head_is_predicate
+                    and analysis.tokens[head].normalized
+                    not in _NOMINAL_ACTIVITY_BOUNDARIES
+                    and LexicalTag.ACTIVITY not in analysis.tags[head]
+                ):
+                    continue
+
+        candidates.append(index)
 
     if not candidates:
         return None

@@ -2541,3 +2541,64 @@ def test_b2r_e3b_existing_relational_victim_terms_remain_blocking() -> None:
 
     assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
     assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+
+
+def test_b2r_e3c_d2_article_before_non_activity_noun_does_not_backlink_p2() -> None:
+    es = build_positive_propositions(
+        "Me apareció un cobro raro. Yo no hice la llamada.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Recebi uma cobrança estranha. Eu não fiz a mensagem.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P2-R3-activity-anaphora"
+        for item in es
+    )
+    assert not any(
+        item.rule == "P2-R3-activity-anaphora"
+        for item in pt
+    )
+
+
+def test_b2r_e3c_d2_article_before_non_activity_noun_does_not_backlink_p4() -> None:
+    es = build_positive_propositions(
+        "Me apareció un cobro raro. Yo no autoricé la llamada.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Recebi uma cobrança estranha. Eu não autorizei a mensagem.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P4-R3-activity-anaphora"
+        for item in es
+    )
+    assert not any(
+        item.rule == "P4-R3-activity-anaphora"
+        for item in pt
+    )
+
+
+def test_b2r_e3c_d2_clitic_backlinks_remain_positive() -> None:
+    es = build_positive_propositions(
+        "Me apareció un cobro raro. No la hice yo.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Recebi uma cobrança estranha. Eu não a autorizei.",
+        "pt",
+    )
+
+    assert any(
+        item.rule == "P2-R3-activity-anaphora"
+        for item in es
+    )
+    assert any(
+        item.rule == "P4-R3-activity-anaphora"
+        for item in pt
+    )
