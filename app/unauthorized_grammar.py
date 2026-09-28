@@ -1048,18 +1048,22 @@ _PT_THIRD = frozenset({"alguem", "terceiro", "terceira", "pessoa"})
 _ES_RELATIONAL_NOUNS = frozenset(
     {
         "hermano", "hermana", "madre", "padre", "mama", "papa",
-        "hijo", "hija", "esposo", "esposa", "pareja",
-        "amigo", "amiga", "vecino", "vecina",
-        "empleado", "empleada", "primo", "prima", "tio", "tia",
-        "abuelo", "abuela",
+        "hijo", "hija", "esposo", "esposa", "marido", "pareja",
+        "novio", "novia", "amigo", "amiga", "companero", "companera",
+        "vecino", "vecina", "empleado", "empleada",
+        "primo", "prima", "sobrino", "sobrina", "tio", "tia",
+        "nieto", "nieta", "cunado", "cunada", "abuelo", "abuela",
     }
 )
 _PT_RELATIONAL_NOUNS = frozenset(
     {
         "irmao", "irma", "mae", "pai",
-        "filho", "filha", "marido", "esposa", "parceiro", "parceira",
-        "amigo", "amiga", "vizinho", "vizinha",
-        "funcionario", "funcionaria", "primo", "prima", "tio", "tia", "avo",
+        "filho", "filha", "marido", "esposa", "esposo",
+        "parceiro", "parceira", "namorado", "namorada",
+        "amigo", "amiga", "companheiro", "companheira", "colega",
+        "vizinho", "vizinha", "funcionario", "funcionaria",
+        "primo", "prima", "sobrinho", "sobrinha", "tio", "tia",
+        "neto", "neta", "cunhado", "cunhada", "avo",
     }
 )
 
