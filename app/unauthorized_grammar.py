@@ -2568,6 +2568,9 @@ def _same_clause_permission_denial_backlink(
         and _source_accent_selects_predicate(analysis, predicate)
     ]
     for action in reversed(candidates):
+        if not _third_party_action_allowed(action):
+            continue
+
         boundary_present = any(
             analysis.tokens[index].normalized in {",", connector}
             for index in range(action.token_end, authorization.token_start)
@@ -3201,32 +3204,35 @@ def _third_party_unauthorized_use(
         permission_span: tuple[int, int] | None = None
         actor_kind: str | None = None
 
-        preceding_unknown = tuple(
-            span for span in unknown_actors if span[0] < predicate.token_start
-        )
-        if preceding_unknown:
-            actor_span = min(
-                preceding_unknown,
-                key=lambda span: predicate.token_start - span[0],
+        actor_candidates = [
+            ("unknown", span)
+            for span in unknown_actors
+            if span[0] < predicate.token_start
+        ] + [
+            ("known", span)
+            for span in known_actors
+            if span[0] < predicate.token_start
+        ]
+
+        if actor_candidates:
+            nearest_kind, nearest_span = max(
+                actor_candidates,
+                key=lambda item: item[1][0],
             )
-            actor_kind = "unknown"
-        else:
-            preceding_known = tuple(
-                span for span in known_actors if span[0] < predicate.token_start
-            )
-            local_permission = _permission_absence_for_predicate(
-                analysis,
-                clause,
-                predicate,
-                absence_spans,
-            )
-            if preceding_known and local_permission is not None:
-                actor_span = min(
-                    preceding_known,
-                    key=lambda span: predicate.token_start - span[0],
+            if nearest_kind == "unknown":
+                actor_span = nearest_span
+                actor_kind = "unknown"
+            else:
+                local_permission = _permission_absence_for_predicate(
+                    analysis,
+                    clause,
+                    predicate,
+                    absence_spans,
                 )
-                permission_span = local_permission
-                actor_kind = "known"
+                if local_permission is not None:
+                    actor_span = nearest_span
+                    permission_span = local_permission
+                    actor_kind = "known"
 
         if actor_span is None or actor_kind is None:
             continue
