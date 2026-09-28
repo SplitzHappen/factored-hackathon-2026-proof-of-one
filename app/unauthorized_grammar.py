@@ -4038,37 +4038,88 @@ def _self_predicate_governs_activity(
 
         return object_start == predicate.token_end
 
-    # Relative-clause head: activity + ... + que + SELF + predicate.
-    if activity_span[1] <= predicate.token_start:
-        between_indices = range(activity_span[1], predicate.token_start)
-        if any(words[index] in barriers | {coordinator} for index in between_indices):
-            return False
+    if activity_span[1] > predicate.token_start:
+        return False
 
-        relative_marker = "que"
-        if any(words[index] == relative_marker for index in between_indices):
-            if any(
-                LexicalTag.ACTIVITY in analysis.tags[index]
-                for index in between_indices
-            ):
-                return False
-            return True
+    between_start = activity_span[1]
+    between_end = predicate.token_start
+    if any(
+        words[index] in barriers | {coordinator}
+        for index in range(between_start, between_end)
+    ):
+        return False
 
-        # Same-segment resumptive clitic: activity ... lo/la/o/a ... predicate.
-        clitics = (
-            {"lo", "la", "los", "las"}
-            if language == "es"
-            else {"o", "a", "os", "as"}
+    intervening_predicate = any(
+        other.token_start >= between_start
+        and other.token_start < predicate.token_start
+        and not (
+            other.token_start == predicate.token_start
+            and other.token_end == predicate.token_end
         )
-        if any(words[index] in clitics for index in between_indices):
-            if any(
-                LexicalTag.ACTIVITY in analysis.tags[index]
-                for index in between_indices
+        for other in analysis.predicates
+        if _in_clause(other.token_start, other.token_end, clause)
+    )
+    if intervening_predicate:
+        return False
+
+    clitics = (
+        {"lo", "la", "los", "las"}
+        if language == "es"
+        else {"o", "a", "os", "as"}
+    )
+    subject_words = (
+        {"yo", "nosotros", "nosotras"}
+        if language == "es"
+        else {"eu", "nos"}
+    )
+    emphatics = (
+        {"mismo", "misma", "mismos", "mismas"}
+        if language == "es"
+        else {"mesmo", "mesma", "mesmos", "mesmas"}
+    )
+
+    # Relative-clause head: activity NP + que + bounded SELF/clitic material + predicate.
+    relative_index = activity_span[1]
+    if relative_index < predicate.token_start:
+        activity_word = words[activity_index]
+        fraud_adjectives = (
+            _ES_FRAUD_ADJECTIVES
+            if language == "es"
+            else _PT_FRAUD_ADJECTIVES
+        )
+        if (
+            words[relative_index] in fraud_adjectives
+            and _fraud_adjective_agrees(
+                activity_word,
+                words[relative_index],
+                language,
+            )
+        ):
+            relative_index += 1
+        elif analysis.tokens[relative_index].is_txid:
+            relative_index += 1
+
+        if (
+            relative_index < predicate.token_start
+            and words[relative_index] == "que"
+        ):
+            relative_material = words[
+                relative_index + 1 : predicate.token_start
+            ]
+            if all(
+                word in subject_words | emphatics | clitics
+                for word in relative_material
             ):
-                return False
+                return True
+
+    # Same-segment resumptive clitic: activity + [SELF/emphasis] + clitic + predicate.
+    resumptive_material = words[activity_span[1] : predicate.token_start]
+    if resumptive_material and resumptive_material[-1] in clitics:
+        prefix = resumptive_material[:-1]
+        if all(word in subject_words | emphatics for word in prefix):
             return True
 
     return False
-
 
 def _affirmative_self_fraud_counter_evidence(
     analysis: FoundationAnalysis,
