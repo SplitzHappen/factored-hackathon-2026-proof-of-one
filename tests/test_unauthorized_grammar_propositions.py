@@ -2974,3 +2974,30 @@ def test_b2r_g4_unknown_actor_survives_known_actor_inside_relative_modifier() ->
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
 
+def test_b2r_g5a_later_known_subject_outside_relative_regains_precedence() -> None:
+    es = _families(
+        "Alguien que llamó dijo que mi hijo usó mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Alguém que ligou disse que meu irmão usou meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
+
+
+def test_b2r_g5a_complementizer_que_does_not_embed_later_known_actor() -> None:
+    es = _families(
+        "Le conté a alguien que mi hijo usó mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Contei para alguém que meu filho usou meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
+
