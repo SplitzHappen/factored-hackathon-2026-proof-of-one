@@ -3390,13 +3390,6 @@ def _p5_known_actor_embedded_under_prior_unknown(
     prior_unknown = max(prior_unknowns, key=lambda span: span[1])
     words = [token.normalized for token in analysis.tokens]
 
-    if (
-        prior_unknown[1] < clause.token_end
-        and words[prior_unknown[1]] == "que"
-        and prior_unknown[1] < known_actor[0]
-    ):
-        return True
-
     introducers = (
         {"de", "del", "a", "al"}
         if language == "es"
@@ -3407,6 +3400,45 @@ def _p5_known_actor_embedded_under_prior_unknown(
         if language == "es"
         else {"meu", "minha", "meus", "minhas"}
     )
+    relative_bridge_words = (
+        {"me", "te", "se", "lo", "la", "los", "las", "le", "les"}
+        if language == "es"
+        else {"me", "te", "se", "o", "a", "os", "as", "lhe", "lhes"}
+    ) | introducers | bridge_words
+
+    if (
+        prior_unknown[1] < clause.token_end
+        and words[prior_unknown[1]] == "que"
+        and prior_unknown[1] < known_actor[0]
+    ):
+        relative_start = prior_unknown[1] + 1
+        finite_spans = tuple(
+            sorted(
+                {
+                    (predicate.token_start, predicate.token_end)
+                    for predicate in analysis.predicates
+                    if _in_clause(predicate.token_start, predicate.token_end, clause)
+                    and predicate.form.person is not None
+                    and predicate.token_start >= relative_start
+                    and predicate.token_end <= known_actor[0]
+                }
+            )
+        )
+        if len(finite_spans) == 1:
+            predicate_span = finite_spans[0]
+            bridge_indexes = tuple(
+                index
+                for index in range(relative_start, known_actor[0])
+                if not (
+                    predicate_span[0] <= index < predicate_span[1]
+                )
+            )
+            if all(
+                words[index] in relative_bridge_words
+                for index in bridge_indexes
+            ):
+                return True
+
 
     left = known_actor[0] - 1
     while left >= max(prior_unknown[1], known_actor[0] - 3):
