@@ -3379,6 +3379,13 @@ _PT_EXCEEDED_AMOUNT_MARKERS = (
     ("mais", "do", "que"),
     ("alem", "do", "que"),
 )
+_ES_EXCEEDED_PARTICIPIAL_PREFIXES = (
+    ("mas", "de", "lo"),
+)
+_PT_EXCEEDED_PARTICIPIAL_PREFIXES = (
+    ("mais", "do", "que", "o"),
+    ("alem", "do"),
+)
 _ES_GRANT_DATIVE_WORDS = frozenset({"le", "les"})
 _PT_GRANT_DATIVE_WORDS = frozenset({"lhe", "lhes"})
 
@@ -3442,6 +3449,49 @@ def _first_person_authorization_after_marker(
     return min(candidates, key=lambda predicate: predicate.token_start)
 
 
+def _is_exceeded_authorization_participle(
+    word: str,
+    language: str,
+) -> bool:
+    if any(
+        form.family is PredicateFamily.AUTHORIZE
+        and form.tense_aspect == "participle"
+        for form in PARADIGMS[language].get(word, ())
+    ):
+        return True
+
+    # F-20 audit evidence uses the idiomatic PT ceiling "além do combinado".
+    return language == "pt" and word == "combinado"
+
+
+def _participial_exceeded_amount_candidates(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[tuple[int, int], tuple[int, int]], ...]:
+    prefixes = (
+        _ES_EXCEEDED_PARTICIPIAL_PREFIXES
+        if language == "es"
+        else _PT_EXCEEDED_PARTICIPIAL_PREFIXES
+    )
+    output: list[tuple[tuple[int, int], tuple[int, int]]] = []
+
+    for marker_span in _phrase_spans(analysis, clause, prefixes):
+        participle_index = marker_span[1]
+        if participle_index >= clause.token_end:
+            continue
+        if not _is_exceeded_authorization_participle(
+            analysis.tokens[participle_index].normalized,
+            language,
+        ):
+            continue
+        output.append(
+            (marker_span, (participle_index, participle_index + 1))
+        )
+
+    return tuple(output)
+
+
 def _exceeded_amount_authorization(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -3452,12 +3502,11 @@ def _exceeded_amount_authorization(
         if language == "es"
         else _PT_EXCEEDED_AMOUNT_MARKERS
     )
-    marker_spans = _phrase_spans(analysis, clause, markers)
-    if not marker_spans:
-        return []
+    candidates: list[
+        tuple[tuple[int, int], tuple[int, int]]
+    ] = []
 
-    output: list[PositiveProposition] = []
-    for marker_span in marker_spans:
+    for marker_span in _phrase_spans(analysis, clause, markers):
         authorization = _first_person_authorization_after_marker(
             analysis,
             clause,
@@ -3465,7 +3514,25 @@ def _exceeded_amount_authorization(
         )
         if authorization is None:
             continue
+        candidates.append(
+            (
+                marker_span,
+                (authorization.token_start, authorization.token_end),
+            )
+        )
 
+    candidates.extend(
+        _participial_exceeded_amount_candidates(
+            analysis,
+            clause,
+            language,
+        )
+    )
+    if not candidates:
+        return []
+
+    output: list[PositiveProposition] = []
+    for marker_span, authorization_span in candidates:
         actions = tuple(
             predicate
             for predicate in analysis.predicates
@@ -3507,7 +3574,7 @@ def _exceeded_amount_authorization(
                     actor_span,
                     marker_span,
                     (action.token_start, action.token_end),
-                    (authorization.token_start, authorization.token_end),
+                    authorization_span,
                 ),
                 activity_span=activity_span,
                 predicate=action,
