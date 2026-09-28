@@ -871,6 +871,24 @@ _PT_SELF = frozenset({"eu", "me", "mim", "meu", "minha", "meus", "minhas", "nos"
 _ES_THIRD = frozenset({"alguien", "tercero", "tercera", "persona"})
 _PT_THIRD = frozenset({"alguem", "terceiro", "terceira", "pessoa"})
 
+_ES_RELATIONAL_NOUNS = frozenset(
+    {
+        "hermano", "hermana", "madre", "padre", "mama", "papa",
+        "hijo", "hija", "esposo", "esposa", "pareja",
+        "amigo", "amiga", "vecino", "vecina",
+        "empleado", "empleada", "primo", "prima", "tio", "tia",
+        "abuelo", "abuela",
+    }
+)
+_PT_RELATIONAL_NOUNS = frozenset(
+    {
+        "irmao", "irma", "mae", "pai",
+        "filho", "filha", "marido", "esposa", "parceiro", "parceira",
+        "amigo", "amiga", "vizinho", "vizinha",
+        "funcionario", "funcionaria", "primo", "prima", "tio", "tia", "avo",
+    }
+)
+
 _ES_NEG_QUANT = frozenset({"nadie", "ninguno", "ninguna", "ningunos", "ningunas"})
 _PT_NEG_QUANT = frozenset({"ninguem", "nenhum", "nenhuma", "nenhuns", "nenhumas"})
 
@@ -1032,6 +1050,35 @@ def tag_tokens(
     return tuple(tags)
 
 
+def _spanish_mi_pair_allows_self_role(
+    tokens: tuple[Token, ...],
+    mi_index: int,
+) -> bool:
+    """Distinguish accented pronoun mí from possessive mi before a noun."""
+
+    token = tokens[mi_index]
+    if token.normalized != "mi":
+        return True
+    if token.had_acute:
+        return True
+    if mi_index + 1 >= len(tokens):
+        return True
+
+    following = tokens[mi_index + 1].normalized
+    if following == "parte":
+        return True
+
+    nominal_heads = (
+        _ES_ACTIVITY
+        | _ES_INSTRUMENT
+        | _ES_RELATIONAL_NOUNS
+        | _ES_AUTH_NOUN
+        | _ES_DESCRIPTOR
+        | _ES_SECURITY
+    )
+    return following not in nominal_heads
+
+
 def find_self_evidence(
     tokens: Iterable[Token],
     predicates: Iterable[PredicateMatch],
@@ -1082,9 +1129,15 @@ def find_self_evidence(
             pair = (word, words[index + 1])
             if pair in agent_pairs:
                 evidence.append(SelfEvidence(SelfRole.AGENT, index, index + 2))
-            if pair in source_pairs:
+            if pair in source_pairs and (
+                language != "es"
+                or _spanish_mi_pair_allows_self_role(token_tuple, index + 1)
+            ):
                 evidence.append(SelfEvidence(SelfRole.SOURCE, index, index + 2))
-            if pair in dative_pairs:
+            if pair in dative_pairs and (
+                language != "es"
+                or _spanish_mi_pair_allows_self_role(token_tuple, index + 1)
+            ):
                 evidence.append(SelfEvidence(SelfRole.DATIVE, index, index + 2))
 
         if index + 2 < len(words):
@@ -1848,6 +1901,14 @@ def _denial_reference_allowed(
     language: str,
 ) -> bool:
     form = predicate.form
+
+    if (
+        predicate.accent_ambiguous
+        and predicate.token_end - predicate.token_start == 1
+        and not analysis.tokens[predicate.token_start].had_acute
+        and analysis.tokens[predicate.token_start].normalized in {"de", "da"}
+    ):
+        return False
 
     if predicate.accent_ambiguous and form.person == 1:
         if not _explicit_self_subject_binds(analysis, clause, predicate):
@@ -2637,6 +2698,42 @@ def _fraud_adjective_agrees(activity_word: str, fraud_word: str, language: str) 
     return fraud_word == expected
 
 
+def _third_person_relational_phrase_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], ...]:
+    words = [token.normalized for token in analysis.tokens]
+    relational_nouns = (
+        _ES_RELATIONAL_NOUNS
+        if language == "es"
+        else _PT_RELATIONAL_NOUNS
+    )
+    if language == "es":
+        prepositions = {"de", "del", "a", "para"}
+        possessives = {"mi", "mis", "su", "sus"}
+    else:
+        prepositions = {"de", "do", "da", "dos", "das", "a", "ao", "aos", "para", "pra"}
+        possessives = {"meu", "minha", "meus", "minhas", "seu", "sua", "seus", "suas"}
+
+    spans: list[tuple[int, int]] = []
+    for index in range(clause.token_start, clause.token_end - 2):
+        if words[index] not in prepositions:
+            continue
+        if words[index + 1] not in possessives:
+            continue
+        if (
+            language == "es"
+            and words[index + 1] == "mi"
+            and analysis.tokens[index + 1].had_acute
+        ):
+            continue
+        if words[index + 2] not in relational_nouns:
+            continue
+        spans.append((index, index + 3))
+    return tuple(spans)
+
+
 def _explicit_third_person_activity_possession(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -2669,6 +2766,17 @@ def _explicit_third_person_activity_possession(
             return True
         if language == "pt" and words[start] in {"dela", "dele", "delas", "deles"}:
             return True
+
+    if any(
+        min(abs(span[0] - index), abs(span[1] - index)) <= 8
+        for span in _third_person_relational_phrase_spans(
+            analysis,
+            clause,
+            language,
+        )
+    ):
+        return True
+
     return False
 
 
@@ -3483,7 +3591,20 @@ def _self_dative_near_span(
     preceding = tuple(
         item
         for item in datives
-        if item[1] <= span[0] and span[0] - item[1] <= max_before_gap
+        if item[1] <= span[0]
+        and span[0] - item[1] <= max_before_gap
+        and not any(
+            predicate.token_start >= item[1]
+            and predicate.token_end <= span[0]
+            and predicate.form.person is not None
+            and not predicate.accent_ambiguous
+            for predicate in analysis.predicates
+            if _in_clause(predicate.token_start, predicate.token_end, clause)
+        )
+        and not any(
+            analysis.tokens[index].normalized == "que"
+            for index in range(item[1], span[0])
+        )
     )
     if not preceding:
         return None
