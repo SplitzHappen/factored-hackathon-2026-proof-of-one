@@ -1879,3 +1879,59 @@ def test_b2r_b9_instrument_locative_requires_customer_possession() -> None:
 
     assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
     assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+
+
+def test_b2r_b10_unaccented_pt_copula_supports_p1_ownership_denial() -> None:
+    propositions = build_positive_propositions(
+        "Este debito nao e meu.",
+        "pt",
+    )
+
+    assert PropositionFamily.OWNERSHIP_DENIAL in {
+        item.family for item in propositions
+    }
+
+
+def test_b2r_b10_unaccented_pt_copula_supports_p6_fraud_noun() -> None:
+    propositions = build_positive_propositions(
+        "Este Pix e um golpe.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in {
+        item.family for item in propositions
+    }
+
+
+def test_b2r_b10_unaccented_pt_copula_supports_p6_fraud_adjective() -> None:
+    propositions = build_positive_propositions(
+        "Este debito e fraudulento.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in {
+        item.family for item in propositions
+    }
+
+
+def test_b2r_b10_unaccented_pt_e_conjunction_does_not_create_p1() -> None:
+    propositions = build_positive_propositions(
+        "Este debito nao apareceu e meu cartao foi bloqueado.",
+        "pt",
+    )
+
+    assert PropositionFamily.OWNERSHIP_DENIAL not in {
+        item.family for item in propositions
+    }
+
+
+def test_b2r_b10_unaccented_pt_e_conjunction_does_not_create_p6() -> None:
+    propositions = build_positive_propositions(
+        "Este Pix saiu e um golpe foi reportado.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in {
+        item.family for item in propositions
+    }

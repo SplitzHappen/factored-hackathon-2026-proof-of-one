@@ -1805,8 +1805,6 @@ def _ownership_denials(
         token = analysis.tokens[copula_index]
         if token.normalized not in copulas:
             continue
-        if language == "pt" and token.normalized == "e" and not token.had_acute:
-            continue
 
         owner_index = next(
             (
@@ -1823,6 +1821,38 @@ def _ownership_denials(
             activity_spans,
             key=lambda span: abs(span[0] - copula_index),
         )
+
+        if language == "pt" and token.normalized == "e" and not token.had_acute:
+            left_activity_spans = [
+                span for span in activity_spans if span[1] <= copula_index
+            ]
+            if not left_activity_spans:
+                continue
+            activity_span = min(
+                left_activity_spans,
+                key=lambda span: copula_index - span[1],
+            )
+            immediately_owned = owner_index == copula_index + 1
+            ownership_copula = (
+                immediately_owned
+                and activity_span[1] == copula_index
+            )
+            immediately_negated = (
+                copula_index > clause.token_start
+                and analysis.tokens[copula_index - 1].normalized
+                in _PT_DENIAL_WORDS
+            )
+            intervening_predicate = any(
+                predicate.token_start >= activity_span[1]
+                and predicate.token_end <= copula_index
+                for predicate in analysis.predicates
+                if _in_clause(predicate.token_start, predicate.token_end, clause)
+            )
+            if (
+                intervening_predicate
+                or not (ownership_copula or immediately_negated)
+            ):
+                continue
         neg_index = next(
             (
                 index
@@ -3803,8 +3833,6 @@ def _fraud_copular_propositions(
         token = analysis.tokens[copula_index]
         if token.normalized not in copulas:
             continue
-        if language == "pt" and token.normalized == "e" and not token.had_acute:
-            continue
         if _span_has_bound_denial(
             analysis,
             clause,
@@ -3842,6 +3870,28 @@ def _fraud_copular_propositions(
             and words[activity_index - 1] in prepositions
         ):
             continue
+
+        if language == "pt" and token.normalized == "e" and not token.had_acute:
+            immediate_fraud_adjective = (
+                marker_index == copula_index + 1
+                and words[marker_index] in fraud_adjectives
+            )
+            article_fraud_noun = (
+                marker_index == copula_index + 2
+                and words[copula_index + 1] in {"um", "uma"}
+                and words[marker_index] in fraud_nouns
+            )
+            intervening_predicate = any(
+                predicate.token_start >= activity_span[1]
+                and predicate.token_end <= copula_index
+                for predicate in analysis.predicates
+                if _in_clause(predicate.token_start, predicate.token_end, clause)
+            )
+            if (
+                intervening_predicate
+                or not (immediate_fraud_adjective or article_fraud_noun)
+            ):
+                continue
 
         head_between = any(
             words[index] in non_activity_heads
