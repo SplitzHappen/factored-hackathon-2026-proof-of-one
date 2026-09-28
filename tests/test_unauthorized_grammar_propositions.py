@@ -2889,3 +2889,47 @@ def test_b2r_g2_p1_coordinator_remains_barrier_for_clause_transition() -> None:
     assert PropositionFamily.OWNERSHIP_DENIAL not in es
     assert PropositionFamily.OWNERSHIP_DENIAL not in pt
 
+def test_b2r_g3_prior_clause_d3_rejects_first_person_actions() -> None:
+    es_use = build_positive_propositions(
+        "Usé mi tarjeta con mi hermano. No le di permiso.",
+        "es",
+    )
+    es_perform = build_positive_propositions(
+        "Hice esta compra con mi hermano. No le di permiso.",
+        "es",
+    )
+    pt_use = build_positive_propositions(
+        "Usei meu cartão com meu irmão. Não lhe dei permissão.",
+        "pt",
+    )
+    pt_perform = build_positive_propositions(
+        "Fiz esta compra com meu irmão. Não lhe dei permissão.",
+        "pt",
+    )
+
+    for propositions in (es_use, es_perform, pt_use, pt_perform):
+        assert not any(
+            item.rule == "P4-R3-permission-backlink"
+            for item in propositions
+        )
+
+
+def test_b2r_g3_prior_clause_d3_preserves_third_person_backlink() -> None:
+    es = build_positive_propositions(
+        "Mi hermano usó mi tarjeta. No le di permiso.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Meu irmão usou meu cartão. Não lhe dei permissão.",
+        "pt",
+    )
+
+    assert any(
+        item.rule == "P4-R3-permission-backlink"
+        for item in es
+    )
+    assert any(
+        item.rule == "P4-R3-permission-backlink"
+        for item in pt
+    )
+
