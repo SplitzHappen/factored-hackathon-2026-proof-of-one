@@ -1823,6 +1823,15 @@ def _ownership_denials(
         )
 
         if language == "pt" and token.normalized == "e" and not token.had_acute:
+            left_activity_spans = [
+                span for span in activity_spans if span[1] <= copula_index
+            ]
+            if not left_activity_spans:
+                continue
+            activity_span = min(
+                left_activity_spans,
+                key=lambda span: copula_index - span[1],
+            )
             immediately_owned = owner_index == copula_index + 1
             immediately_negated = (
                 copula_index > clause.token_start
