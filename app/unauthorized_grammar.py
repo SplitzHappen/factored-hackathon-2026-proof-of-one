@@ -2257,13 +2257,32 @@ _ES_KNOWN_ACTORS = frozenset(
         "hermana",
         "esposo",
         "esposa",
+        "marido",
         "pareja",
+        "novio",
+        "novia",
         "amigo",
         "amiga",
-        "hijo",
-        "hija",
+        "companero",
+        "companera",
         "empleado",
         "empleada",
+        "padre",
+        "madre",
+        "papa",
+        "mama",
+        "hijo",
+        "hija",
+        "primo",
+        "prima",
+        "sobrino",
+        "sobrina",
+        "tio",
+        "tia",
+        "nieto",
+        "nieta",
+        "cunado",
+        "cunada",
     }
 )
 _PT_KNOWN_ACTORS = frozenset(
@@ -2272,14 +2291,32 @@ _PT_KNOWN_ACTORS = frozenset(
         "irma",
         "marido",
         "esposa",
+        "esposo",
         "parceiro",
         "parceira",
+        "namorado",
+        "namorada",
         "amigo",
         "amiga",
-        "filho",
-        "filha",
+        "companheiro",
+        "companheira",
+        "colega",
         "funcionario",
         "funcionaria",
+        "pai",
+        "mae",
+        "filho",
+        "filha",
+        "primo",
+        "prima",
+        "sobrinho",
+        "sobrinha",
+        "tio",
+        "tia",
+        "neto",
+        "neta",
+        "cunhado",
+        "cunhada",
     }
 )
 
@@ -2330,11 +2367,99 @@ def _known_actor_spans(
     )
 
 
+def _same_clause_permission_denial_backlink(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+    authorization: PredicateMatch,
+) -> tuple[ClauseSegment, tuple[int, int], tuple[int, int] | None, PredicateMatch] | None:
+    words = [token.normalized for token in analysis.tokens]
+    connector = "y" if language == "es" else "e"
+    actor_spans = _known_actor_spans(analysis, clause, language)
+    if not actor_spans:
+        return None
+
+    customer_instruments = tuple(
+        item
+        for item in _customer_instrument_spans(analysis, clause)
+        if item[0][0] < authorization.token_start
+    )
+
+    candidates = [
+        predicate
+        for predicate in analysis.predicates
+        if _in_clause(predicate.token_start, predicate.token_end, clause)
+        and predicate.token_end <= authorization.token_start
+        and predicate.form.family in {
+            PredicateFamily.PERFORM,
+            PredicateFamily.USE_ACCESS,
+        }
+        and _source_accent_selects_predicate(analysis, predicate)
+    ]
+    for action in reversed(candidates):
+        boundary_present = any(
+            analysis.tokens[index].normalized in {",", connector}
+            for index in range(action.token_end, authorization.token_start)
+        )
+        if not boundary_present:
+            continue
+
+        intervening_finite = any(
+            predicate.form.person is not None
+            and predicate.token_start >= action.token_end
+            and predicate.token_end <= authorization.token_start
+            and not (
+                predicate.token_start == action.token_start
+                and predicate.token_end == action.token_end
+            )
+            for predicate in analysis.predicates
+            if _in_clause(predicate.token_start, predicate.token_end, clause)
+        )
+        if intervening_finite:
+            continue
+
+        preceding_actors = tuple(
+            span for span in actor_spans if span[0] < action.token_start
+        )
+        if not preceding_actors:
+            continue
+        actor_span = min(
+            preceding_actors,
+            key=lambda span: action.token_start - span[0],
+        )
+
+        activity_span = _nearest_activity_span(analysis, clause, action)
+        if (
+            action.form.family is PredicateFamily.PERFORM
+            and activity_span is not None
+            and activity_span[0] < authorization.token_start
+        ):
+            return clause, actor_span, activity_span, action
+
+        if (
+            action.form.family is PredicateFamily.USE_ACCESS
+            and customer_instruments
+        ):
+            return clause, actor_span, activity_span, action
+
+    return None
+
+
 def _permission_denial_backlink(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     language: str,
+    authorization: PredicateMatch,
 ) -> tuple[ClauseSegment, tuple[int, int], tuple[int, int] | None, PredicateMatch] | None:
+    same_clause = _same_clause_permission_denial_backlink(
+        analysis,
+        clause,
+        language,
+        authorization,
+    )
+    if same_clause is not None:
+        return same_clause
+
     if clause.index <= 0:
         return None
 
@@ -2443,7 +2568,12 @@ def _authorization_denials(
             predicate.form.family is PredicateFamily.GIVE_PERMISSION
             and activity_span is None
         ):
-            backlink = _permission_denial_backlink(analysis, clause, language)
+            backlink = _permission_denial_backlink(
+                analysis,
+                clause,
+                language,
+                predicate,
+            )
             if backlink is None:
                 continue
             _, actor_span, prior_activity, prior_predicate = backlink
