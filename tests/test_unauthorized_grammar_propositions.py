@@ -1023,3 +1023,98 @@ def test_b2r_a4_third_party_exceedance_controls_remain_positive() -> None:
         proposition.rule == "P5-exceeded-authorization-amount"
         for proposition in pt
     )
+
+
+
+def test_b2r_a5_spanish_possessive_mi_is_not_self_source() -> None:
+    possessive = _families(
+        "La transferencia no salió de mi cuenta.",
+        "es",
+    )
+    pronoun = _families(
+        "La transferencia no salió de mí.",
+        "es",
+    )
+
+    assert PropositionFamily.ORIGINATION_DENIAL not in possessive
+    assert PropositionFamily.ORIGINATION_DENIAL in pronoun
+
+
+def test_b2r_a5_third_person_relational_victim_blocks_p6() -> None:
+    es = _families(
+        "El cargo fraudulento de mi vecino salió en las noticias.",
+        "es",
+    )
+    pt = _families(
+        "A cobrança fraudulenta do meu pai foi estornada.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+
+def test_b2r_a5_third_person_dative_victim_blocks_p6_and_p8() -> None:
+    es_p6 = _families(
+        "La compra fraudulenta que le hicieron a mi mamá me preocupa.",
+        "es",
+    )
+    es_p8 = _families(
+        "A mi hermano le clonaron la tarjeta.",
+        "es",
+    )
+    pt_p8 = _families(
+        "Ao meu irmão clonaram o cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es_p6
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in es_p8
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in pt_p8
+
+
+def test_b2r_a5_p8_dative_does_not_cross_reporting_frame() -> None:
+    es = _families(
+        "Me dijeron que clonaron la tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Me disseram que clonaram o cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in es
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY not in pt
+
+
+def test_b2r_a5_customer_controls_remain_positive() -> None:
+    es_p6 = _families(
+        "Este cargo fraudulento apareció hoy.",
+        "es",
+    )
+    es_p8 = _families(
+        "A mí me clonaron la tarjeta.",
+        "es",
+    )
+    pt_p8 = _families(
+        "Clonaram meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in es_p6
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in es_p8
+    assert PropositionFamily.COMPROMISE_LINKED_ACTIVITY in pt_p8
+
+
+def test_b2r_a5_unaccented_de_da_are_not_permission_predicates() -> None:
+    es = _families(
+        "Yo no encuentro el número de autorización de esta compra.",
+        "es",
+    )
+    pt = _families(
+        "Eu não encontro o número da autorização desta compra.",
+        "pt",
+    )
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in pt
