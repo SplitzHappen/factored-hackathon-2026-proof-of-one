@@ -2756,3 +2756,104 @@ def test_b2r_e4_frozen_public_positive_inventory_yields_unresolved_proposition()
             item.mode == "unresolved"
             for item in propositions
         ), message
+
+
+
+def test_b2r_g1_f12_relative_head_keeps_same_referent_atom() -> None:
+    es = build_positive_propositions(
+        "La transferencia que yo mismo hice fue un fraude.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "O Pix que eu fiz foi um golpe.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert EvidenceAtomKind.SELF_PERFORMED in {
+        atom.kind for atom in es_p6.counter_evidence
+    }
+    assert EvidenceAtomKind.SELF_PERFORMED in {
+        atom.kind for atom in pt_p6.counter_evidence
+    }
+
+
+def test_b2r_g1_f12_resumptive_clitic_keeps_same_referent_atom() -> None:
+    es = build_positive_propositions(
+        "Esta compra la hice yo y fue un fraude.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Esta transferência eu a fiz e foi golpe.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert EvidenceAtomKind.SELF_PERFORMED in {
+        atom.kind for atom in es_p6.counter_evidence
+    }
+    assert EvidenceAtomKind.SELF_PERFORMED in {
+        atom.kind for atom in pt_p6.counter_evidence
+    }
+
+
+def test_b2r_g1_f12_subordinate_or_finite_barrier_blocks_unrelated_atom() -> None:
+    es = build_positive_propositions(
+        "El cargo fraudulento salió después de que pagué la luz.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Essa cobrança fraudulenta apareceu logo depois que eu fiz um Pix para minha mãe.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert not es_p6.counter_evidence
+    assert not pt_p6.counter_evidence
+
+
+def test_b2r_g1_f12_article_or_preposition_is_not_resumptive_clitic() -> None:
+    es = build_positive_propositions(
+        "Este cargo fraudulento apareció en la app cuando pagué el gimnasio.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Essa cobrança fraudulenta chegou a mim quando eu paguei o aluguel.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert not es_p6.counter_evidence
+    assert not pt_p6.counter_evidence
