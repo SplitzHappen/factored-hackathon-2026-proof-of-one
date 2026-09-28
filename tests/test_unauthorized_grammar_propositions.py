@@ -2933,3 +2933,44 @@ def test_b2r_g3_prior_clause_d3_preserves_third_person_backlink() -> None:
         for item in pt
     )
 
+def test_b2r_g4_pt_terminal_nao_does_not_cross_new_coordinated_subject() -> None:
+    performance = _families(
+        "Eu a fiz e ela não.",
+        "pt",
+    )
+    authorization = _families(
+        "Eu o autorizei e ele não.",
+        "pt",
+    )
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in performance
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in authorization
+
+
+def test_b2r_g4_unknown_actor_survives_embedded_known_actor_modifier() -> None:
+    es = _families(
+        "Alguien del trabajo de mi esposa usó mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Alguém da família do meu marido usou meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
+
+
+def test_b2r_g4_unknown_actor_survives_known_actor_inside_relative_modifier() -> None:
+    es = _families(
+        "Alguien que conoce a mi hijo usó mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Alguém que conhece meu filho usou meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
+
