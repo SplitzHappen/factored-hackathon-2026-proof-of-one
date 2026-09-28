@@ -3093,3 +3093,49 @@ def test_b2r_g5c_p6_preserves_valid_que_relative_activity_head() -> None:
     assert PropositionFamily.FRAUD_CHARACTERIZATION in es
     assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
 
+def test_b2r_g5d_p6_que_on_fraud_noun_does_not_donate_self_counter_evidence() -> None:
+    message = "Esta transferencia fue un fraude que descubrí cuando hice el reclamo."
+    analysis = analyze_foundation(message, "es")
+    propositions = build_positive_propositions(message, "es")
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.activity_token_span is not None
+    assert (
+        analysis.tokens[item.activity_token_span[0]].normalized
+        == "transferencia"
+    )
+    assert not item.counter_evidence
+
+
+def test_b2r_g5d_pt_terminal_nao_distinguishes_accented_e_and_nem_barrier() -> None:
+    accented_performance = _families(
+        "Eu fiz é não.",
+        "pt",
+    )
+    accented_authorization = _families(
+        "Eu autorizei é não.",
+        "pt",
+    )
+    nem_barrier = _families(
+        "Eu fiz nem ela não.",
+        "pt",
+    )
+
+    assert PropositionFamily.PERFORMANCE_DENIAL in accented_performance
+    assert PropositionFamily.AUTHORIZATION_DENIAL in accented_authorization
+    assert PropositionFamily.PERFORMANCE_DENIAL not in nem_barrier
+
+
+def test_b2r_g5d_pt_terminal_nao_authorization_positive_control() -> None:
+    pt = _families(
+        "Eu autorizei essa compra não.",
+        "pt",
+    )
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
