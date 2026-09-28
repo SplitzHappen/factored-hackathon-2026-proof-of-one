@@ -1886,6 +1886,24 @@ _PT_P1_ELLIPTICAL_ACTIVITY_HEADS = frozenset(
 )
 _ES_P1_SIMPLE_ARTICLES = frozenset({"el", "la", "los", "las"})
 _PT_P1_SIMPLE_ARTICLES = frozenset({"o", "a", "os", "as"})
+_ES_P1_ELLIPTICAL_DETERMINERS = frozenset(
+    {
+        *_ES_P1_SIMPLE_ARTICLES,
+        "este", "esta", "estos", "estas",
+        "ese", "esa", "esos", "esas",
+        "aquel", "aquella", "aquellos", "aquellas",
+    }
+)
+_PT_P1_ELLIPTICAL_DETERMINERS = frozenset(
+    {
+        *_PT_P1_SIMPLE_ARTICLES,
+        "este", "esta", "estes", "estas",
+        "esse", "essa", "esses", "essas",
+        "aquele", "aquela", "aqueles", "aquelas",
+    }
+)
+_ES_P1_TEMPORAL_WORDS = frozenset({"hoy", "ayer", "antes", "anteayer"})
+_PT_P1_TEMPORAL_WORDS = frozenset({"hoje", "ontem", "antes", "anteontem"})
 _ES_P1_PREPOSITIONS = frozenset({"de", "en", "por", "para", "con", "sobre"})
 _PT_P1_PREPOSITIONS = frozenset({"de", "em", "por", "para", "com", "sobre"})
 _PT_P1_FUSED_PREPOSITION_DETERMINERS = frozenset(
@@ -2003,32 +2021,77 @@ def _p1_bounded_elliptical_coordination(
     copula_index: int,
     language: str,
 ) -> bool:
-    """Allow only activity + y/e + article? + otro/outro + denial? + copula."""
+    """Allow only a bounded elliptical coordinated activity subject."""
 
     words = [token.normalized for token in analysis.tokens]
     coordinator = "y" if language == "es" else "e"
-    articles = (
+    simple_articles = (
         _ES_P1_SIMPLE_ARTICLES
         if language == "es"
         else _PT_P1_SIMPLE_ARTICLES
+    )
+    determiners = (
+        _ES_P1_ELLIPTICAL_DETERMINERS
+        if language == "es"
+        else _PT_P1_ELLIPTICAL_DETERMINERS
     )
     elliptical_heads = (
         _ES_P1_ELLIPTICAL_ACTIVITY_HEADS
         if language == "es"
         else _PT_P1_ELLIPTICAL_ACTIVITY_HEADS
     )
+    numerals = (
+        _ES_NOMINAL_NUMERALS
+        if language == "es"
+        else _PT_NOMINAL_NUMERALS
+    )
+    temporal_words = (
+        _ES_P1_TEMPORAL_WORDS
+        if language == "es"
+        else _PT_P1_TEMPORAL_WORDS
+    )
     denial_words = {"no"} if language == "es" else {"nao"}
 
     index = activity_span[1]
+
+    # The overt first conjunct may carry one closed temporal tail:
+    # "cargo de hoy y ..." / "compra de hoje e ...".
+    if (
+        index + 2 < copula_index
+        and words[index] == "de"
+        and words[index + 1] in temporal_words
+        and words[index + 2] == coordinator
+    ):
+        index += 2
+
     if index >= copula_index or words[index] != coordinator:
         return False
     index += 1
 
-    if index < copula_index and words[index] in articles:
+    determiner: str | None = None
+    if index < copula_index and words[index] in determiners:
+        determiner = words[index]
         index += 1
-    if index >= copula_index or words[index] not in elliptical_heads:
+
+    if index < copula_index and words[index] in elliptical_heads:
+        index += 1
+        while (
+            index < copula_index
+            and (
+                words[index] in numerals
+                or words[index].isdigit()
+            )
+        ):
+            index += 1
+    elif (
+        determiner in simple_articles
+        and index + 1 < copula_index
+        and words[index] == "de"
+        and words[index + 1] in temporal_words
+    ):
+        index += 2
+    else:
         return False
-    index += 1
 
     while index < copula_index and words[index] in denial_words:
         index += 1
