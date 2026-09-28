@@ -1390,6 +1390,19 @@ class PropositionFamily(str, Enum):
     COMPROMISE_LINKED_ACTIVITY = "compromise_linked_activity"
 
 
+class EvidenceAtomKind(str, Enum):
+    SELF_PERFORMED = "self_performed"
+    SELF_AUTHORIZED = "self_authorized"
+
+
+@dataclass(frozen=True)
+class EvidenceAtom:
+    kind: EvidenceAtomKind
+    activity_token_span: tuple[int, int]
+    predicate_token_span: tuple[int, int]
+    self_token_span: tuple[int, int]
+
+
 @dataclass(frozen=True)
 class PositiveProposition:
     """Unresolved RF1H-B2 positive proposition.
@@ -1410,6 +1423,7 @@ class PositiveProposition:
     activity_ref: str
     predicate_token_span: tuple[int, int] | None
     evidence_token_spans: tuple[tuple[int, int], ...]
+    counter_evidence: tuple[EvidenceAtom, ...] = ()
     mode: str = "unresolved"
     exclusion_provenance: tuple[str, ...] = ()
     retraction_provenance: tuple[str, ...] = ()
@@ -1656,6 +1670,7 @@ def _make_proposition(
     activity_span: tuple[int, int] | None,
     predicate: PredicateMatch | None,
     activity_ref: str | None = None,
+    counter_evidence: Iterable[EvidenceAtom] = (),
 ) -> PositiveProposition:
     evidence = tuple(evidence_spans)
     concrete_spans = list(evidence)
@@ -1690,6 +1705,7 @@ def _make_proposition(
         ),
         predicate_token_span=predicate_span,
         evidence_token_spans=tuple(concrete_spans),
+        counter_evidence=tuple(counter_evidence),
     )
 
 
@@ -3811,6 +3827,107 @@ def _exceeded_authorization_propositions(
     ]
 
 
+def _affirmative_self_fraud_counter_evidence(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+) -> tuple[EvidenceAtom, ...]:
+    output: list[EvidenceAtom] = []
+
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.family not in {
+            PredicateFamily.PERFORM,
+            PredicateFamily.AUTHORIZE,
+        }:
+            continue
+        if predicate.form.mood != "indicative":
+            continue
+        if predicate.form.tense_aspect in {"future", "conditional"}:
+            continue
+        if not _source_accent_selects_predicate(analysis, predicate):
+            continue
+        if _predicate_has_denial(analysis, clause, predicate, language):
+            continue
+
+        self_evidence = _bound_self_evidence(
+            analysis,
+            clause,
+            predicate,
+            frozenset({SelfRole.SUBJECT, SelfRole.AGENT}),
+        )
+        if self_evidence is None:
+            continue
+
+        linked_activity = _nearest_activity_span(analysis, clause, predicate)
+        if linked_activity != activity_span:
+            continue
+
+        distance = min(
+            abs(activity_span[0] - predicate.token_end),
+            abs(predicate.token_start - activity_span[1]),
+        )
+        if distance > 6:
+            continue
+
+        left = min(activity_span[0], predicate.token_start)
+        right = max(activity_span[1], predicate.token_end)
+        if any(
+            other.token_start >= left
+            and other.token_end <= right
+            and not (
+                other.token_start == predicate.token_start
+                and other.token_end == predicate.token_end
+            )
+            and other.form.person is not None
+            and not other.accent_ambiguous
+            for other in analysis.predicates
+            if _in_clause(other.token_start, other.token_end, clause)
+        ):
+            continue
+
+        output.append(
+            EvidenceAtom(
+                kind=(
+                    EvidenceAtomKind.SELF_PERFORMED
+                    if predicate.form.family is PredicateFamily.PERFORM
+                    else EvidenceAtomKind.SELF_AUTHORIZED
+                ),
+                activity_token_span=activity_span,
+                predicate_token_span=(
+                    predicate.token_start,
+                    predicate.token_end,
+                ),
+                self_token_span=(
+                    self_evidence.token_start,
+                    self_evidence.token_end,
+                ),
+            )
+        )
+
+    unique: dict[
+        tuple[
+            EvidenceAtomKind,
+            tuple[int, int],
+            tuple[int, int],
+            tuple[int, int],
+        ],
+        EvidenceAtom,
+    ] = {}
+    for atom in output:
+        unique[
+            (
+                atom.kind,
+                atom.activity_token_span,
+                atom.predicate_token_span,
+                atom.self_token_span,
+            )
+        ] = atom
+    return tuple(unique.values())
+
+
 def _fraud_marker_spans(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -3868,6 +3985,12 @@ def _fraud_attributive_propositions(
                 evidence_spans=(activity_span, (marker_index, marker_index + 1)),
                 activity_span=activity_span,
                 predicate=None,
+                counter_evidence=_affirmative_self_fraud_counter_evidence(
+                    analysis,
+                    clause,
+                    activity_span,
+                    language,
+                ),
             )
         )
     return output
@@ -4003,6 +4126,12 @@ def _fraud_copular_propositions(
                 ),
                 activity_span=activity_span,
                 predicate=None,
+                counter_evidence=_affirmative_self_fraud_counter_evidence(
+                    analysis,
+                    clause,
+                    activity_span,
+                    language,
+                ),
             )
         )
 
@@ -5179,6 +5308,9 @@ def dump_positive_propositions(
             "clause_index": proposition.clause_index,
             "activity_ref": proposition.activity_ref,
             "source": text[proposition.source_start : proposition.source_end],
+            "counter_evidence": tuple(
+                atom.kind.value for atom in proposition.counter_evidence
+            ),
             "mode": proposition.mode,
         }
         for proposition in propositions
