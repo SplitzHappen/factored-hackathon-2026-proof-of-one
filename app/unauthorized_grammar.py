@@ -1833,6 +1833,10 @@ def _ownership_denials(
                 key=lambda span: copula_index - span[1],
             )
             immediately_owned = owner_index == copula_index + 1
+            ownership_copula = (
+                immediately_owned
+                and activity_span[1] == copula_index
+            )
             immediately_negated = (
                 copula_index > clause.token_start
                 and analysis.tokens[copula_index - 1].normalized
@@ -1846,7 +1850,7 @@ def _ownership_denials(
             )
             if (
                 intervening_predicate
-                or not (immediately_owned or immediately_negated)
+                or not (ownership_copula or immediately_negated)
             ):
                 continue
         neg_index = next(
