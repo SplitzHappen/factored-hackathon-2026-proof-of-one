@@ -3934,6 +3934,84 @@ def _exceeded_authorization_propositions(
     ]
 
 
+def _self_predicate_governs_activity(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    activity_span: tuple[int, int],
+    language: str,
+) -> bool:
+    """Bound SELF PERFORM/AUTHORIZE evidence to one explicit activity argument."""
+
+    words = [token.normalized for token in analysis.tokens]
+    activity_index = activity_span[0]
+    barriers = {
+        ",", ";", "?", "¿", "!", "¡", ":",
+        *(_ES_CONTRAST if language == "es" else _PT_CONTRAST),
+    }
+    coordinator = "y" if language == "es" else "e"
+
+    # Direct post-verbal activity object: predicate + bounded NP.
+    if activity_index >= predicate.token_end:
+        between = range(predicate.token_end, activity_index)
+        if any(words[index] in barriers | {coordinator} for index in between):
+            return False
+
+        object_start = activity_index
+        while (
+            object_start > predicate.token_end
+            and _is_closed_prenominal_modifier(
+                words[object_start - 1],
+                language,
+            )
+        ):
+            object_start -= 1
+
+        determiners = (
+            _ES_NOMINAL_DETERMINERS
+            if language == "es"
+            else _PT_NOMINAL_DETERMINERS
+        )
+        if (
+            object_start > predicate.token_end
+            and words[object_start - 1] in determiners
+        ):
+            object_start -= 1
+
+        return object_start == predicate.token_end
+
+    # Relative-clause head: activity + ... + que + SELF + predicate.
+    if activity_span[1] <= predicate.token_start:
+        between_indices = range(activity_span[1], predicate.token_start)
+        if any(words[index] in barriers | {coordinator} for index in between_indices):
+            return False
+
+        relative_marker = "que"
+        if any(words[index] == relative_marker for index in between_indices):
+            if any(
+                LexicalTag.ACTIVITY in analysis.tags[index]
+                for index in between_indices
+            ):
+                return False
+            return True
+
+        # Same-segment resumptive clitic: activity ... lo/la/o/a ... predicate.
+        clitics = (
+            {"lo", "la", "los", "las"}
+            if language == "es"
+            else {"o", "a", "os", "as"}
+        )
+        if any(words[index] in clitics for index in between_indices):
+            if any(
+                LexicalTag.ACTIVITY in analysis.tags[index]
+                for index in between_indices
+            ):
+                return False
+            return True
+
+    return False
+
+
 def _affirmative_self_fraud_counter_evidence(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -3968,30 +4046,12 @@ def _affirmative_self_fraud_counter_evidence(
         if self_evidence is None:
             continue
 
-        linked_activity = _nearest_activity_span(analysis, clause, predicate)
-        if linked_activity != activity_span:
-            continue
-
-        distance = min(
-            abs(activity_span[0] - predicate.token_end),
-            abs(predicate.token_start - activity_span[1]),
-        )
-        if distance > 6:
-            continue
-
-        left = min(activity_span[0], predicate.token_start)
-        right = max(activity_span[1], predicate.token_end)
-        if any(
-            other.token_start >= left
-            and other.token_end <= right
-            and not (
-                other.token_start == predicate.token_start
-                and other.token_end == predicate.token_end
-            )
-            and other.form.person is not None
-            and not other.accent_ambiguous
-            for other in analysis.predicates
-            if _in_clause(other.token_start, other.token_end, clause)
+        if not _self_predicate_governs_activity(
+            analysis,
+            clause,
+            predicate,
+            activity_span,
+            language,
         ):
             continue
 
@@ -4155,12 +4215,18 @@ def _fraud_copular_propositions(
             for span in _activity_spans(analysis, clause)
             if span[0] < copula_index
             and copula_index - span[0] <= 8
-            and _customer_anchored_activity(analysis, clause, span, language)
         ]
         if not candidate_activities:
             continue
 
         activity_span = max(candidate_activities, key=lambda span: span[0])
+        if not _customer_anchored_activity(
+            analysis,
+            clause,
+            activity_span,
+            language,
+        ):
+            continue
         activity_index = activity_span[0]
         if (
             activity_index > clause.token_start
