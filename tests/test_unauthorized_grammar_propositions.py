@@ -1431,3 +1431,85 @@ def test_b2r_b3_permission_absence_without_article_remains_positive() -> None:
 
     assert PropositionFamily.AUTHORIZATION_DENIAL in es
     assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
+
+
+def test_b2r_b4_negative_quantifier_over_activity_supports_p1() -> None:
+    es = build_positive_propositions(
+        "Ninguno de estos cargos es mío.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Nenhuma dessas compras é minha.",
+        "pt",
+    )
+
+    assert PropositionFamily.OWNERSHIP_DENIAL in {
+        item.family for item in es
+    }
+    assert PropositionFamily.OWNERSHIP_DENIAL in {
+        item.family for item in pt
+    }
+
+
+def test_b2r_b4_correlative_negative_ownership_supports_p1() -> None:
+    es = build_positive_propositions(
+        "Ni esta compra ni las otras dos son mías.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Nem esta compra nem as outras duas são minhas.",
+        "pt",
+    )
+
+    es_item = next(
+        item for item in es
+        if item.family is PropositionFamily.OWNERSHIP_DENIAL
+    )
+    pt_item = next(
+        item for item in pt
+        if item.family is PropositionFamily.OWNERSHIP_DENIAL
+    )
+
+    assert es_item.rule == "P1-correlative"
+    assert pt_item.rule == "P1-correlative"
+
+
+def test_b2r_b4_correlative_negative_ownership_supports_txid_arm() -> None:
+    propositions = build_positive_propositions(
+        "Ni el cargo DEMO-ES-1001 ni los otros dos son míos.",
+        "es",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.OWNERSHIP_DENIAL
+    )
+    assert item.rule == "P1-correlative"
+    assert item.activity_token_span is not None
+
+
+def test_b2r_b4_unrelated_negative_quantifier_does_not_bind_to_p1() -> None:
+    propositions = build_positive_propositions(
+        "Nadie dijo que este cargo es mío.",
+        "es",
+    )
+
+    assert PropositionFamily.OWNERSHIP_DENIAL not in {
+        item.family for item in propositions
+    }
+
+
+def test_b2r_b4_local_no_ownership_denial_remains_p1() -> None:
+    propositions = build_positive_propositions(
+        "Este cargo no es mío.",
+        "es",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.OWNERSHIP_DENIAL
+    )
+    assert item.rule == "P1"
