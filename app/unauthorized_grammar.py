@@ -1987,6 +1987,7 @@ def _p1_postcopular_activity_is_prepositional(
 
 def _p1_bounded_elliptical_coordination(
     analysis: FoundationAnalysis,
+    clause: ClauseSegment,
     activity_span: tuple[int, int],
     copula_index: int,
     language: str,
@@ -2066,6 +2067,7 @@ def _p1_activity_subject(
         ]
         if coordinator_indices and not _p1_bounded_elliptical_coordination(
             analysis,
+            clause,
             span,
             copula_index,
             language,
