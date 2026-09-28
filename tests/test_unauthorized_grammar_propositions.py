@@ -2241,3 +2241,53 @@ def test_b2r_c2_f14_anaphor_without_prior_activity_keeps_topic_default() -> None
     assert pt_p4.activity_ref == "topic_transaction"
     assert es_p2.rule == "P2"
     assert pt_p4.rule == "P4"
+
+
+
+def test_b2r_e1a_p7_closed_modifiers_reach_activity_head() -> None:
+    es_examples = (
+        "No reconozco este otro cargo.",
+        "No reconozco estos dos cargos.",
+        "No reconozco el segundo cargo.",
+        "No reconozco el último cargo.",
+    )
+    pt_examples = (
+        "Não reconheço essa outra compra.",
+        "Não reconheço essas duas compras.",
+        "Não reconheço a última compra.",
+    )
+
+    for text in es_examples:
+        assert PropositionFamily.ACTIVITY_NONRECOGNITION in _families(
+            text,
+            "es",
+        )
+    for text in pt_examples:
+        assert PropositionFamily.ACTIVITY_NONRECOGNITION in _families(
+            text,
+            "pt",
+        )
+
+
+def test_b2r_e1a_preposed_modified_activity_remains_targetable() -> None:
+    es = _families("Este otro cargo no lo reconozco.", "es")
+    pt = _families("Essa outra compra eu não reconheço.", "pt")
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION in pt
+
+
+def test_b2r_e1a_modified_non_activity_head_remains_rejected() -> None:
+    es = _families("No reconozco este otro correo.", "es")
+    pt = _families("Não reconheço esse outro site.", "pt")
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in pt
+
+
+def test_b2r_e1a_p6_closed_modifiers_preserve_customer_anchor() -> None:
+    es = _families("Esta otra compra fue un fraude.", "es")
+    pt = _families("Essa outra compra foi golpe.", "pt")
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt

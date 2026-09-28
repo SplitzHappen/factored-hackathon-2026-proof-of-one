@@ -786,6 +786,51 @@ _ES_NOMINAL_NUMERALS = frozenset(
 _PT_NOMINAL_NUMERALS = frozenset(
     {"um", "uma", "dois", "duas", "tres", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez"}
 )
+_ES_CLOSED_PRENOMINAL_MODIFIERS = frozenset(
+    {
+        "otro", "otra", "otros", "otras",
+        *_ES_NOMINAL_NUMERALS,
+        "primer", "primero", "primera", "primeros", "primeras",
+        "segundo", "segunda", "segundos", "segundas",
+        "ultimo", "ultima", "ultimos", "ultimas",
+    }
+)
+_PT_CLOSED_PRENOMINAL_MODIFIERS = frozenset(
+    {
+        "outro", "outra", "outros", "outras",
+        *_PT_NOMINAL_NUMERALS,
+        "primeiro", "primeira", "primeiros", "primeiras",
+        "segundo", "segunda", "segundos", "segundas",
+        "ultimo", "ultima", "ultimos", "ultimas",
+    }
+)
+
+
+def _is_closed_prenominal_modifier(word: str, language: str) -> bool:
+    modifiers = (
+        _ES_CLOSED_PRENOMINAL_MODIFIERS
+        if language == "es"
+        else _PT_CLOSED_PRENOMINAL_MODIFIERS
+    )
+    return word in modifiers or word.isdigit()
+
+
+def _closed_nominal_head_index(
+    analysis: FoundationAnalysis,
+    start: int,
+    stop: int,
+    language: str,
+) -> int | None:
+    index = start
+    while (
+        index < stop
+        and _is_closed_prenominal_modifier(
+            analysis.tokens[index].normalized,
+            language,
+        )
+    ):
+        index += 1
+    return index if index < stop else None
 _ES_NOMINAL_EXISTENTIALS = frozenset(
     {"tengo", "tenemos", "hay", "habia", "hubo", "aparecio", "aparecieron"}
 )
@@ -867,6 +912,19 @@ def _looks_nominal(
             return True
         if previous.normalized.isdigit() or previous.is_txid:
             return True
+
+        if _is_closed_prenominal_modifier(previous.normalized, language):
+            cursor = index - 1
+            while cursor >= 0 and _is_closed_prenominal_modifier(
+                tokens[cursor].normalized,
+                language,
+            ):
+                cursor -= 1
+            if (
+                cursor >= 0
+                and tokens[cursor].normalized in determiners | quantifiers
+            ):
+                return True
 
     clause_initial = (
         index == 0
@@ -3364,6 +3422,21 @@ def _customer_anchored_activity(
     if index > clause.token_start and words[index - 1] in determiners:
         return True
 
+    modifier_cursor = index - 1
+    while (
+        modifier_cursor >= clause.token_start
+        and _is_closed_prenominal_modifier(
+            words[modifier_cursor],
+            language,
+        )
+    ):
+        modifier_cursor -= 1
+    if (
+        modifier_cursor >= clause.token_start
+        and words[modifier_cursor] in determiners
+    ):
+        return True
+
     if index > clause.token_start:
         previous = analysis.tokens[index - 1]
         if previous.normalized.isdigit() or previous.is_txid:
@@ -4332,16 +4405,26 @@ def _p7_overt_object_after_predicate(
         return "descriptor", (index, index + 1)
 
     if word in determiners:
-        head = index + 1
-        if head < clause.token_end:
+        head = _closed_nominal_head_index(
+            analysis,
+            index + 1,
+            clause.token_end,
+            language,
+        )
+        if head is not None:
             return _p7_classify_object_head(analysis, head)
         return "none", None
 
     if word in {"a", "ao", "aos"}:
         article = index + 1
         if article < clause.token_end and words[article] in determiners:
-            head = article + 1
-            if head < clause.token_end:
+            head = _closed_nominal_head_index(
+                analysis,
+                article + 1,
+                clause.token_end,
+                language,
+            )
+            if head is not None:
                 return _p7_classify_object_head(analysis, head)
 
     return "none", None
@@ -4364,8 +4447,13 @@ def _p7_preposed_overt_object(
     for index in range(clause.token_start, predicate.token_start - 1):
         if words[index] not in determiners:
             continue
-        head = index + 1
-        if head >= predicate.token_start:
+        head = _closed_nominal_head_index(
+            analysis,
+            index + 1,
+            predicate.token_start,
+            language,
+        )
+        if head is None:
             continue
         if any(
             other.token_start == head
