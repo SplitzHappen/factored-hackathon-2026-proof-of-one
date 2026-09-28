@@ -1970,44 +1970,44 @@ def _ownership_denials(
             ):
                 continue
 
-        neg_index = _bound_denial_index_for_span(
-            analysis,
-            clause,
-            copula_index,
-            copula_index + 1,
-            language,
-        )
-
         rule = "P1"
         denial_evidence: tuple[tuple[int, int], ...]
-        if neg_index is not None:
-            denial_evidence = ((neg_index, neg_index + 1),)
+
+        quantifier_index = _p1_negative_quantifier_anchor(
+            analysis,
+            clause,
+            activity_span,
+            copula_index,
+            language,
+        )
+        if quantifier_index is not None:
+            rule = "P1-neg-quantifier"
+            denial_evidence = ((quantifier_index, quantifier_index + 1),)
         else:
-            quantifier_index = _p1_negative_quantifier_anchor(
+            correlative = _p1_correlative_negative_anchors(
                 analysis,
                 clause,
                 activity_span,
                 copula_index,
-                language,
             )
-            if quantifier_index is not None:
-                rule = "P1-neg-quantifier"
-                denial_evidence = ((quantifier_index, quantifier_index + 1),)
-            else:
-                correlative = _p1_correlative_negative_anchors(
-                    analysis,
-                    clause,
-                    activity_span,
-                    copula_index,
-                )
-                if correlative is None:
-                    continue
+            if correlative is not None:
                 first, second = correlative
                 rule = "P1-correlative"
                 denial_evidence = (
                     (first, first + 1),
                     (second, second + 1),
                 )
+            else:
+                neg_index = _bound_denial_index_for_span(
+                    analysis,
+                    clause,
+                    copula_index,
+                    copula_index + 1,
+                    language,
+                )
+                if neg_index is None:
+                    continue
+                denial_evidence = ((neg_index, neg_index + 1),)
 
         output.append(
             _make_proposition(
