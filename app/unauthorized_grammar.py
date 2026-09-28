@@ -3439,6 +3439,22 @@ def _p5_known_actor_embedded_under_prior_unknown(
             ):
                 return True
 
+        if not finite_spans:
+            relative_material = tuple(
+                words[index]
+                for index in range(relative_start, known_actor[0])
+            )
+            if (
+                1 <= len(relative_material) <= 3
+                and "que" not in relative_material
+                and relative_material[0] not in relative_bridge_words
+                and all(
+                    word in relative_bridge_words
+                    for word in relative_material[1:]
+                )
+            ):
+                return True
+
 
     left = known_actor[0] - 1
     while left >= max(prior_unknown[1], known_actor[0] - 3):
