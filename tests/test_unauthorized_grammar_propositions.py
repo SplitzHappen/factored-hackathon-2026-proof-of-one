@@ -3042,3 +3042,54 @@ def test_b2r_g5b_p1_elliptical_coordination_accepts_temporal_de_ellipsis() -> No
     assert PropositionFamily.OWNERSHIP_DENIAL in es
     assert PropositionFamily.OWNERSHIP_DENIAL in pt
 
+def test_b2r_g5c_p6_skips_embedded_activity_referent_in_spanish() -> None:
+    message = "La transferencia que salió cuando hice el pago fue un fraude."
+    analysis = analyze_foundation(message, "es")
+    propositions = build_positive_propositions(message, "es")
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.activity_token_span is not None
+    assert (
+        analysis.tokens[item.activity_token_span[0]].normalized
+        == "transferencia"
+    )
+    assert not item.counter_evidence
+
+
+def test_b2r_g5c_p6_skips_embedded_activity_referent_in_portuguese() -> None:
+    message = "A transferência que apareceu quando eu fiz o pagamento foi golpe."
+    analysis = analyze_foundation(message, "pt")
+    propositions = build_positive_propositions(message, "pt")
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.activity_token_span is not None
+    assert (
+        analysis.tokens[item.activity_token_span[0]].normalized
+        == "transferencia"
+    )
+    assert not item.counter_evidence
+
+
+def test_b2r_g5c_p6_preserves_valid_que_relative_activity_head() -> None:
+    es = _families(
+        "La transferencia que hice fue un fraude.",
+        "es",
+    )
+    pt = _families(
+        "O Pix que eu fiz foi golpe.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+
