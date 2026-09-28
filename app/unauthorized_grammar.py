@@ -4663,6 +4663,85 @@ def _fraud_attributive_propositions(
     return output
 
 
+_ES_P6_EMBEDDING_MARKERS = frozenset({"que", "cuando", "mientras"})
+_PT_P6_EMBEDDING_MARKERS = frozenset({"que", "quando", "enquanto"})
+
+
+def _p6_activity_heads_que_relative(
+    analysis: FoundationAnalysis,
+    activity_span: tuple[int, int],
+    copula_index: int,
+    language: str,
+) -> bool:
+    words = [token.normalized for token in analysis.tokens]
+    fraud_adjectives = (
+        _ES_FRAUD_ADJECTIVES if language == "es" else _PT_FRAUD_ADJECTIVES
+    )
+
+    index = activity_span[1]
+    if index >= copula_index:
+        return False
+
+    if (
+        words[index] in fraud_adjectives
+        and _fraud_adjective_agrees(
+            words[activity_span[0]],
+            words[index],
+            language,
+        )
+    ):
+        index += 1
+    elif analysis.tokens[index].is_txid:
+        index += 1
+
+    return index < copula_index and words[index] == "que"
+
+
+def _p6_left_activity_is_embedded(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    copula_index: int,
+    language: str,
+) -> bool:
+    if _p6_activity_heads_que_relative(
+        analysis,
+        activity_span,
+        copula_index,
+        language,
+    ):
+        return False
+
+    words = [token.normalized for token in analysis.tokens]
+    markers = (
+        _ES_P6_EMBEDDING_MARKERS
+        if language == "es"
+        else _PT_P6_EMBEDDING_MARKERS
+    )
+    lower_bound = max(clause.token_start, activity_span[0] - 8)
+
+    for marker_index in range(activity_span[0] - 1, lower_bound - 1, -1):
+        if words[marker_index] not in markers:
+            continue
+
+        finite_between = any(
+            predicate.form.person is not None
+            and not predicate.accent_ambiguous
+            and predicate.token_start > marker_index
+            and predicate.token_end <= activity_span[0]
+            and _in_clause(
+                predicate.token_start,
+                predicate.token_end,
+                clause,
+            )
+            for predicate in analysis.predicates
+        )
+        if finite_between:
+            return True
+
+    return False
+
+
 def _fraud_copular_propositions(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -4715,6 +4794,13 @@ def _fraud_copular_propositions(
             for span in _activity_spans(analysis, clause)
             if span[0] < copula_index
             and copula_index - span[0] <= 8
+            and not _p6_left_activity_is_embedded(
+                analysis,
+                clause,
+                span,
+                copula_index,
+                language,
+            )
         ]
         if not candidate_activities:
             continue
