@@ -3126,6 +3126,10 @@ _ES_EXPERIENCER_VERBS = frozenset({"tengo", "veo", "recibo", "recibi"})
 _PT_EXPERIENCER_VERBS = frozenset({"tenho", "vejo", "recebo", "recebi"})
 _ES_DATIVE_EXPERIENCER_VERBS = frozenset({"aparece", "aparecio", "salio"})
 _PT_DATIVE_EXPERIENCER_VERBS = frozenset({"aparece", "apareceu", "saiu"})
+_ES_ACTIVITY_EXISTENTIALS = frozenset({"hay"})
+_PT_ACTIVITY_EXISTENTIALS = frozenset({"ha", "existe"})
+_ES_INSTRUMENT_LOCATIVES = frozenset({"en"})
+_PT_INSTRUMENT_LOCATIVES = frozenset({"em", "no", "na", "nos", "nas"})
 
 _ES_PREPOSITIONAL_ACTIVITY = frozenset({"de", "del", "sobre", "para", "por", "con", "en"})
 _PT_PREPOSITIONAL_ACTIVITY = frozenset({"de", "do", "da", "sobre", "para", "por", "com", "em", "no", "na"})
@@ -3306,6 +3310,32 @@ def _customer_anchored_activity(
         for verb_index in range(max(clause.token_start, index - 5), index):
             if words[verb_index] in dative_verbs:
                 return True
+
+    existentials = (
+        _ES_ACTIVITY_EXISTENTIALS
+        if language == "es"
+        else _PT_ACTIVITY_EXISTENTIALS
+    )
+    if any(
+        words[frame_index] in existentials
+        for frame_index in range(max(clause.token_start, index - 5), index)
+    ):
+        return True
+
+    locatives = (
+        _ES_INSTRUMENT_LOCATIVES
+        if language == "es"
+        else _PT_INSTRUMENT_LOCATIVES
+    )
+    for instrument_span, possessor_span in _customer_instrument_spans(
+        analysis,
+        clause,
+    ):
+        left = min(instrument_span[0], possessor_span[0])
+        if left <= clause.token_start:
+            continue
+        if words[left - 1] in locatives:
+            return True
 
     return False
 
