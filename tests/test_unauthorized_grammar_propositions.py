@@ -1746,3 +1746,80 @@ def test_b2r_b7_known_actor_perform_still_requires_permission_absence() -> None:
 
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
+
+
+
+@pytest.mark.parametrize(
+    ("message", "language"),
+    [
+        (
+            "Le presté la tarjeta a mi hijo para el súper y compró ropa sin permiso.",
+            "es",
+        ),
+        (
+            "Le pasé la tarjeta a mi hija para la gasolina y compró ropa sin permiso.",
+            "es",
+        ),
+        (
+            "Le dejé la tarjeta a mi hijo para la farmacia y compró ropa sin permiso.",
+            "es",
+        ),
+        (
+            "Emprestei o cartão para minha filha comprar remédio e ela comprou roupas sem permissão.",
+            "pt",
+        ),
+        (
+            "Deixei o cartão com meu filho para comprar remédio e ele comprou roupas sem permissão.",
+            "pt",
+        ),
+    ],
+)
+def test_b2r_b8_closed_limited_grant_verbs_support_exceeded_purpose(
+    message: str,
+    language: str,
+) -> None:
+    propositions = build_positive_propositions(message, language)
+
+    assert any(
+        item.rule == "P5-exceeded-authorization-purpose"
+        for item in propositions
+    )
+
+
+def test_b2r_b8_limited_grant_can_link_immediately_prior_primary_clause() -> None:
+    propositions = build_positive_propositions(
+        "Le di la tarjeta a mi hija para la gasolina; compró ropa sin permiso.",
+        "es",
+    )
+
+    assert any(
+        item.rule == "P5-exceeded-authorization-purpose"
+        for item in propositions
+    )
+
+
+def test_b2r_b8_limited_grant_does_not_jump_over_intervening_primary_clause() -> None:
+    propositions = build_positive_propositions(
+        "Le di la tarjeta a mi hija para la gasolina; llamé al banco; compró ropa sin permiso.",
+        "es",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-purpose"
+        for item in propositions
+    )
+
+
+def test_b2r_b8_local_grant_verbs_do_not_become_general_p4_predicates() -> None:
+    es = build_positive_propositions(
+        "Yo no presté permiso para esta compra.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Eu não emprestei permissão para esta compra.",
+        "pt",
+    )
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL not in {
+        item.family for item in (*es, *pt)
+    }
