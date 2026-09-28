@@ -1513,3 +1513,82 @@ def test_b2r_b4_local_no_ownership_denial_remains_p1() -> None:
         if proposition.family is PropositionFamily.OWNERSHIP_DENIAL
     )
     assert item.rule == "P1"
+
+
+
+def test_b2r_b5_subjectless_spanish_fraud_preserves_frozen_positive() -> None:
+    propositions = build_positive_propositions(
+        "Es un fraude.",
+        "es",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.rule == "P6-subjectless-es-compat"
+    )
+    assert item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    assert item.activity_token_span is None
+    assert item.activity_ref == "topic_transaction"
+
+
+def test_b2r_b5_subjectless_spanish_fraud_binds_same_clause_txid() -> None:
+    propositions = build_positive_propositions(
+        "Es un fraude: DEMO-ES-1001.",
+        "es",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.rule == "P6-subjectless-es-compat"
+    )
+    assert item.activity_token_span is not None
+    assert item.activity_ref == "linked_same_clause_txid"
+
+
+def test_b2r_b5_subjectless_p6_does_not_override_overt_non_activity_subject() -> None:
+    propositions = build_positive_propositions(
+        "Este correo es un fraude.",
+        "es",
+    )
+
+    assert not any(
+        item.rule == "P6-subjectless-es-compat"
+        for item in propositions
+    )
+
+
+def test_b2r_b5_subjectless_p6_does_not_expand_portuguese_declarative() -> None:
+    propositions = build_positive_propositions(
+        "É fraude.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P6-subjectless-es-compat"
+        for item in propositions
+    )
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in {
+        item.family for item in propositions
+    }
+
+
+def test_b2r_b5_subjectless_p6_rejects_questioned_forms() -> None:
+    inverted = build_positive_propositions(
+        "¿Es un fraude?",
+        "es",
+    )
+    terminal_only = build_positive_propositions(
+        "Es un fraude?",
+        "es",
+    )
+
+    assert not any(
+        item.rule == "P6-subjectless-es-compat"
+        for item in inverted
+    )
+    assert not any(
+        item.rule == "P6-subjectless-es-compat"
+        for item in terminal_only
+    )

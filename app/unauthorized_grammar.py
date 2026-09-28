@@ -3587,6 +3587,76 @@ def _fraud_copular_propositions(
     return output
 
 
+def _subjectless_spanish_fraud_compatibility(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    """Preserve the frozen Spanish declarative `Es un fraude.` polarity."""
+
+    if language != "es" or clause.token_start >= clause.token_end:
+        return []
+
+    tokens = analysis.tokens
+    words = [token.normalized for token in tokens]
+
+    # Interrogative forms remain outside this compatibility construction.
+    if words[clause.token_start] == "¿":
+        return []
+    if (
+        clause.token_end < len(tokens)
+        and tokens[clause.token_end].normalized == "?"
+    ):
+        return []
+
+    copula_index = clause.token_start
+    if words[copula_index] != "es":
+        return []
+
+    marker_index = copula_index + 1
+    if marker_index >= clause.token_end:
+        return []
+    if words[marker_index] == "un":
+        marker_index += 1
+    if marker_index >= clause.token_end or words[marker_index] != "fraude":
+        return []
+
+    tail_start = marker_index + 1
+    txid_span: tuple[int, int] | None = None
+    for index in range(tail_start, clause.token_end):
+        word = words[index]
+        if tokens[index].is_txid:
+            if txid_span is not None:
+                return []
+            txid_span = (index, index + 1)
+            continue
+        if word != ":":
+            return []
+
+    evidence: list[tuple[int, int]] = [
+        (copula_index, copula_index + 1),
+        (marker_index, marker_index + 1),
+    ]
+    activity_ref = "topic_transaction"
+    if txid_span is not None:
+        evidence.append(txid_span)
+        activity_ref = "linked_same_clause_txid"
+
+    return [
+        _make_proposition(
+            analysis,
+            clause,
+            family=PropositionFamily.FRAUD_CHARACTERIZATION,
+            rule="P6-subjectless-es-compat",
+            language=language,
+            evidence_spans=evidence,
+            activity_span=txid_span,
+            predicate=None,
+            activity_ref=activity_ref,
+        )
+    ]
+
+
 def _fraud_characterizations(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -3595,6 +3665,11 @@ def _fraud_characterizations(
     return [
         *_fraud_attributive_propositions(analysis, clause, language),
         *_fraud_copular_propositions(analysis, clause, language),
+        *_subjectless_spanish_fraud_compatibility(
+            analysis,
+            clause,
+            language,
+        ),
     ]
 
 
