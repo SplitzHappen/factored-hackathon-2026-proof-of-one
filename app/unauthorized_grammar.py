@@ -1691,6 +1691,10 @@ def _bound_self_evidence(
                 other.token_start == predicate.token_start
                 and other.token_end == predicate.token_end
             )
+            and not (
+                other.token_start >= item.token_start
+                and other.token_end <= item.token_end
+            )
             and other.form.person is not None
             and not other.accent_ambiguous
             for other in analysis.predicates
