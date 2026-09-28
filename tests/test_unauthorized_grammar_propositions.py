@@ -2463,3 +2463,52 @@ def test_b2r_e2b_pt_terminal_nao_does_not_cross_original_distance_bound() -> Non
     pt = _families("Eu fiz essa compra ontem não.", "pt")
 
     assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+
+def test_b2r_e3a_nearer_known_actor_beats_farther_unknown_actor() -> None:
+    es = _families(
+        "Alguien habló con mi hermano y mi hermano usó mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Alguém falou com meu irmão e meu irmão usou minha conta.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
+
+
+def test_b2r_e3a_nearer_known_actor_with_permission_absence_remains_positive() -> None:
+    es = _families(
+        "Alguien habló con mi hermano y mi hermano usó mi tarjeta sin permiso.",
+        "es",
+    )
+    pt = _families(
+        "Alguém falou com meu irmão e meu irmão usou minha conta sem permissão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
+
+
+def test_b2r_e3a_same_clause_d3_rejects_first_person_action() -> None:
+    es = build_positive_propositions(
+        "Con mi hermano, usé mi tarjeta, yo no le di permiso.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Com meu irmão, usei meu cartão, eu não lhe dei permissão.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P4-R3-permission-backlink"
+        for item in es
+    )
+    assert not any(
+        item.rule == "P4-R3-permission-backlink"
+        for item in pt
+    )
