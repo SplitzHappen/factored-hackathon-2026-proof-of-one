@@ -1592,3 +1592,84 @@ def test_b2r_b5_subjectless_p6_rejects_questioned_forms() -> None:
         item.rule == "P6-subjectless-es-compat"
         for item in terminal_only
     )
+
+
+
+def test_b2r_b6_same_clause_d3_supports_comma_splice() -> None:
+    es = build_positive_propositions(
+        "Mi hermano usó mi tarjeta, yo no le di permiso.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Minha irmã usou minha conta, eu não lhe dei permissão.",
+        "pt",
+    )
+
+    es_link = next(
+        item for item in es
+        if item.rule == "P4-R3-permission-backlink"
+    )
+    pt_link = next(
+        item for item in pt
+        if item.rule == "P4-R3-permission-backlink"
+    )
+
+    assert es_link.activity_ref == "linked_instrument_use"
+    assert pt_link.activity_ref == "linked_instrument_use"
+
+
+def test_b2r_b6_same_clause_d3_supports_coordination() -> None:
+    es = build_positive_propositions(
+        "Mi hermano usó mi tarjeta y yo no le di permiso.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Minha irmã usou minha conta e eu não lhe dei permissão.",
+        "pt",
+    )
+
+    assert any(
+        item.rule == "P4-R3-permission-backlink"
+        for item in es
+    )
+    assert any(
+        item.rule == "P4-R3-permission-backlink"
+        for item in pt
+    )
+
+
+def test_b2r_b6_known_actor_expansion_supports_primo_backlink() -> None:
+    propositions = build_positive_propositions(
+        "Mi primo cogió mi tarjeta; yo no le di permiso.",
+        "es",
+    )
+
+    assert any(
+        item.rule == "P4-R3-permission-backlink"
+        for item in propositions
+    )
+
+
+def test_b2r_b6_known_actor_expansion_supports_portuguese_kinship() -> None:
+    propositions = build_positive_propositions(
+        "Meu sobrinho usou minha conta; eu não lhe dei permissão.",
+        "pt",
+    )
+
+    assert any(
+        item.rule == "P4-R3-permission-backlink"
+        for item in propositions
+    )
+
+
+def test_b2r_b6_same_clause_d3_rejects_intervening_finite_predicate() -> None:
+    propositions = build_positive_propositions(
+        "Mi hermano usó mi tarjeta, hizo otra compra, yo no le di permiso.",
+        "es",
+    )
+
+    assert not any(
+        item.rule == "P4-R3-permission-backlink"
+        and item.activity_ref == "linked_instrument_use"
+        for item in propositions
+    )
