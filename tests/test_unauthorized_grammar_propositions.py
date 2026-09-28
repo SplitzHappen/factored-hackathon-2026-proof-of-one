@@ -971,14 +971,14 @@ def test_b2r_a4_customer_amount_action_is_not_third_party_exceedance() -> None:
 
     assert not any(
         proposition.rule == "P5-exceeded-authorization-amount"
-        for proposition in detect_positive_propositions(
+        for proposition in build_positive_propositions(
             "Con mi hermano en la tienda gasté más de lo que autoricé.",
             "es",
         )
     )
     assert not any(
         proposition.rule == "P5-exceeded-authorization-amount"
-        for proposition in detect_positive_propositions(
+        for proposition in build_positive_propositions(
             "Com meu irmão na loja gastei mais do que autorizei.",
             "pt",
         )
@@ -997,20 +997,20 @@ def test_b2r_a4_customer_purpose_action_is_not_third_party_exceedance() -> None:
 
     assert not any(
         proposition.rule == "P5-exceeded-authorization-purpose"
-        for proposition in detect_positive_propositions(es_text, "es")
+        for proposition in build_positive_propositions(es_text, "es")
     )
     assert not any(
         proposition.rule == "P5-exceeded-authorization-purpose"
-        for proposition in detect_positive_propositions(pt_text, "pt")
+        for proposition in build_positive_propositions(pt_text, "pt")
     )
 
 
 def test_b2r_a4_third_party_exceedance_controls_remain_positive() -> None:
-    es = detect_positive_propositions(
+    es = build_positive_propositions(
         "Mi hermano gastó más de lo que yo autoricé.",
         "es",
     )
-    pt = detect_positive_propositions(
+    pt = build_positive_propositions(
         "Meu irmão gastou mais do que eu autorizei.",
         "pt",
     )
