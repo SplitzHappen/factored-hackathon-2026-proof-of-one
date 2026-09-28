@@ -1867,6 +1867,170 @@ def _p1_correlative_negative_anchors(
     return None
 
 
+_ES_P1_ELLIPTICAL_ACTIVITY_HEADS = frozenset(
+    {"otro", "otra", "otros", "otras"}
+)
+_PT_P1_ELLIPTICAL_ACTIVITY_HEADS = frozenset(
+    {"outro", "outra", "outros", "outras"}
+)
+_ES_P1_SIMPLE_ARTICLES = frozenset({"el", "la", "los", "las"})
+_PT_P1_SIMPLE_ARTICLES = frozenset({"o", "a", "os", "as"})
+_ES_P1_PREPOSITIONS = frozenset({"de", "en", "por", "para", "con", "sobre"})
+_PT_P1_PREPOSITIONS = frozenset({"de", "em", "por", "para", "com", "sobre"})
+_PT_P1_FUSED_PREPOSITION_DETERMINERS = frozenset(
+    {
+        "deste", "desta", "destes", "destas",
+        "desse", "dessa", "desses", "dessas",
+        "neste", "nesta", "nestes", "nestas",
+        "nesse", "nessa", "nesses", "nessas",
+    }
+)
+
+
+def _p1_has_pre_copular_nominal_subject(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    copula_index: int,
+    language: str,
+) -> bool:
+    """Recognize only a bounded determiner-headed non-activity subject."""
+
+    words = [token.normalized for token in analysis.tokens]
+    determiners = (
+        _ES_NOMINAL_DETERMINERS
+        if language == "es"
+        else _PT_NOMINAL_DETERMINERS
+    )
+    prepositions = (
+        _ES_P1_PREPOSITIONS
+        if language == "es"
+        else _PT_P1_PREPOSITIONS
+    )
+    denial_words = (
+        {"no", "nunca", "jamas", "tampoco"}
+        if language == "es"
+        else {"nao", "nunca", "jamais", "tampouco"}
+    )
+    lower_bound = max(clause.token_start, copula_index - 6)
+
+    for determiner_index in range(copula_index - 1, lower_bound - 1, -1):
+        if words[determiner_index] not in determiners:
+            continue
+        if (
+            determiner_index > clause.token_start
+            and words[determiner_index - 1] in prepositions
+        ):
+            continue
+
+        head_index = _closed_nominal_head_index(
+            analysis,
+            determiner_index + 1,
+            copula_index,
+            language,
+        )
+        if head_index is None:
+            continue
+        if LexicalTag.ACTIVITY in analysis.tags[head_index]:
+            continue
+        if analysis.tokens[head_index].normalized in _NOMINAL_ACTIVITY_BOUNDARIES:
+            continue
+        if any(
+            predicate.token_start == head_index
+            and _in_clause(predicate.token_start, predicate.token_end, clause)
+            for predicate in analysis.predicates
+        ):
+            continue
+        if any(
+            words[index] not in denial_words
+            for index in range(head_index + 1, copula_index)
+        ):
+            continue
+        return True
+
+    return False
+
+
+def _p1_postcopular_activity_is_prepositional(
+    analysis: FoundationAnalysis,
+    owner_index: int,
+    activity_span: tuple[int, int],
+    language: str,
+) -> bool:
+    """Reject fallback activity NPs introduced only as PP material."""
+
+    words = [token.normalized for token in analysis.tokens]
+    determiners = (
+        _ES_NOMINAL_DETERMINERS
+        if language == "es"
+        else _PT_NOMINAL_DETERMINERS
+    )
+    prepositions = (
+        _ES_P1_PREPOSITIONS
+        if language == "es"
+        else _PT_P1_PREPOSITIONS
+    )
+
+    index = activity_span[0] - 1
+    while index > owner_index:
+        word = words[index]
+        if (
+            language == "pt"
+            and word in _PT_P1_FUSED_PREPOSITION_DETERMINERS
+        ):
+            return True
+        if word in determiners or _is_closed_prenominal_modifier(word, language):
+            index -= 1
+            continue
+        return word in prepositions
+    return False
+
+
+def _p1_bounded_elliptical_coordination(
+    analysis: FoundationAnalysis,
+    activity_span: tuple[int, int],
+    copula_index: int,
+    language: str,
+) -> bool:
+    """Allow only activity + y/e + article? + otro/outro + denial? + copula."""
+
+    words = [token.normalized for token in analysis.tokens]
+    coordinator = "y" if language == "es" else "e"
+    articles = (
+        _ES_P1_SIMPLE_ARTICLES
+        if language == "es"
+        else _PT_P1_SIMPLE_ARTICLES
+    )
+    elliptical_heads = (
+        _ES_P1_ELLIPTICAL_ACTIVITY_HEADS
+        if language == "es"
+        else _PT_P1_ELLIPTICAL_ACTIVITY_HEADS
+    )
+    denial_words = {"no"} if language == "es" else {"nao"}
+
+    index = activity_span[1]
+    if index >= copula_index or words[index] != coordinator:
+        return False
+    index += 1
+
+    if index < copula_index and words[index] in articles:
+        index += 1
+    if index >= copula_index or words[index] not in elliptical_heads:
+        return False
+    index += 1
+
+    while index < copula_index and words[index] in denial_words:
+        index += 1
+    if index != copula_index:
+        return False
+
+    return not any(
+        predicate.token_start >= activity_span[1]
+        and predicate.token_start < copula_index
+        and _in_clause(predicate.token_start, predicate.token_end, clause)
+        for predicate in analysis.predicates
+    )
+
+
 def _p1_activity_subject(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -1877,11 +2041,11 @@ def _p1_activity_subject(
     """Bind P1 ownership to the copula's local activity subject."""
 
     words = [token.normalized for token in analysis.tokens]
-    separators = {
+    hard_separators = {
         ",", ";", "?", "¿", "!", "¡", ":",
         *(_ES_CONTRAST if language == "es" else _PT_CONTRAST),
-        ("y" if language == "es" else "e"),
     }
+    coordinator = "y" if language == "es" else "e"
 
     left_candidates = [
         span
@@ -1890,13 +2054,34 @@ def _p1_activity_subject(
     ]
     for span in sorted(left_candidates, key=lambda item: item[0], reverse=True):
         if any(
-            words[index] in separators
+            words[index] in hard_separators
             for index in range(span[1], copula_index)
+        ):
+            continue
+
+        coordinator_indices = [
+            index
+            for index in range(span[1], copula_index)
+            if words[index] == coordinator
+        ]
+        if coordinator_indices and not _p1_bounded_elliptical_coordination(
+            analysis,
+            span,
+            copula_index,
+            language,
         ):
             continue
         return span
 
     # Bounded post-copular fallback for forms such as "no es mío ese cargo".
+    if _p1_has_pre_copular_nominal_subject(
+        analysis,
+        clause,
+        copula_index,
+        language,
+    ):
+        return None
+
     right_candidates = [
         span
         for span in _activity_spans(analysis, clause)
@@ -1905,8 +2090,15 @@ def _p1_activity_subject(
     ]
     for span in sorted(right_candidates, key=lambda item: item[0]):
         if any(
-            words[index] in separators
+            words[index] in hard_separators or words[index] == coordinator
             for index in range(copula_index + 1, span[0])
+        ):
+            continue
+        if _p1_postcopular_activity_is_prepositional(
+            analysis,
+            owner_index,
+            span,
+            language,
         ):
             continue
         return span
