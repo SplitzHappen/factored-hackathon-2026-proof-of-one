@@ -1645,6 +1645,12 @@ def _bound_denial_index_for_span(
         if index >= token_end:
             if index - token_end > 2:
                 continue
+            if language != "pt":
+                continue
+            if analysis.tokens[index].normalized != "nao":
+                continue
+            if index != clause.token_end - 1:
+                continue
             between = range(token_end, index)
             if any(
                 analysis.tokens[item].surface in _DENIAL_BINDING_BARRIERS

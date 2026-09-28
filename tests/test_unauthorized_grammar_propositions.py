@@ -2438,3 +2438,28 @@ def test_b2r_e2a_p1_postcopular_activity_fallback_remains_bounded_positive() -> 
 
     assert PropositionFamily.OWNERSHIP_DENIAL in es
     assert PropositionFamily.OWNERSHIP_DENIAL in pt
+
+
+
+def test_b2r_e2b_pt_terminal_postverbal_nao_remains_valid() -> None:
+    pt = _families("Eu fiz essa compra não.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL in pt
+
+
+def test_b2r_e2b_spanish_postverbal_no_does_not_bind() -> None:
+    es = _families("Yo hice no esa compra.", "es")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in es
+
+
+def test_b2r_e2b_pt_nonterminal_postverbal_nao_does_not_bind() -> None:
+    pt = _families("Eu fiz não essa compra.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
+
+
+def test_b2r_e2b_pt_terminal_nao_does_not_cross_original_distance_bound() -> None:
+    pt = _families("Eu fiz essa compra ontem não.", "pt")
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
