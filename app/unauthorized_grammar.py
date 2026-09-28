@@ -3354,6 +3354,119 @@ _PT_ACTIVITY_ANAPHORS = frozenset(
     {"isso", "isto", "aquilo", "este", "esta", "esse", "essa", "o", "a"}
 )
 
+_ES_P7_OBJECT_DETERMINERS = frozenset(
+    {
+        "el", "la", "los", "las", "un", "una", "unos", "unas",
+        "este", "esta", "estos", "estas", "ese", "esa", "esos", "esas",
+        "aquel", "aquella", "aquellos", "aquellas",
+    }
+)
+_PT_P7_OBJECT_DETERMINERS = frozenset(
+    {
+        "o", "a", "os", "as", "um", "uma", "uns", "umas",
+        "este", "esta", "estes", "estas", "esse", "essa", "esses", "essas",
+        "aquele", "aquela", "aqueles", "aquelas",
+    }
+)
+_ES_P7_NEUTRAL_DEMONSTRATIVES = frozenset({"esto", "eso", "aquello"})
+_PT_P7_NEUTRAL_DEMONSTRATIVES = frozenset({"isto", "isso", "aquilo"})
+
+
+def _p7_classify_object_head(
+    analysis: FoundationAnalysis,
+    index: int,
+) -> tuple[str, tuple[int, int]]:
+    if analysis.tokens[index].is_txid or LexicalTag.ACTIVITY in analysis.tags[index]:
+        return "activity", (index, index + 1)
+    if LexicalTag.DESCRIPTOR_NOUN in analysis.tags[index]:
+        return "descriptor", (index, index + 1)
+    return "non_activity", (index, index + 1)
+
+
+def _p7_overt_object_after_predicate(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> tuple[str, tuple[int, int] | None]:
+    if predicate.token_end >= clause.token_end:
+        return "none", None
+
+    words = [token.normalized for token in analysis.tokens]
+    determiners = (
+        _ES_P7_OBJECT_DETERMINERS
+        if language == "es"
+        else _PT_P7_OBJECT_DETERMINERS
+    )
+    neutral_demonstratives = (
+        _ES_P7_NEUTRAL_DEMONSTRATIVES
+        if language == "es"
+        else _PT_P7_NEUTRAL_DEMONSTRATIVES
+    )
+    index = predicate.token_end
+    word = words[index]
+
+    if word in neutral_demonstratives:
+        return "none", None
+
+    if analysis.tokens[index].is_txid:
+        return "activity", (index, index + 1)
+
+    if LexicalTag.ACTIVITY in analysis.tags[index]:
+        return "activity", (index, index + 1)
+
+    if LexicalTag.DESCRIPTOR_NOUN in analysis.tags[index]:
+        return "descriptor", (index, index + 1)
+
+    if word in determiners:
+        head = index + 1
+        if head < clause.token_end:
+            return _p7_classify_object_head(analysis, head)
+        return "none", None
+
+    if word in {"a", "ao", "aos"}:
+        article = index + 1
+        if article < clause.token_end and words[article] in determiners:
+            head = article + 1
+            if head < clause.token_end:
+                return _p7_classify_object_head(analysis, head)
+
+    return "none", None
+
+
+def _p7_preposed_overt_object(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> tuple[str, tuple[int, int] | None]:
+    words = [token.normalized for token in analysis.tokens]
+    determiners = (
+        _ES_P7_OBJECT_DETERMINERS
+        if language == "es"
+        else _PT_P7_OBJECT_DETERMINERS
+    )
+    candidates: list[int] = []
+
+    for index in range(clause.token_start, predicate.token_start - 1):
+        if words[index] not in determiners:
+            continue
+        head = index + 1
+        if head >= predicate.token_start:
+            continue
+        if any(
+            other.token_start == head
+            for other in analysis.predicates
+            if _in_clause(other.token_start, other.token_end, clause)
+        ):
+            continue
+        candidates.append(head)
+
+    if not candidates:
+        return "none", None
+
+    return _p7_classify_object_head(analysis, max(candidates))
+
 
 def _p7_nominal_target(
     analysis: FoundationAnalysis,
@@ -3361,27 +3474,23 @@ def _p7_nominal_target(
     predicate: PredicateMatch,
     language: str,
 ) -> tuple[str, tuple[int, int] | None]:
-    tagged: list[tuple[int, str]] = []
-    for index in range(predicate.token_end, clause.token_end):
-        if LexicalTag.ACTIVITY in analysis.tags[index]:
-            tagged.append((index, "activity"))
-        if LexicalTag.DESCRIPTOR_NOUN in analysis.tags[index]:
-            tagged.append((index, "descriptor"))
+    after_kind, after_span = _p7_overt_object_after_predicate(
+        analysis,
+        clause,
+        predicate,
+        language,
+    )
+    if after_kind != "none":
+        return after_kind, after_span
 
-    if tagged:
-        index, kind = min(tagged, key=lambda item: item[0])
-        return kind, (index, index + 1)
-
-    tagged_before: list[tuple[int, str]] = []
-    for index in range(clause.token_start, predicate.token_start):
-        if LexicalTag.ACTIVITY in analysis.tags[index]:
-            tagged_before.append((index, "activity"))
-        if LexicalTag.DESCRIPTOR_NOUN in analysis.tags[index]:
-            tagged_before.append((index, "descriptor"))
-
-    if tagged_before:
-        index, kind = min(tagged_before, key=lambda item: item[0])
-        return kind, (index, index + 1)
+    before_kind, before_span = _p7_preposed_overt_object(
+        analysis,
+        clause,
+        predicate,
+        language,
+    )
+    if before_kind != "none":
+        return before_kind, before_span
 
     return "none", None
 
@@ -3471,7 +3580,7 @@ def _activity_nonrecognition(
             predicate,
             language,
         )
-        if target_kind == "descriptor":
+        if target_kind in {"descriptor", "non_activity"}:
             continue
 
         denial_index = _bound_denial_index(
