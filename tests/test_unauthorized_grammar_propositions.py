@@ -2385,3 +2385,56 @@ def test_b2r_e1b_p6_does_not_skip_unanchored_nearer_activity_np() -> None:
         item.family is PropositionFamily.FRAUD_CHARACTERIZATION
         for item in pt
     )
+
+
+
+def test_b2r_e2a_p1_does_not_borrow_activity_across_segment_boundary() -> None:
+    es = _families(
+        "La culpa no es mía, el cargo apareció solo.",
+        "es",
+    )
+    pt = _families(
+        "A culpa não é minha, a compra apareceu sozinha.",
+        "pt",
+    )
+
+    assert PropositionFamily.OWNERSHIP_DENIAL not in es
+    assert PropositionFamily.OWNERSHIP_DENIAL not in pt
+
+
+def test_b2r_e2a_p1_response_particle_does_not_negate_copula() -> None:
+    es = _families("No, es mío ese cargo.", "es")
+    pt = _families("Não, é meu esse pagamento.", "pt")
+
+    assert PropositionFamily.OWNERSHIP_DENIAL not in es
+    assert PropositionFamily.OWNERSHIP_DENIAL not in pt
+
+
+def test_b2r_e2a_p1_embedded_negation_does_not_negate_copula() -> None:
+    es = _families("El cargo que no entendía es mío.", "es")
+    pt = _families("A compra que eu não lembrava é minha.", "pt")
+
+    assert PropositionFamily.OWNERSHIP_DENIAL not in es
+    assert PropositionFamily.OWNERSHIP_DENIAL not in pt
+
+
+def test_b2r_e2a_p1_does_not_jump_from_non_activity_subject_to_later_activity() -> None:
+    es = _families(
+        "Ese correo no es mío, pero la compra sí la hice.",
+        "es",
+    )
+    pt = _families(
+        "Esse email não é meu, mas a compra eu fiz.",
+        "pt",
+    )
+
+    assert PropositionFamily.OWNERSHIP_DENIAL not in es
+    assert PropositionFamily.OWNERSHIP_DENIAL not in pt
+
+
+def test_b2r_e2a_p1_postcopular_activity_fallback_remains_bounded_positive() -> None:
+    es = _families("No es mío ese cargo.", "es")
+    pt = _families("Não é meu esse pagamento.", "pt")
+
+    assert PropositionFamily.OWNERSHIP_DENIAL in es
+    assert PropositionFamily.OWNERSHIP_DENIAL in pt

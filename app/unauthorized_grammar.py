@@ -1857,6 +1857,53 @@ def _p1_correlative_negative_anchors(
     return None
 
 
+def _p1_activity_subject(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    copula_index: int,
+    owner_index: int,
+    language: str,
+) -> tuple[int, int] | None:
+    """Bind P1 ownership to the copula's local activity subject."""
+
+    words = [token.normalized for token in analysis.tokens]
+    separators = {
+        ",", ";", "?", "¿", "!", "¡", ":",
+        *(_ES_CONTRAST if language == "es" else _PT_CONTRAST),
+        ("y" if language == "es" else "e"),
+    }
+
+    left_candidates = [
+        span
+        for span in _activity_spans(analysis, clause)
+        if span[1] <= copula_index
+    ]
+    for span in sorted(left_candidates, key=lambda item: item[0], reverse=True):
+        if any(
+            words[index] in separators
+            for index in range(span[1], copula_index)
+        ):
+            continue
+        return span
+
+    # Bounded post-copular fallback for forms such as "no es mío ese cargo".
+    right_candidates = [
+        span
+        for span in _activity_spans(analysis, clause)
+        if span[0] >= owner_index + 1
+        and span[0] - owner_index <= 4
+    ]
+    for span in sorted(right_candidates, key=lambda item: item[0]):
+        if any(
+            words[index] in separators
+            for index in range(copula_index + 1, span[0])
+        ):
+            continue
+        return span
+
+    return None
+
+
 def _ownership_denials(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -1872,7 +1919,6 @@ def _ownership_denials(
         for index in range(clause.token_start, clause.token_end)
         if LexicalTag.OWNERSHIP in analysis.tags[index]
     ]
-    negatives = _negative_indices(analysis, clause, language)
     output: list[PositiveProposition] = []
 
     for copula_index in range(clause.token_start, clause.token_end):
@@ -1891,21 +1937,17 @@ def _ownership_denials(
         if owner_index is None:
             continue
 
-        activity_span = min(
-            activity_spans,
-            key=lambda span: abs(span[0] - copula_index),
+        activity_span = _p1_activity_subject(
+            analysis,
+            clause,
+            copula_index,
+            owner_index,
+            language,
         )
+        if activity_span is None:
+            continue
 
         if language == "pt" and token.normalized == "e" and not token.had_acute:
-            left_activity_spans = [
-                span for span in activity_spans if span[1] <= copula_index
-            ]
-            if not left_activity_spans:
-                continue
-            activity_span = min(
-                left_activity_spans,
-                key=lambda span: copula_index - span[1],
-            )
             immediately_owned = owner_index == copula_index + 1
             ownership_copula = (
                 immediately_owned
@@ -1927,45 +1969,45 @@ def _ownership_denials(
                 or not (ownership_copula or immediately_negated)
             ):
                 continue
-        neg_index = next(
-            (
-                index
-                for index in reversed(negatives)
-                if index < copula_index and copula_index - index <= 3
-            ),
-            None,
-        )
 
         rule = "P1"
         denial_evidence: tuple[tuple[int, int], ...]
-        if neg_index is not None:
-            denial_evidence = ((neg_index, neg_index + 1),)
+
+        quantifier_index = _p1_negative_quantifier_anchor(
+            analysis,
+            clause,
+            activity_span,
+            copula_index,
+            language,
+        )
+        if quantifier_index is not None:
+            rule = "P1-neg-quantifier"
+            denial_evidence = ((quantifier_index, quantifier_index + 1),)
         else:
-            quantifier_index = _p1_negative_quantifier_anchor(
+            correlative = _p1_correlative_negative_anchors(
                 analysis,
                 clause,
                 activity_span,
                 copula_index,
-                language,
             )
-            if quantifier_index is not None:
-                rule = "P1-neg-quantifier"
-                denial_evidence = ((quantifier_index, quantifier_index + 1),)
-            else:
-                correlative = _p1_correlative_negative_anchors(
-                    analysis,
-                    clause,
-                    activity_span,
-                    copula_index,
-                )
-                if correlative is None:
-                    continue
+            if correlative is not None:
                 first, second = correlative
                 rule = "P1-correlative"
                 denial_evidence = (
                     (first, first + 1),
                     (second, second + 1),
                 )
+            else:
+                neg_index = _bound_denial_index_for_span(
+                    analysis,
+                    clause,
+                    copula_index,
+                    copula_index + 1,
+                    language,
+                )
+                if neg_index is None:
+                    continue
+                denial_evidence = ((neg_index, neg_index + 1),)
 
         output.append(
             _make_proposition(
