@@ -3551,6 +3551,31 @@ def _nearest_preceding_activity_or_txid(
     return None
 
 
+def _nearest_preceding_activity_or_txid_for_self_exculpation(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], str] | None:
+    linked = _nearest_preceding_activity_or_txid(
+        analysis,
+        clause,
+        language,
+    )
+    if linked is not None:
+        return linked
+
+    if clause.index <= 0:
+        return None
+
+    prior = analysis.clauses[clause.index - 1]
+    for index in range(prior.token_end - 1, prior.token_start - 1, -1):
+        if analysis.tokens[index].is_txid:
+            return (index, index + 1), "linked_prior_txid"
+        if LexicalTag.ACTIVITY in analysis.tags[index]:
+            return (index, index + 1), "linked_prior_activity"
+    return None
+
+
 def _closed_self_exculpation_span(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -3624,7 +3649,7 @@ def _argumentless_self_exculpation(
     if exculpation_span is None:
         return []
 
-    prior = _nearest_preceding_activity_or_txid(
+    prior = _nearest_preceding_activity_or_txid_for_self_exculpation(
         analysis,
         clause,
         language,
