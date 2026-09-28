@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import pytest
 
 from app.unauthorized_grammar import (
@@ -2602,3 +2605,154 @@ def test_b2r_e3c_d2_clitic_backlinks_remain_positive() -> None:
         item.rule == "P4-R3-activity-anaphora"
         for item in pt
     )
+
+
+
+_PUBLIC_POSITIVE_SOURCE_FILES = (
+    "test_unauthorized_breadth.py",
+    "test_unauthorized_compositional.py",
+)
+
+
+def _parse_public_test_source(filename: str) -> ast.Module:
+    source_path = Path(__file__).with_name(filename)
+    return ast.parse(source_path.read_text(encoding="utf-8"))
+
+
+def _literal_assignment(module: ast.Module, name: str):
+    for node in module.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == name
+            for target in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    raise AssertionError(f"missing frozen public assignment: {name}")
+
+
+def _function_literal_assignment(
+    module: ast.Module,
+    function_name: str,
+    assignment_name: str,
+):
+    function = next(
+        (
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == function_name
+        ),
+        None,
+    )
+    assert function is not None, function_name
+
+    for node in function.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == assignment_name
+            for target in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    raise AssertionError(
+        f"missing frozen public assignment: {function_name}.{assignment_name}"
+    )
+
+
+def _parametrize_literal_values(
+    module: ast.Module,
+    function_name: str,
+):
+    function = next(
+        (
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == function_name
+        ),
+        None,
+    )
+    assert function is not None, function_name
+
+    for decorator in function.decorator_list:
+        if not isinstance(decorator, ast.Call):
+            continue
+        if len(decorator.args) < 2:
+            continue
+        try:
+            return ast.literal_eval(decorator.args[1])
+        except (TypeError, ValueError):
+            continue
+    raise AssertionError(f"missing literal parametrize values: {function_name}")
+
+
+def _frozen_public_positive_inventory() -> tuple[str, ...]:
+    breadth = _parse_public_test_source(_PUBLIC_POSITIVE_SOURCE_FILES[0])
+    compositional = _parse_public_test_source(_PUBLIC_POSITIVE_SOURCE_FILES[1])
+    messages: set[str] = set()
+
+    breadth_http = _parametrize_literal_values(
+        breadth,
+        "test_http_unauthorized_paraphrases_escalate_without_cross_customer_disclosure",
+    )
+    messages.update(row[2] for row in breadth_http)
+
+    messages.update(_literal_assignment(breadth, "_AUDIT_MISS_CASES"))
+
+    audit_templates = _function_literal_assignment(
+        breadth,
+        "_audit_http_cases",
+        "templates",
+    )
+    for persona_id, template in audit_templates:
+        owned = "DEMO-ES-1001" if persona_id == "lucia" else "DEMO-PT-2001"
+        foreign = "DEMO-PT-2001" if persona_id == "lucia" else "DEMO-ES-1001"
+        for transaction_id in (owned, foreign, None):
+            suffix = f": {transaction_id}" if transaction_id is not None else ""
+            messages.add(template.format(suffix=suffix))
+
+    symmetry = _parametrize_literal_values(
+        breadth,
+        "test_unauthorized_backstop_preserves_language_and_form_symmetry",
+    )
+    for left, right in symmetry:
+        messages.add(left)
+        messages.add(right)
+
+    compositional_explicit = _parametrize_literal_values(
+        compositional,
+        "test_compositional_explicit_unauthorized_assertions",
+    )
+    messages.update(compositional_explicit)
+
+    compositional_independent = _parametrize_literal_values(
+        compositional,
+        "test_scope_controls_do_not_hide_independent_current_assertions",
+    )
+    messages.update(compositional_independent)
+
+    http_structures = _literal_assignment(compositional, "_HTTP_STRUCTURES")
+    for persona_id, without_id, with_id_template in http_structures:
+        owned = "DEMO-ES-1001" if persona_id == "lucia" else "DEMO-PT-2001"
+        foreign = "DEMO-PT-2001" if persona_id == "lucia" else "DEMO-ES-1001"
+        messages.add(with_id_template.format(transaction_id=owned))
+        messages.add(with_id_template.format(transaction_id=foreign))
+        messages.add(without_id)
+
+    return tuple(sorted(messages))
+
+
+def test_b2r_e4_frozen_public_positive_inventory_yields_unresolved_proposition() -> None:
+    inventory = _frozen_public_positive_inventory()
+
+    assert len(inventory) == 130
+    for message in inventory:
+        propositions = (
+            *build_positive_propositions(message, "es"),
+            *build_positive_propositions(message, "pt"),
+        )
+        assert any(
+            item.mode == "unresolved"
+            for item in propositions
+        ), message
