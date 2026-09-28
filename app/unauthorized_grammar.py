@@ -2486,6 +2486,8 @@ def _third_party_unauthorized_use(
             continue
         if predicate.form.family is not PredicateFamily.USE_ACCESS:
             continue
+        if not _source_accent_selects_predicate(analysis, predicate):
+            continue
         if not _third_party_action_allowed(predicate):
             continue
         if _predicate_has_denial(analysis, clause, predicate, language):
