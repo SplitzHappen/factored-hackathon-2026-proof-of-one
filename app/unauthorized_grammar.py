@@ -421,6 +421,12 @@ _ES_IRREGULAR: dict[str, dict[str, tuple[str, ...]]] = {
         "imperfect": ("venía", "venías", "venía", "veníamos", "veníais", "venían"),
         "present_subjunctive": ("venga", "vengas", "venga", "vengamos", "vengáis", "vengan"),
     },
+    "provenir": {
+        "present": ("provengo", "provienes", "proviene", "provenimos", "provenís", "provienen"),
+        "preterite": ("provine", "proviniste", "provino", "provinimos", "provinisteis", "provinieron"),
+        "imperfect": ("provenía", "provenías", "provenía", "proveníamos", "proveníais", "provenían"),
+        "present_subjunctive": ("provenga", "provengas", "provenga", "provengamos", "provengáis", "provengan"),
+    },
     "reconocer": {
         "present": ("reconozco", "reconoces", "reconoce", "reconocemos", "reconocéis", "reconocen"),
         "preterite": ("reconocí", "reconociste", "reconoció", "reconocimos", "reconocisteis", "reconocieron"),
@@ -525,6 +531,7 @@ _ES_FUTURE_STEMS = {
     "hacer": "har",
     "salir": "saldr",
     "venir": "vendr",
+    "provenir": "provendr",
 }
 _PT_FUTURE_STEMS = {
     "fazer": "far",
@@ -2369,12 +2376,29 @@ def _possessive_authorization_absence(
     auth_nouns = _auth_noun_spans(analysis, clause)
     output: list[PositiveProposition] = []
 
+    articles = (
+        {"el", "la", "los", "las"}
+        if language == "es"
+        else {"o", "a", "os", "as"}
+    )
+
     for possessor_span in possessor_spans:
         possessor_index = possessor_span[0]
         if possessor_index <= clause.token_start:
             continue
-        if words[possessor_index - 1] != introducer:
+
+        introducer_index: int | None = None
+        if words[possessor_index - 1] == introducer:
+            introducer_index = possessor_index - 1
+        elif (
+            possessor_index - 2 >= clause.token_start
+            and words[possessor_index - 1] in articles
+            and words[possessor_index - 2] == introducer
+        ):
+            introducer_index = possessor_index - 2
+        if introducer_index is None:
             continue
+
         auth_span = next(
             (
                 span
@@ -2395,7 +2419,7 @@ def _possessive_authorization_absence(
                 language=language,
                 evidence_spans=(
                     activity_span,
-                    (possessor_index - 1, possessor_index),
+                    (introducer_index, introducer_index + 1),
                     possessor_span,
                     auth_span,
                 ),
