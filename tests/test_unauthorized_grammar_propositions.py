@@ -3001,3 +3001,44 @@ def test_b2r_g5a_complementizer_que_does_not_embed_later_known_actor() -> None:
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
 
+def test_b2r_g5b_p1_elliptical_coordination_accepts_demonstrative_other() -> None:
+    es = _families(
+        "Este cargo y este otro no son míos.",
+        "es",
+    )
+    pt = _families(
+        "Essa compra e essa outra não são minhas.",
+        "pt",
+    )
+
+    assert PropositionFamily.OWNERSHIP_DENIAL in es
+    assert PropositionFamily.OWNERSHIP_DENIAL in pt
+
+
+def test_b2r_g5b_p1_elliptical_coordination_accepts_numbered_others() -> None:
+    es = _families(
+        "Este cargo y los otros dos no son míos.",
+        "es",
+    )
+    pt = _families(
+        "Esse Pix e os outros dois não são meus.",
+        "pt",
+    )
+
+    assert PropositionFamily.OWNERSHIP_DENIAL in es
+    assert PropositionFamily.OWNERSHIP_DENIAL in pt
+
+
+def test_b2r_g5b_p1_elliptical_coordination_accepts_temporal_de_ellipsis() -> None:
+    es = _families(
+        "El cargo de hoy y el de ayer no son míos.",
+        "es",
+    )
+    pt = _families(
+        "A compra de hoje e a de ontem não são minhas.",
+        "pt",
+    )
+
+    assert PropositionFamily.OWNERSHIP_DENIAL in es
+    assert PropositionFamily.OWNERSHIP_DENIAL in pt
+
