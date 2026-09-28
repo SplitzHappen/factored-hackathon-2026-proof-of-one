@@ -2460,6 +2460,12 @@ def _permission_absence_for_predicate(
     return None
 
 
+def _third_party_action_allowed(predicate: PredicateMatch) -> bool:
+    """Return whether a finite action can represent a non-customer actor."""
+
+    return predicate.form.person != 1
+
+
 def _third_party_unauthorized_use(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -2479,6 +2485,8 @@ def _third_party_unauthorized_use(
         if not _in_clause(predicate.token_start, predicate.token_end, clause):
             continue
         if predicate.form.family is not PredicateFamily.USE_ACCESS:
+            continue
+        if not _third_party_action_allowed(predicate):
             continue
         if _predicate_has_denial(analysis, clause, predicate, language):
             continue
@@ -2834,6 +2842,8 @@ def _exceeded_amount_authorization(
         if not actions:
             continue
         action = max(actions, key=lambda predicate: predicate.token_start)
+        if not _third_party_action_allowed(action):
+            continue
         if _predicate_has_denial(analysis, clause, action, language):
             continue
 
@@ -2964,6 +2974,8 @@ def _exceeded_purpose_authorization(
         if not _in_clause(action.token_start, action.token_end, clause):
             continue
         if action.form.family is not PredicateFamily.PERFORM:
+            continue
+        if not _third_party_action_allowed(action):
             continue
         if not _source_accent_selects_predicate(analysis, action):
             continue
