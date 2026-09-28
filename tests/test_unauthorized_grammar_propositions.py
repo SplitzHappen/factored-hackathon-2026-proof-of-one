@@ -1935,3 +1935,76 @@ def test_b2r_b10_unaccented_pt_e_conjunction_does_not_create_p6() -> None:
     assert PropositionFamily.FRAUD_CHARACTERIZATION not in {
         item.family for item in propositions
     }
+
+
+
+def test_b2r_b11_f20_spanish_participial_amount_exceedance() -> None:
+    propositions = build_positive_propositions(
+        "Mi hijo gastó más de lo autorizado.",
+        "es",
+    )
+
+    assert any(
+        item.rule == "P5-exceeded-authorization-amount"
+        for item in propositions
+    )
+
+
+def test_b2r_b11_f20_portuguese_alem_do_participial_amount_exceedance() -> None:
+    propositions = build_positive_propositions(
+        "Meu irmão gastou além do combinado.",
+        "pt",
+    )
+
+    assert any(
+        item.rule == "P5-exceeded-authorization-amount"
+        for item in propositions
+    )
+
+
+def test_b2r_b11_f20_portuguese_mais_do_que_o_participial_amount_exceedance() -> None:
+    propositions = build_positive_propositions(
+        "Meu irmão gastou mais do que o autorizado.",
+        "pt",
+    )
+
+    assert any(
+        item.rule == "P5-exceeded-authorization-amount"
+        for item in propositions
+    )
+
+
+def test_b2r_b11_f20_participial_exceedance_still_requires_known_actor() -> None:
+    propositions = build_positive_propositions(
+        "Gastou além do combinado.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-amount"
+        for item in propositions
+    )
+
+
+def test_b2r_b11_f20_participial_exceedance_still_requires_third_party_action() -> None:
+    propositions = build_positive_propositions(
+        "Com meu irmão na loja, gastei além do combinado.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-amount"
+        for item in propositions
+    )
+
+
+def test_b2r_b11_f20_participial_exceedance_respects_action_denial() -> None:
+    propositions = build_positive_propositions(
+        "Meu irmão não gastou além do combinado.",
+        "pt",
+    )
+
+    assert not any(
+        item.rule == "P5-exceeded-authorization-amount"
+        for item in propositions
+    )
