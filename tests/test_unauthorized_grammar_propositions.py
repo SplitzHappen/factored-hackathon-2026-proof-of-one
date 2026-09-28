@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.unauthorized_grammar import (
+    EvidenceAtomKind,
     LexicalTag,
     PredicateFamily,
     PropositionFamily,
@@ -2008,3 +2009,111 @@ def test_b2r_b11_f20_participial_exceedance_respects_action_denial() -> None:
         item.rule == "P5-exceeded-authorization-amount"
         for item in propositions
     )
+
+
+
+def test_b2r_c1_f12_self_performed_fraud_carries_counter_evidence() -> None:
+    es = build_positive_propositions(
+        "La transferencia que yo mismo hice fue un fraude.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Eu mesmo fiz esse Pix e foi um golpe.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert EvidenceAtomKind.SELF_PERFORMED in {
+        atom.kind for atom in es_p6.counter_evidence
+    }
+    assert EvidenceAtomKind.SELF_PERFORMED in {
+        atom.kind for atom in pt_p6.counter_evidence
+    }
+    assert all(
+        atom.activity_token_span == es_p6.activity_token_span
+        for atom in es_p6.counter_evidence
+    )
+    assert all(
+        atom.activity_token_span == pt_p6.activity_token_span
+        for atom in pt_p6.counter_evidence
+    )
+
+
+def test_b2r_c1_f12_self_authorized_fraud_carries_counter_evidence() -> None:
+    es = build_positive_propositions(
+        "Esta transferencia que yo autoricé fue un fraude.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Este Pix que eu autorizei foi um golpe.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert EvidenceAtomKind.SELF_AUTHORIZED in {
+        atom.kind for atom in es_p6.counter_evidence
+    }
+    assert EvidenceAtomKind.SELF_AUTHORIZED in {
+        atom.kind for atom in pt_p6.counter_evidence
+    }
+
+
+def test_b2r_c1_f12_third_party_performance_does_not_create_self_counter_evidence() -> None:
+    es = build_positive_propositions(
+        "La transferencia que mi hermano hizo fue un fraude.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Esse Pix que meu irmão fez foi um golpe.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert not es_p6.counter_evidence
+    assert not pt_p6.counter_evidence
+
+
+def test_b2r_c1_f12_separate_unauthorized_proposition_remains_independent() -> None:
+    es = build_positive_propositions(
+        "La transferencia que yo mismo hice fue un fraude. Este cargo no es mío.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Eu mesmo fiz esse Pix e foi um golpe. Este débito não é meu.",
+        "pt",
+    )
+
+    for propositions in (es, pt):
+        p6 = next(
+            item for item in propositions
+            if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert p6.counter_evidence
+        assert any(
+            item.family is PropositionFamily.OWNERSHIP_DENIAL
+            for item in propositions
+        )
