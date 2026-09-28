@@ -1200,3 +1200,91 @@ def test_b2r_a6_p7_demonstrative_pronoun_keeps_topic_default() -> None:
 
     assert es_item.activity_ref == "topic_transaction"
     assert pt_item.activity_ref == "topic_transaction"
+
+
+
+def test_b2r_b1_argumentless_self_exculpation_is_p2_in_both_languages() -> None:
+    es = build_positive_propositions("No fui yo.", "es")
+    pt = build_positive_propositions("Não fui eu.", "pt")
+
+    es_item = next(
+        item for item in es
+        if item.rule == "P2-R3-self-exculpation"
+    )
+    pt_item = next(
+        item for item in pt
+        if item.rule == "P2-R3-self-exculpation"
+    )
+
+    assert es_item.family is PropositionFamily.PERFORMANCE_DENIAL
+    assert pt_item.family is PropositionFamily.PERFORMANCE_DENIAL
+    assert es_item.activity_ref == "topic_transaction"
+    assert pt_item.activity_ref == "topic_transaction"
+
+
+def test_b2r_b1_self_exculpation_links_nearest_prior_activity() -> None:
+    es = build_positive_propositions(
+        "Este cargo apareció ayer. No fui yo.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Apareceu um Pix. Não fui eu.",
+        "pt",
+    )
+
+    es_item = next(
+        item for item in es
+        if item.rule == "P2-R3-self-exculpation"
+    )
+    pt_item = next(
+        item for item in pt
+        if item.rule == "P2-R3-self-exculpation"
+    )
+
+    assert es_item.activity_ref == "linked_prior_activity"
+    assert pt_item.activity_ref == "linked_prior_activity"
+    assert es_item.activity_token_span is not None
+    assert pt_item.activity_token_span is not None
+
+
+def test_b2r_b1_self_exculpation_can_link_prior_transaction_id() -> None:
+    propositions = build_positive_propositions(
+        "DEMO-ES-1001. No fui yo.",
+        "es",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.rule == "P2-R3-self-exculpation"
+    )
+    assert item.activity_ref == "linked_prior_txid"
+    assert item.activity_token_span is not None
+
+
+def test_b2r_b1_closed_cleft_self_exculpation_remains_positive() -> None:
+    es = _families(
+        "No fui yo quien hizo esa compra.",
+        "es",
+    )
+    pt = _families(
+        "Não fui eu quem fez essa compra.",
+        "pt",
+    )
+
+    assert PropositionFamily.PERFORMANCE_DENIAL in es
+    assert PropositionFamily.PERFORMANCE_DENIAL in pt
+
+
+def test_b2r_b1_self_exculpation_does_not_become_general_fui_parser() -> None:
+    es = _families(
+        "No fui yo al banco.",
+        "es",
+    )
+    pt = _families(
+        "Não fui eu ao banco.",
+        "pt",
+    )
+
+    assert PropositionFamily.PERFORMANCE_DENIAL not in es
+    assert PropositionFamily.PERFORMANCE_DENIAL not in pt
