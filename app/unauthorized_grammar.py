@@ -3551,6 +3551,107 @@ def _nearest_preceding_activity_or_txid(
     return None
 
 
+def _closed_self_exculpation_span(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[int, int] | None:
+    words = [token.normalized for token in analysis.tokens]
+    start = clause.token_start
+
+    if language == "es":
+        forms = {
+            ("no", "fui", "yo"),
+            ("no", "fuimos", "nosotros"),
+            ("no", "fuimos", "nosotras"),
+        }
+        cleft_words = {"quien", "que"}
+    else:
+        forms = {
+            ("nao", "fui", "eu"),
+            ("nao", "fomos", "nos"),
+        }
+        cleft_words = {"quem", "que"}
+
+    if start + 3 > clause.token_end:
+        return None
+
+    triple = tuple(words[start : start + 3])
+    if triple not in forms:
+        return None
+
+    if (
+        language == "pt"
+        and triple[-1] == "nos"
+        and not analysis.tokens[start + 2].had_acute
+    ):
+        return None
+
+    end = start + 3
+    if end == clause.token_end:
+        return (start, end)
+
+    if words[end] not in cleft_words:
+        return None
+
+    perform = next(
+        (
+            predicate
+            for predicate in analysis.predicates
+            if _in_clause(predicate.token_start, predicate.token_end, clause)
+            and predicate.form.family is PredicateFamily.PERFORM
+            and predicate.token_start >= end + 1
+            and predicate.token_start - end <= 2
+        ),
+        None,
+    )
+    if perform is None:
+        return None
+
+    return (start, perform.token_end)
+
+
+def _argumentless_self_exculpation(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    exculpation_span = _closed_self_exculpation_span(
+        analysis,
+        clause,
+        language,
+    )
+    if exculpation_span is None:
+        return []
+
+    prior = _nearest_preceding_activity_or_txid(
+        analysis,
+        clause,
+        language,
+    )
+    activity_span: tuple[int, int] | None = None
+    activity_ref = "topic_transaction"
+    evidence: list[tuple[int, int]] = [exculpation_span]
+
+    if prior is not None:
+        activity_span, activity_ref = prior
+        evidence.append(activity_span)
+
+    return [
+        _make_proposition(
+            analysis,
+            clause,
+            family=PropositionFamily.PERFORMANCE_DENIAL,
+            rule="P2-R3-self-exculpation",
+            language=language,
+            evidence_spans=evidence,
+            activity_span=activity_span,
+            predicate=None,
+            activity_ref=activity_ref,
+        )
+    ]
+
+
 def _activity_nonrecognition(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -4220,6 +4321,13 @@ def build_positive_propositions(
                 proposition_family=PropositionFamily.PERFORMANCE_DENIAL,
                 rule="P2",
                 self_roles=frozenset({SelfRole.SUBJECT, SelfRole.AGENT}),
+            )
+        )
+        propositions.extend(
+            _argumentless_self_exculpation(
+                analysis,
+                clause,
+                language,
             )
         )
         propositions.extend(
