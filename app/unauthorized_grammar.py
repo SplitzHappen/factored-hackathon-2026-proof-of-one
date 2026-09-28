@@ -3322,6 +3322,11 @@ _PT_EXCEEDED_AMOUNT_MARKERS = (
 _ES_GRANT_DATIVE_WORDS = frozenset({"le", "les"})
 _PT_GRANT_DATIVE_WORDS = frozenset({"lhe", "lhes"})
 
+# These forms are deliberately local to the limited-purpose-grant rule. They are
+# not added to GIVE_PERMISSION or AUTHORIZE, so they cannot create ordinary P4.
+_ES_LIMITED_GRANT_FIRST_PERSON_PAST = frozenset({"preste", "pase", "deje"})
+_PT_LIMITED_GRANT_FIRST_PERSON_PAST = frozenset({"emprestei", "deixei"})
+
 
 def _phrase_spans(
     analysis: FoundationAnalysis,
@@ -3456,6 +3461,48 @@ def _exceeded_amount_authorization(
     return output
 
 
+def _limited_grant_surface_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], ...]:
+    """Return closed first-person past grant forms used only by A4 purpose scope."""
+
+    forms = (
+        _ES_LIMITED_GRANT_FIRST_PERSON_PAST
+        if language == "es"
+        else _PT_LIMITED_GRANT_FIRST_PERSON_PAST
+    )
+    spans: list[tuple[int, int]] = []
+    for index in range(clause.token_start, clause.token_end):
+        token = analysis.tokens[index]
+        if token.normalized not in forms:
+            continue
+        if language == "es" and not token.had_acute:
+            continue
+        spans.append((index, index + 1))
+    return tuple(spans)
+
+
+def _limited_grant_candidate_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], ...]:
+    spans: list[tuple[int, int]] = list(
+        _limited_grant_surface_spans(analysis, clause, language)
+    )
+    spans.extend(
+        (predicate.token_start, predicate.token_end)
+        for predicate in analysis.predicates
+        if _in_clause(predicate.token_start, predicate.token_end, clause)
+        and predicate.form.family is PredicateFamily.GIVE_PERMISSION
+        and predicate.form.person == 1
+        and _source_accent_selects_predicate(analysis, predicate)
+    )
+    return tuple(sorted(dict.fromkeys(spans)))
+
+
 def _limited_grant_recipient(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -3469,66 +3516,83 @@ def _limited_grant_recipient(
         else _PT_GRANT_DATIVE_WORDS
     )
 
-    grants = tuple(
-        predicate
-        for predicate in analysis.predicates
-        if _in_clause(predicate.token_start, predicate.token_end, clause)
-        and predicate.form.family is PredicateFamily.GIVE_PERMISSION
-        and predicate.form.person == 1
-        and predicate.token_end < action.token_start
-        and action.token_start - predicate.token_end <= 14
-        and _source_accent_selects_predicate(analysis, predicate)
-    )
-    for grant in reversed(grants):
-        instrument_span = next(
-            (
-                (index, index + 1)
-                for index in range(grant.token_end, action.token_start)
-                if LexicalTag.INSTRUMENT in analysis.tags[index]
-            ),
-            None,
-        )
-        if instrument_span is None:
-            continue
+    grant_clauses = [clause]
+    if clause.index > 0:
+        grant_clauses.append(analysis.clauses[clause.index - 1])
 
-        purpose_index = next(
-            (
-                index
-                for index in range(instrument_span[1], action.token_start)
-                if words[index] == "para"
-            ),
-            None,
-        )
-        if purpose_index is None:
-            continue
-
-        dative_span = next(
-            (
-                (index, index + 1)
-                for index in range(
-                    max(clause.token_start, grant.token_start - 2),
-                    min(action.token_start, grant.token_end + 3),
+    for grant_clause in grant_clauses:
+        same_clause = grant_clause.index == clause.index
+        scope_end = action.token_start if same_clause else grant_clause.token_end
+        grant_spans = tuple(
+            span
+            for span in _limited_grant_candidate_spans(
+                analysis,
+                grant_clause,
+                language,
+            )
+            if span[1] < scope_end
+            and (
+                (same_clause and action.token_start - span[1] <= 14)
+                or (
+                    not same_clause
+                    and grant_clause.token_end - span[1] <= 18
                 )
-                if words[index] in dative_words
-            ),
-            None,
+            )
         )
-        if dative_span is not None:
-            return dative_span
 
-        known_actor = next(
-            (
-                span
-                for span in _known_actor_spans(analysis, clause, language)
-                if grant.token_start <= span[0] < action.token_start
-            ),
-            None,
-        )
-        if known_actor is not None:
-            return known_actor
+        for grant_span in reversed(grant_spans):
+            instrument_span = next(
+                (
+                    (index, index + 1)
+                    for index in range(grant_span[1], scope_end)
+                    if LexicalTag.INSTRUMENT in analysis.tags[index]
+                ),
+                None,
+            )
+            if instrument_span is None:
+                continue
+
+            purpose_index = next(
+                (
+                    index
+                    for index in range(instrument_span[1], scope_end)
+                    if words[index] == "para"
+                ),
+                None,
+            )
+            if purpose_index is None:
+                continue
+
+            dative_span = next(
+                (
+                    (index, index + 1)
+                    for index in range(
+                        max(grant_clause.token_start, grant_span[0] - 2),
+                        min(scope_end, grant_span[1] + 3),
+                    )
+                    if words[index] in dative_words
+                ),
+                None,
+            )
+            if dative_span is not None:
+                return dative_span
+
+            known_actor = next(
+                (
+                    span
+                    for span in _known_actor_spans(
+                        analysis,
+                        grant_clause,
+                        language,
+                    )
+                    if grant_span[0] <= span[0] < scope_end
+                ),
+                None,
+            )
+            if known_actor is not None:
+                return known_actor
 
     return None
-
 
 def _exceeded_purpose_authorization(
     analysis: FoundationAnalysis,
