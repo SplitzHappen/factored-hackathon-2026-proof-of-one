@@ -2053,6 +2053,7 @@ def _p1_bounded_elliptical_coordination(
     denial_words = {"no"} if language == "es" else {"nao"}
 
     index = activity_span[1]
+    temporal_preposition_indices: set[int] = set()
 
     # The overt first conjunct may carry one closed temporal tail:
     # "cargo de hoy y ..." / "compra de hoje e ...".
@@ -2062,6 +2063,7 @@ def _p1_bounded_elliptical_coordination(
         and words[index + 1] in temporal_words
         and words[index + 2] == coordinator
     ):
+        temporal_preposition_indices.add(index)
         index += 2
 
     if index >= copula_index or words[index] != coordinator:
@@ -2089,6 +2091,7 @@ def _p1_bounded_elliptical_coordination(
         and words[index] == "de"
         and words[index + 1] in temporal_words
     ):
+        temporal_preposition_indices.add(index)
         index += 2
     else:
         return False
@@ -2102,6 +2105,12 @@ def _p1_bounded_elliptical_coordination(
         predicate.token_start >= activity_span[1]
         and predicate.token_start < copula_index
         and _in_clause(predicate.token_start, predicate.token_end, clause)
+        and not (
+            predicate.token_start in temporal_preposition_indices
+            and predicate.token_end == predicate.token_start + 1
+            and words[predicate.token_start] == "de"
+            and not analysis.tokens[predicate.token_start].had_acute
+        )
         for predicate in analysis.predicates
     )
 
