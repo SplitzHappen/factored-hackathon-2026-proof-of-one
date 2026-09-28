@@ -2275,21 +2275,40 @@ def _predicate_denials(
             self_evidence.token_start,
             self_evidence.token_end,
         )
+        evidence: list[tuple[int, int]] = [denial_span, nearest_self]
+        proposition_rule = rule
+        activity_ref = (
+            "explicit_activity"
+            if activity_span is not None
+            else "topic_transaction"
+        )
+
+        if (
+            activity_span is None
+            and proposition_family is PropositionFamily.PERFORMANCE_DENIAL
+        ):
+            d2_link = _d2_anaphoric_prior_activity(
+                analysis,
+                clause,
+                predicate,
+                language,
+            )
+            if d2_link is not None:
+                anaphor_span, activity_span, activity_ref = d2_link
+                evidence.extend((anaphor_span, activity_span))
+                proposition_rule = f"{rule}-R3-activity-anaphora"
+
         output.append(
             _make_proposition(
                 analysis,
                 clause,
                 family=proposition_family,
-                rule=rule,
+                rule=proposition_rule,
                 language=language,
-                evidence_spans=(denial_span, nearest_self),
+                evidence_spans=evidence,
                 activity_span=activity_span,
                 predicate=predicate,
-                activity_ref=(
-                    "explicit_activity"
-                    if activity_span is not None
-                    else "topic_transaction"
-                ),
+                activity_ref=activity_ref,
             )
         )
     return output
@@ -2609,6 +2628,21 @@ def _authorization_denials(
             if activity_span is not None
             else "topic_transaction"
         )
+
+        if (
+            predicate.form.family is PredicateFamily.AUTHORIZE
+            and activity_span is None
+        ):
+            d2_link = _d2_anaphoric_prior_activity(
+                analysis,
+                clause,
+                predicate,
+                language,
+            )
+            if d2_link is not None:
+                anaphor_span, activity_span, activity_ref = d2_link
+                evidence.extend((anaphor_span, activity_span))
+                rule = "P4-R3-activity-anaphora"
 
         if (
             predicate.form.family is PredicateFamily.GIVE_PERMISSION
@@ -4428,6 +4462,33 @@ def _nearest_preceding_activity_or_txid(
             ):
                 return activity_span, "linked_prior_activity"
     return None
+
+
+def _d2_anaphoric_prior_activity(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> tuple[tuple[int, int], tuple[int, int], str] | None:
+    anaphor_span = _p7_has_activity_anaphor(
+        analysis,
+        clause,
+        predicate,
+        language,
+    )
+    if anaphor_span is None:
+        return None
+
+    prior = _nearest_preceding_activity_or_txid(
+        analysis,
+        clause,
+        language,
+    )
+    if prior is None:
+        return None
+
+    activity_span, activity_ref = prior
+    return anaphor_span, activity_span, activity_ref
 
 
 def _nearest_preceding_activity_or_txid_for_self_exculpation(
