@@ -2512,3 +2512,32 @@ def test_b2r_e3a_same_clause_d3_rejects_first_person_action() -> None:
         item.rule == "P4-R3-permission-backlink"
         for item in pt
     )
+
+
+
+def test_b2r_e3b_known_actor_relational_victims_block_false_customer_anchor() -> None:
+    es = _families(
+        "El cargo fraudulento de mi sobrino apareció hoy.",
+        "es",
+    )
+    pt = _families(
+        "A cobrança fraudulenta do meu cunhado apareceu hoje.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
+
+
+def test_b2r_e3b_existing_relational_victim_terms_remain_blocking() -> None:
+    es = _families(
+        "El cargo fraudulento de mi vecino apareció hoy.",
+        "es",
+    )
+    pt = _families(
+        "A cobrança fraudulenta do meu pai apareceu hoje.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
