@@ -1118,3 +1118,85 @@ def test_b2r_a5_unaccented_de_da_are_not_permission_predicates() -> None:
 
     assert PropositionFamily.AUTHORIZATION_DENIAL not in es
     assert PropositionFamily.AUTHORIZATION_DENIAL not in pt
+
+
+
+def test_b2r_a6_p7_rejects_overt_non_activity_object_heads() -> None:
+    es = _families(
+        "No reconozco este correo que me llegó.",
+        "es",
+    )
+    pt = _families(
+        "Não reconheço esse site.",
+        "pt",
+    )
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in pt
+
+
+def test_b2r_a6_p7_non_activity_head_beats_embedded_activity_reference() -> None:
+    es = _families(
+        "No reconozco a la persona que me escribió sobre la compra.",
+        "es",
+    )
+    pt = _families(
+        "Não reconheço o remetente do SMS sobre o Pix.",
+        "pt",
+    )
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in pt
+
+
+def test_b2r_a6_p7_rejects_preposed_non_activity_target_with_clitic() -> None:
+    es = _families(
+        "Este correo no lo reconozco.",
+        "es",
+    )
+    pt = _families(
+        "Esse site eu não o reconheço.",
+        "pt",
+    )
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION not in pt
+
+
+def test_b2r_a6_p7_activity_object_remains_positive() -> None:
+    es = _families(
+        "No reconozco este cargo.",
+        "es",
+    )
+    pt = _families(
+        "Não reconheço este Pix.",
+        "pt",
+    )
+
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION in es
+    assert PropositionFamily.ACTIVITY_NONRECOGNITION in pt
+
+
+def test_b2r_a6_p7_demonstrative_pronoun_keeps_topic_default() -> None:
+    es = build_positive_propositions(
+        "No reconozco esto.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Não reconheço isso.",
+        "pt",
+    )
+
+    es_item = next(
+        item
+        for item in es
+        if item.family is PropositionFamily.ACTIVITY_NONRECOGNITION
+    )
+    pt_item = next(
+        item
+        for item in pt
+        if item.family is PropositionFamily.ACTIVITY_NONRECOGNITION
+    )
+
+    assert es_item.activity_ref == "topic_transaction"
+    assert pt_item.activity_ref == "topic_transaction"
