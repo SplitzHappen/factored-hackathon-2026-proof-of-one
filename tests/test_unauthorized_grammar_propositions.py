@@ -1825,3 +1825,57 @@ def test_b2r_b8_local_grant_verbs_do_not_become_general_p4_predicates() -> None:
     assert PropositionFamily.AUTHORIZATION_DENIAL not in {
         item.family for item in (*es, *pt)
     }
+
+
+
+def test_b2r_b9_p6_accepts_customer_existential_frame() -> None:
+    es = _families(
+        "Hay un cargo fraudulento.",
+        "es",
+    )
+    pt = _families(
+        "Há uma cobrança fraudulenta.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+
+
+def test_b2r_b9_p6_accepts_customer_instrument_locative_anchor() -> None:
+    es = _families(
+        "Un cargo fraudulento apareció en mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Uma cobrança fraudulenta apareceu no meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+
+
+def test_b2r_b9_p6_matches_audit_existential_plus_instrument_case() -> None:
+    propositions = build_positive_propositions(
+        "Hay un cargo fraudulento en mi tarjeta.",
+        "es",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION in {
+        item.family for item in propositions
+    }
+
+
+def test_b2r_b9_instrument_locative_requires_customer_possession() -> None:
+    es = _families(
+        "Un cargo fraudulento apareció en su tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Uma cobrança fraudulenta apareceu no cartão dela.",
+        "pt",
+    )
+
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in es
+    assert PropositionFamily.FRAUD_CHARACTERIZATION not in pt
