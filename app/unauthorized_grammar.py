@@ -1661,6 +1661,17 @@ def _bound_denial_index_for_span(
                 for item in between
             ):
                 continue
+            if any(
+                (
+                    analysis.tokens[item].normalized == "nem"
+                    or (
+                        analysis.tokens[item].normalized == "e"
+                        and not analysis.tokens[item].had_acute
+                    )
+                )
+                for item in between
+            ):
+                continue
             candidates.append(index)
 
     if not candidates:
@@ -3359,6 +3370,59 @@ def _perform_customer_instrument_complement(
     )
 
 
+def _p5_known_actor_embedded_under_prior_unknown(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+    known_actor: tuple[int, int],
+    unknown_actors: tuple[tuple[int, int], ...],
+) -> bool:
+    """Return whether a known actor is only a modifier of an earlier unknown actor."""
+
+    prior_unknowns = tuple(
+        span
+        for span in unknown_actors
+        if span[1] <= known_actor[0]
+    )
+    if not prior_unknowns:
+        return False
+
+    prior_unknown = max(prior_unknowns, key=lambda span: span[1])
+    words = [token.normalized for token in analysis.tokens]
+
+    if (
+        prior_unknown[1] < clause.token_end
+        and words[prior_unknown[1]] == "que"
+        and prior_unknown[1] < known_actor[0]
+    ):
+        return True
+
+    introducers = (
+        {"de", "del", "a", "al"}
+        if language == "es"
+        else {"de", "do", "da", "dos", "das", "a", "ao", "aos"}
+    )
+    bridge_words = (
+        {"mi", "mis"}
+        if language == "es"
+        else {"meu", "minha", "meus", "minhas"}
+    )
+
+    left = known_actor[0] - 1
+    while left >= max(prior_unknown[1], known_actor[0] - 3):
+        word = words[left]
+        if word in introducers:
+            return all(
+                words[index] in bridge_words
+                for index in range(left + 1, known_actor[0])
+            )
+        if word not in bridge_words:
+            break
+        left -= 1
+
+    return False
+
+
 def _third_party_unauthorized_use(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -3413,7 +3477,16 @@ def _third_party_unauthorized_use(
         ] + [
             ("known", span)
             for span in known_actors
-            if span[0] < predicate.token_start
+            if (
+                span[0] < predicate.token_start
+                and not _p5_known_actor_embedded_under_prior_unknown(
+                    analysis,
+                    clause,
+                    language,
+                    span,
+                    unknown_actors,
+                )
+            )
         ]
 
         if actor_candidates:
