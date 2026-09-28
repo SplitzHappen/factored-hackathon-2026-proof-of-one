@@ -1643,6 +1643,8 @@ def _bound_denial_index_for_span(
             continue
 
         if index >= token_end:
+            if index - token_end > 2:
+                continue
             if language != "pt":
                 continue
             if analysis.tokens[index].normalized != "nao":
