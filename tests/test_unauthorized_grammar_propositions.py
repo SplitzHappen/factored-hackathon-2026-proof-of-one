@@ -2117,3 +2117,127 @@ def test_b2r_c1_f12_separate_unauthorized_proposition_remains_independent() -> N
             item.family is PropositionFamily.OWNERSHIP_DENIAL
             for item in propositions
         )
+
+
+
+def test_b2r_c2_f14_p2_clitic_links_prior_activity_in_spanish_and_portuguese() -> None:
+    es = build_positive_propositions(
+        "Me apareció un cobro raro. No lo hice yo.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Recebi uma cobrança estranha. Eu não a fiz.",
+        "pt",
+    )
+
+    es_p2 = next(
+        item for item in es
+        if item.family is PropositionFamily.PERFORMANCE_DENIAL
+        and item.rule == "P2-R3-activity-anaphora"
+    )
+    pt_p2 = next(
+        item for item in pt
+        if item.family is PropositionFamily.PERFORMANCE_DENIAL
+        and item.rule == "P2-R3-activity-anaphora"
+    )
+
+    assert es_p2.activity_ref == "linked_prior_activity"
+    assert pt_p2.activity_ref == "linked_prior_activity"
+    assert es_p2.activity_token_span is not None
+    assert pt_p2.activity_token_span is not None
+
+
+def test_b2r_c2_f14_p4_clitic_links_prior_activity_in_spanish_and_portuguese() -> None:
+    es = build_positive_propositions(
+        "Me apareció un cobro raro. No lo autoricé.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Recebi uma cobrança estranha. Eu não a autorizei.",
+        "pt",
+    )
+
+    es_p4 = next(
+        item for item in es
+        if item.family is PropositionFamily.AUTHORIZATION_DENIAL
+        and item.rule == "P4-R3-activity-anaphora"
+    )
+    pt_p4 = next(
+        item for item in pt
+        if item.family is PropositionFamily.AUTHORIZATION_DENIAL
+        and item.rule == "P4-R3-activity-anaphora"
+    )
+
+    assert es_p4.activity_ref == "linked_prior_activity"
+    assert pt_p4.activity_ref == "linked_prior_activity"
+
+
+def test_b2r_c2_f14_p4_demonstrative_links_prior_activity_in_both_languages() -> None:
+    es = build_positive_propositions(
+        "Me apareció un cobro raro. Eso no lo autoricé.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Recebi uma cobrança estranha. Isso eu não autorizei.",
+        "pt",
+    )
+
+    es_p4 = next(
+        item for item in es
+        if item.family is PropositionFamily.AUTHORIZATION_DENIAL
+        and item.rule == "P4-R3-activity-anaphora"
+    )
+    pt_p4 = next(
+        item for item in pt
+        if item.family is PropositionFamily.AUTHORIZATION_DENIAL
+        and item.rule == "P4-R3-activity-anaphora"
+    )
+
+    assert es_p4.activity_ref == "linked_prior_activity"
+    assert pt_p4.activity_ref == "linked_prior_activity"
+
+
+def test_b2r_c2_f14_same_clause_activity_precedes_d2_backlink() -> None:
+    es = build_positive_propositions(
+        "Me apareció un cobro raro. Esta compra no la hice yo.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Recebi uma cobrança estranha. Esta compra eu não fiz.",
+        "pt",
+    )
+
+    es_p2 = next(
+        item for item in es
+        if item.family is PropositionFamily.PERFORMANCE_DENIAL
+        and item.clause_index == 1
+    )
+    pt_p2 = next(
+        item for item in pt
+        if item.family is PropositionFamily.PERFORMANCE_DENIAL
+        and item.clause_index == 1
+    )
+
+    assert es_p2.activity_ref == "explicit_activity"
+    assert pt_p2.activity_ref == "explicit_activity"
+    assert es_p2.rule == "P2"
+    assert pt_p2.rule == "P2"
+
+
+def test_b2r_c2_f14_anaphor_without_prior_activity_keeps_topic_default() -> None:
+    es = build_positive_propositions("No lo hice yo.", "es")
+    pt = build_positive_propositions("Eu não a autorizei.", "pt")
+
+    es_p2 = next(
+        item for item in es
+        if item.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+    pt_p4 = next(
+        item for item in pt
+        if item.family is PropositionFamily.AUTHORIZATION_DENIAL
+    )
+
+    assert es_p2.activity_ref == "topic_transaction"
+    assert pt_p4.activity_ref == "topic_transaction"
+    assert es_p2.rule == "P2"
+    assert pt_p4.rule == "P4"
