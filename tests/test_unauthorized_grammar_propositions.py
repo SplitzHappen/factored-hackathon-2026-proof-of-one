@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.unauthorized_grammar import (
     LexicalTag,
     PredicateFamily,
