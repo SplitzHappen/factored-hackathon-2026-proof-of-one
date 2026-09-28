@@ -2910,6 +2910,64 @@ def _third_party_action_allowed(predicate: PredicateMatch) -> bool:
     return predicate.form.person != 1
 
 
+def _perform_customer_instrument_complement(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    customer_instruments: tuple[
+        tuple[tuple[int, int], tuple[int, int]], ...
+    ],
+    language: str,
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """Bind PERFORM only to a bounded customer-instrument complement."""
+
+    if predicate.form.family is not PredicateFamily.PERFORM:
+        return None
+
+    words = [token.normalized for token in analysis.tokens]
+    prepositions = (
+        {"con", "en", "de"}
+        if language == "es"
+        else {"com", "no", "na", "nos", "nas", "de", "do", "da", "dos", "das"}
+    )
+
+    candidates: list[tuple[tuple[int, int], tuple[int, int]]] = []
+    for instrument_span, possessor_span in customer_instruments:
+        left = min(instrument_span[0], possessor_span[0])
+        if left <= predicate.token_end:
+            continue
+        if left - predicate.token_end > 7:
+            continue
+
+        prep_index = left - 1
+        if prep_index < clause.token_start:
+            continue
+        if words[prep_index] not in prepositions:
+            continue
+
+        intervening_predicate = any(
+            candidate.token_start >= predicate.token_end
+            and candidate.token_start < prep_index
+            and not (
+                candidate.token_start == predicate.token_start
+                and candidate.token_end == predicate.token_end
+            )
+            for candidate in analysis.predicates
+            if _in_clause(candidate.token_start, candidate.token_end, clause)
+        )
+        if intervening_predicate:
+            continue
+
+        candidates.append((instrument_span, possessor_span))
+
+    if not candidates:
+        return None
+    return min(
+        candidates,
+        key=lambda item: item[0][0] - predicate.token_end,
+    )
+
+
 def _third_party_unauthorized_use(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -2928,7 +2986,10 @@ def _third_party_unauthorized_use(
     for predicate in analysis.predicates:
         if not _in_clause(predicate.token_start, predicate.token_end, clause):
             continue
-        if predicate.form.family is not PredicateFamily.USE_ACCESS:
+        if predicate.form.family not in {
+            PredicateFamily.USE_ACCESS,
+            PredicateFamily.PERFORM,
+        }:
             continue
         if not _source_accent_selects_predicate(analysis, predicate):
             continue
@@ -2936,6 +2997,19 @@ def _third_party_unauthorized_use(
             continue
         if _predicate_has_denial(analysis, clause, predicate, language):
             continue
+
+        if predicate.form.family is PredicateFamily.PERFORM:
+            linked_instrument = _perform_customer_instrument_complement(
+                analysis,
+                clause,
+                predicate,
+                customer_instruments,
+                language,
+            )
+            if linked_instrument is None:
+                continue
+        else:
+            linked_instrument = None
 
         actor_span: tuple[int, int] | None = None
         permission_span: tuple[int, int] | None = None
@@ -2971,13 +3045,16 @@ def _third_party_unauthorized_use(
         if actor_span is None or actor_kind is None:
             continue
 
-        instrument_span, possessor_span = min(
-            customer_instruments,
-            key=lambda item: min(
-                abs(item[0][0] - predicate.token_start),
-                abs(item[0][0] - predicate.token_end),
-            ),
-        )
+        if linked_instrument is not None:
+            instrument_span, possessor_span = linked_instrument
+        else:
+            instrument_span, possessor_span = min(
+                customer_instruments,
+                key=lambda item: min(
+                    abs(item[0][0] - predicate.token_start),
+                    abs(item[0][0] - predicate.token_end),
+                ),
+            )
 
         evidence: list[tuple[int, int]] = [
             actor_span,
@@ -3000,7 +3077,11 @@ def _third_party_unauthorized_use(
                 activity_ref=(
                     "explicit_activity"
                     if activity_span is not None
-                    else f"{actor_kind}_actor_instrument_use"
+                    else (
+                        f"{actor_kind}_actor_instrument_perform"
+                        if predicate.form.family is PredicateFamily.PERFORM
+                        else f"{actor_kind}_actor_instrument_use"
+                    )
                 ),
             )
         )

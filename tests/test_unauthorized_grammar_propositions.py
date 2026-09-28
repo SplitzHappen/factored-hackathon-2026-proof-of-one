@@ -1673,3 +1673,76 @@ def test_b2r_b6_same_clause_d3_rejects_intervening_finite_predicate() -> None:
         and item.activity_ref == "linked_instrument_use"
         for item in propositions
     )
+
+
+
+def test_b2r_b7_known_actor_perform_with_customer_instrument_is_p5() -> None:
+    es = _families(
+        "Mi hijo hizo compras con mi tarjeta sin permiso.",
+        "es",
+    )
+    pt = _families(
+        "Meu filho fez compras no meu cartão sem minha permissão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
+
+
+def test_b2r_b7_unknown_actor_perform_with_customer_instrument_is_p5() -> None:
+    es = build_positive_propositions(
+        "Alguien hizo compras con mi tarjeta.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Alguém sacou dinheiro da minha conta.",
+        "pt",
+    )
+
+    assert any(
+        item.family is PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE
+        and item.predicate_token_span is not None
+        for item in es
+    )
+    assert any(
+        item.family is PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE
+        and item.predicate_token_span is not None
+        for item in pt
+    )
+
+
+def test_b2r_b7_perform_without_customer_instrument_remains_outside_p5() -> None:
+    propositions = build_positive_propositions(
+        "Alguien hizo una compra.",
+        "es",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in {
+        item.family for item in propositions
+    }
+
+
+def test_b2r_b7_perform_requires_instrumental_or_locative_complement() -> None:
+    propositions = build_positive_propositions(
+        "Alguien hizo una compra; mi tarjeta quedó en casa.",
+        "es",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in {
+        item.family for item in propositions
+    }
+
+
+def test_b2r_b7_known_actor_perform_still_requires_permission_absence() -> None:
+    es = _families(
+        "Mi hijo hizo compras con mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Meu filho fez compras no meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
