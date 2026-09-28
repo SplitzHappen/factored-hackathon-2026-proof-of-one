@@ -2291,3 +2291,97 @@ def test_b2r_e1a_p6_closed_modifiers_preserve_customer_anchor() -> None:
 
     assert PropositionFamily.FRAUD_CHARACTERIZATION in es
     assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+
+
+
+def test_b2r_e1b_f12_direct_object_self_action_keeps_same_referent_atom() -> None:
+    es = build_positive_propositions(
+        "Yo hice esta transferencia y fue un fraude.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Eu autorizei este Pix e foi um golpe.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert EvidenceAtomKind.SELF_PERFORMED in {
+        atom.kind for atom in es_p6.counter_evidence
+    }
+    assert EvidenceAtomKind.SELF_AUTHORIZED in {
+        atom.kind for atom in pt_p6.counter_evidence
+    }
+
+
+def test_b2r_e1b_f12_unrelated_self_action_does_not_attach_to_fraud_p6() -> None:
+    es = build_positive_propositions(
+        "Yo pagué la factura, pero este cargo es un fraude.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Eu paguei a fatura, mas esta cobrança é golpe.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert not es_p6.counter_evidence
+    assert not pt_p6.counter_evidence
+
+
+def test_b2r_e1b_f12_unrelated_authorization_does_not_attach_to_later_fraud_p6() -> None:
+    es = build_positive_propositions(
+        "Autoricé el pago del gimnasio, pero este otro cargo es un fraude.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Eu autorizei o Pix da academia, mas esta outra cobrança foi golpe.",
+        "pt",
+    )
+
+    es_p6 = next(
+        item for item in es
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    pt_p6 = next(
+        item for item in pt
+        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert not es_p6.counter_evidence
+    assert not pt_p6.counter_evidence
+
+
+def test_b2r_e1b_p6_does_not_skip_unanchored_nearer_activity_np() -> None:
+    es = build_positive_propositions(
+        "Autoricé este pago, pero cargo es un fraude.",
+        "es",
+    )
+    pt = build_positive_propositions(
+        "Eu autorizei este Pix, mas cobrança foi golpe.",
+        "pt",
+    )
+
+    assert not any(
+        item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        for item in es
+    )
+    assert not any(
+        item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        for item in pt
+    )
