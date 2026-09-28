@@ -2857,3 +2857,35 @@ def test_b2r_g1_f12_article_or_preposition_is_not_resumptive_clitic() -> None:
 
     assert not es_p6.counter_evidence
     assert not pt_p6.counter_evidence
+
+def test_b2r_g2_p1_postcopular_fallback_rejects_preexisting_nominal_subject() -> None:
+    es = _families("La culpa no es mía de este cargo.", "es")
+    pt = _families("O erro não é meu nessa cobrança.", "pt")
+
+    assert PropositionFamily.OWNERSHIP_DENIAL not in es
+    assert PropositionFamily.OWNERSHIP_DENIAL not in pt
+
+
+def test_b2r_g2_p1_postcopular_fallback_rejects_prepositional_activity() -> None:
+    es = _families("No es mío por ese cargo.", "es")
+    pt = _families("Não é meu nessa cobrança.", "pt")
+
+    assert PropositionFamily.OWNERSHIP_DENIAL not in es
+    assert PropositionFamily.OWNERSHIP_DENIAL not in pt
+
+
+def test_b2r_g2_p1_elliptical_coordinated_activity_subject_remains_positive() -> None:
+    es = _families("Este cargo y el otro no son míos.", "es")
+    pt = _families("Essa compra e a outra não são minhas.", "pt")
+
+    assert PropositionFamily.OWNERSHIP_DENIAL in es
+    assert PropositionFamily.OWNERSHIP_DENIAL in pt
+
+
+def test_b2r_g2_p1_coordinator_remains_barrier_for_clause_transition() -> None:
+    es = _families("Este cargo apareció y el correo no es mío.", "es")
+    pt = _families("Essa compra apareceu e o email não é meu.", "pt")
+
+    assert PropositionFamily.OWNERSHIP_DENIAL not in es
+    assert PropositionFamily.OWNERSHIP_DENIAL not in pt
+
