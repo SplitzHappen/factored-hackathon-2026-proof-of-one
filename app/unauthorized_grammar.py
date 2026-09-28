@@ -2855,6 +2855,8 @@ def _permission_denial_backlink(
     for predicate in analysis.predicates:
         if not _in_clause(predicate.token_start, predicate.token_end, prior):
             continue
+        if not _source_accent_selects_predicate(analysis, predicate):
+            continue
         if not _third_party_action_allowed(predicate):
             continue
         if predicate.form.family is PredicateFamily.PERFORM and prior_activity is not None:
