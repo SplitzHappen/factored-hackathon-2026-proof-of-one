@@ -1387,3 +1387,47 @@ def test_b2r_b2_contracted_determiner_context_keeps_activity_nominal() -> None:
         and predicate.form.family is PredicateFamily.PERFORM
         for predicate in pt.predicates
     )
+
+
+
+def test_b2r_b3_spanish_provenir_irregular_form_supports_p3() -> None:
+    propositions = build_positive_propositions(
+        "Ese pago no provino de mí.",
+        "es",
+    )
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.ORIGINATION_DENIAL
+    )
+    assert item.rule == "P3"
+    assert item.activity_ref == "explicit_activity"
+
+
+def test_b2r_b3_permission_absence_allows_intervening_article() -> None:
+    es = _families(
+        "Esta compra llegó sin la mi autorización.",
+        "es",
+    )
+    pt = _families(
+        "Me cobraram DEMO-PT-2001 sem a minha autorização.",
+        "pt",
+    )
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
+
+def test_b2r_b3_permission_absence_without_article_remains_positive() -> None:
+    es = _families(
+        "Esta transferencia llegó sin mi autorización.",
+        "es",
+    )
+    pt = _families(
+        "Este Pix apareceu sem minha autorização.",
+        "pt",
+    )
+
+    assert PropositionFamily.AUTHORIZATION_DENIAL in es
+    assert PropositionFamily.AUTHORIZATION_DENIAL in pt
