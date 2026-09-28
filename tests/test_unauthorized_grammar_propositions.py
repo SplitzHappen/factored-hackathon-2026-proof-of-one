@@ -948,3 +948,78 @@ def test_b2r_a3_past_authorization_denial_remains_positive() -> None:
 
     assert PropositionFamily.AUTHORIZATION_DENIAL in es
     assert PropositionFamily.AUTHORIZATION_DENIAL in pt
+
+
+
+def test_b2r_a4_unknown_actor_mention_does_not_relabel_customer_use() -> None:
+    es = _families("Ayer alguien me ayudó en el cajero y usé mi tarjeta.", "es")
+    pt = _families("Ontem alguém me ajudou no caixa e usei meu cartão.", "pt")
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
+
+
+def test_b2r_a4_customer_amount_action_is_not_third_party_exceedance() -> None:
+    es = _families(
+        "Con mi hermano en la tienda gasté más de lo que autoricé.",
+        "es",
+    )
+    pt = _families(
+        "Com meu irmão na loja gastei mais do que autorizei.",
+        "pt",
+    )
+
+    assert not any(
+        proposition.rule == "P5-exceeded-authorization-amount"
+        for proposition in detect_positive_propositions(
+            "Con mi hermano en la tienda gasté más de lo que autoricé.",
+            "es",
+        )
+    )
+    assert not any(
+        proposition.rule == "P5-exceeded-authorization-amount"
+        for proposition in detect_positive_propositions(
+            "Com meu irmão na loja gastei mais do que autorizei.",
+            "pt",
+        )
+    )
+
+
+def test_b2r_a4_customer_purpose_action_is_not_third_party_exceedance() -> None:
+    es_text = (
+        "Le di la tarjeta a mi hermano para la gasolina "
+        "y yo compré otras cosas sin permiso."
+    )
+    pt_text = (
+        "Dei o cartão ao meu irmão para gasolina "
+        "e eu comprei outras coisas sem permissão."
+    )
+
+    assert not any(
+        proposition.rule == "P5-exceeded-authorization-purpose"
+        for proposition in detect_positive_propositions(es_text, "es")
+    )
+    assert not any(
+        proposition.rule == "P5-exceeded-authorization-purpose"
+        for proposition in detect_positive_propositions(pt_text, "pt")
+    )
+
+
+def test_b2r_a4_third_party_exceedance_controls_remain_positive() -> None:
+    es = detect_positive_propositions(
+        "Mi hermano gastó más de lo que yo autoricé.",
+        "es",
+    )
+    pt = detect_positive_propositions(
+        "Meu irmão gastou mais do que eu autorizei.",
+        "pt",
+    )
+
+    assert any(
+        proposition.rule == "P5-exceeded-authorization-amount"
+        for proposition in es
+    )
+    assert any(
+        proposition.rule == "P5-exceeded-authorization-amount"
+        for proposition in pt
+    )
