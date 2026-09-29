@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "contract_id": "FACTORED-VERIFIED-DELIVERY-BOOTSTRAP-2026-09-29",
+  "revision": 1,
+  "status": "frozen",
+  "project_slug": "factored-ai-data-hackathon-2026",
+  "risk_class": "high_assurance",
+  "baseline": {
+    "repository": "SplitzHappen/factored-hackathon-2026-proof-of-one",
+    "commit_sha": "4e94e4b16e08a77a10abc6313207037d239e404a"
+  },
+  "scope": {
+    "deliverables": [
+      "Add a fail-closed pull-request preflight for future high-assurance Factored delivery contracts.",
+      "Add a PR metadata template that pins exact candidate identity and separates evidence, audit, owner acceptance, and release intent.",
+      "Document protected-verifier and repeat-failure rules without changing current RF1H application behavior."
+    ],
+    "non_goals": [
+      "No application behavior change.",
+      "No RF1H classifier/grammar change.",
+      "No held-out or development evaluation execution.",
+      "No deployment or submission release."
+    ],
+    "allowed_write_surfaces": [
+      ".github/**",
+      "scripts/verify_delivery_contract.py"
+    ],
+    "forbidden_write_surfaces": [
+      "app/**",
+      "tests/**",
+      "evaluation/**",
+      "data/**",
+      "docs/**"
+    ],
+    "protected_verifier_surfaces": [
+      ".github/workflows/**",
+      ".github/PULL_REQUEST_TEMPLATE.md",
+      "scripts/verify_delivery_contract.py",
+      ".github/verified-delivery/**"
+    ]
+  },
+  "roles": {
+    "owner": "José Antonio",
+    "builder": "OpenAI GPT-5.6 / Vale",
+    "independent_auditor": "Claude / fresh independent audit session"
+  },
+  "acceptance": [
+    {
+      "requirement_id": "GOV-001",
+      "condition": "The PR verifier fails when required metadata or the frozen contract is missing or malformed.",
+      "verification_class": "test",
+      "required_evidence": ["Negative verifier execution against malformed/missing metadata fixtures or equivalent deterministic audit evidence."]
+    },
+    {
+      "requirement_id": "GOV-002",
+      "condition": "The verifier binds the PR to the exact current head SHA and exact current base SHA.",
+      "verification_class": "test",
+      "required_evidence": ["Deterministic positive and wrong-SHA negative checks."]
+    },
+    {
+      "requirement_id": "GOV-003",
+      "condition": "Forbidden write surfaces fail closed and protected-verifier changes require an explicit governed disposition.",
+      "verification_class": "test",
+      "required_evidence": ["Deterministic path-scope and protected-surface negative checks."]
+    },
+    {
+      "requirement_id": "GOV-004",
+      "condition": "A ready-for-review PR cannot pass with pending evidence, audit, or owner acceptance.",
+      "verification_class": "test",
+      "required_evidence": ["Deterministic draft-versus-ready negative checks."]
+    },
+    {
+      "requirement_id": "GOV-005",
+      "condition": "The governance bootstrap does not change Factored application, evaluation, data, or RF1H test behavior.",
+      "verification_class": "deterministic",
+      "required_evidence": ["Exact changed-file list bound to the final PR head."]
+    },
+    {
+      "requirement_id": "GOV-006",
+      "condition": "A fresh independent auditor reviews the governance mechanism before merge.",
+      "verification_class": "independent_model",
+      "required_evidence": ["Canonical independent audit and reconciliation bound to the exact candidate."]
+    }
+  ],
+  "assurance": {
+    "exact_candidate_required": true,
+    "builder_cannot_self_certify_independent_assurance": true,
+    "acceptance_changes_require_revision": true,
+    "owner_acceptance_required": true,
+    "heldout_policy": "protected_and_adversarial",
+    "repeat_failure_stop_after": 3
+  }
+}
