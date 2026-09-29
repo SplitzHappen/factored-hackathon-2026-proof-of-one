@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from itertools import product
 from pathlib import Path
 from typing import Iterable
+
+import pytest
 
 from app.unauthorized_grammar import (
     EvidenceAtomKind,
@@ -31,8 +34,12 @@ _SELF_KINDS = {
 _BASELINE_PATH = (
     Path(__file__).parent
     / "fixtures"
-    / "rf1h_g7e_pre_g7e_self_baseline.json"
+    / "rf1h_g7f_pre_g7f_self_baseline.json"
 )
+
+_RETAIN_EXACT = "retain_exact"
+_REMOVE_STRICT = "remove_strict"
+_PRESERVE_NONE = "preserve_none"
 
 
 def _render_marked(template: str) -> tuple[str, int]:
@@ -69,7 +76,7 @@ def _self_atom_signatures(
 def _assert_self_atoms_only_on_true_referent(
     message: str,
     language: str,
-    true_source_start: int,
+    true_source_start: int | None,
 ) -> None:
     analysis = analyze_foundation(message, language)
 
@@ -81,6 +88,7 @@ def _assert_self_atoms_only_on_true_referent(
             if atom.kind not in _SELF_KINDS:
                 continue
 
+            assert true_source_start is not None
             assert proposition.activity_token_span is not None
             proposition_source_start = analysis.tokens[
                 proposition.activity_token_span[0]
@@ -91,6 +99,29 @@ def _assert_self_atoms_only_on_true_referent(
 
             assert proposition_source_start == true_source_start
             assert atom_source_start == true_source_start
+
+
+def _assert_lineage_transition(
+    prior: frozenset[tuple[int, str]],
+    current: frozenset[tuple[int, str]],
+    transition: str,
+) -> None:
+    if transition == _RETAIN_EXACT:
+        assert prior
+        assert current == prior
+        return
+
+    if transition == _REMOVE_STRICT:
+        assert prior
+        assert current < prior
+        return
+
+    if transition == _PRESERVE_NONE:
+        assert not prior
+        assert not current
+        return
+
+    raise AssertionError(f"unknown lineage transition: {transition}")
 
 
 def _attached_frame_cases() -> Iterable[tuple[str, str, int]]:
@@ -332,17 +363,127 @@ def _ordinary_and_same_noun_cases() -> Iterable[tuple[str, str, int]]:
         yield message, language, start
 
 
-def _structural_cases() -> tuple[tuple[str, str, int], ...]:
+def _b2ro_residual_cases() -> Iterable[tuple[str, str, int | None]]:
+    no_activity_true_referent = (
+        (
+            "Lo que me cobraron cuando hice el pago fue un fraude.",
+            "es",
+        ),
+        (
+            "O que me cobraram quando fiz o pagamento foi golpe.",
+            "pt",
+        ),
+    )
+    for message, language in no_activity_true_referent:
+        yield message, language, None
+
+    marked = (
+        (
+            "La [[transferencia]], aunque yo hice el pago, fue un fraude.",
+            "es",
+        ),
+        (
+            "La [[transferencia]] de ayer, porque hice el pago, fue un fraude.",
+            "es",
+        ),
+        (
+            "El [[cargo]] de ayer, después de que hice la compra, fue un fraude.",
+            "es",
+        ),
+        (
+            "A [[transferência]], porque eu fiz o pagamento, foi golpe.",
+            "pt",
+        ),
+        (
+            "A [[cobrança]] de ontem, depois que eu fiz a compra, foi golpe.",
+            "pt",
+        ),
+        (
+            "La [[transferencia]] que salió por el pago que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "El [[cargo]] de la compra que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "A [[cobrança]] para a compra que eu fiz foi golpe.",
+            "pt",
+        ),
+        (
+            "La [[transferencia]] que salió por la transferencia que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "A [[transferência]] que apareceu com a transferência que eu fiz foi golpe.",
+            "pt",
+        ),
+    )
+    for template, language in marked:
+        message, start = _render_marked(template)
+        yield message, language, start
+
+
+def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
+    cases = (
+        (
+            "La [[transferencia]] que hice fue un fraude.",
+            "es",
+            "ordinary_relative",
+        ),
+        (
+            "El [[pago]] que yo mismo autoricé fue un fraude.",
+            "es",
+            "ordinary_relative",
+        ),
+        (
+            "O [[Pix]] que eu fiz foi golpe.",
+            "pt",
+            "ordinary_relative",
+        ),
+        (
+            "A [[transferência]] que eu autorizei foi golpe.",
+            "pt",
+            "ordinary_relative",
+        ),
+        (
+            "Cuando hice el [[pago]] fue un fraude.",
+            "es",
+            "clause_initial_subjectless",
+        ),
+        (
+            "Quando eu fiz o [[pagamento]] foi golpe.",
+            "pt",
+            "clause_initial_subjectless",
+        ),
+        (
+            "Me avisaron que la [[compra]] que hice fue un fraude.",
+            "es",
+            "complementizer_que",
+        ),
+        (
+            "Me avisaram que a [[compra]] que eu fiz foi golpe.",
+            "pt",
+            "complementizer_que",
+        ),
+    )
+    for template, language, class_id in cases:
+        message, start = _render_marked(template)
+        yield message, language, start, class_id
+
+
+def _structural_cases() -> tuple[tuple[str, str, int | None], ...]:
     cases = (
         list(_attached_frame_cases())
         + list(_grid_q_cases())
         + list(_true_later_self_cases())
         + list(_ordinary_and_same_noun_cases())
+        + list(_b2ro_residual_cases())
     )
     return tuple(dict.fromkeys(cases))
 
 
-def test_g7e_property_no_wrong_referent_self_atom_by_source_position() -> None:
+def test_g7f_property_no_wrong_referent_self_atom_by_source_position() -> None:
     cases = _structural_cases()
     assert len(cases) >= 700
 
@@ -354,17 +495,41 @@ def test_g7e_property_no_wrong_referent_self_atom_by_source_position() -> None:
         )
 
 
-def test_g7e_property_frozen_pre_g7e_lineage_has_no_new_or_moved_self_atom() -> None:
+def test_g7f_property_legitimate_self_retention_has_per_class_minimums() -> None:
+    retained = Counter()
+
+    for message, language, true_source_start, class_id in _retention_cases():
+        _assert_self_atoms_only_on_true_referent(
+            message,
+            language,
+            true_source_start,
+        )
+        signatures = _self_atom_signatures(message, language)
+        on_true_referent = {
+            signature
+            for signature in signatures
+            if signature[0] == true_source_start
+        }
+        assert on_true_referent
+        retained[class_id] += len(on_true_referent)
+
+    assert retained["ordinary_relative"] >= 4
+    assert retained["clause_initial_subjectless"] >= 2
+    assert retained["complementizer_que"] >= 2
+
+
+def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal() -> None:
     baseline = json.loads(_BASELINE_PATH.read_text(encoding="utf-8"))
 
-    assert baseline["schema"] == "rf1h-g7e-pre-g7e-self-baseline-v1"
+    assert baseline["schema"] == "rf1h-g7f-pre-g7f-self-baseline-v1"
     assert (
         baseline["frozen_public_sha"]
-        == "f9ee5b1d214e1d0ca4d022cb1ea9929781bb1854"
+        == "8e21f3ad69b75857db2c431e8b4f7625def86632"
     )
     assert baseline["classification"] == "DEVELOPMENT-KNOWN"
-    assert len(baseline["cases"]) >= 20
+    assert len(baseline["cases"]) >= 16
 
+    transitions = Counter()
     for case in baseline["cases"]:
         prior = frozenset(
             (
@@ -377,13 +542,70 @@ def test_g7e_property_frozen_pre_g7e_lineage_has_no_new_or_moved_self_atom() -> 
             case["message"],
             case["language"],
         )
+        transition = case["transition"]
+        _assert_lineage_transition(prior, current, transition)
+        transitions[transition] += 1
 
-        # G7E may conservatively remove a prior atom. It must never create a
-        # new kind or move a surviving atom to a different source referent.
-        assert current <= prior
+    assert transitions[_RETAIN_EXACT] >= 7
+    assert transitions[_REMOVE_STRICT] >= 7
+    assert transitions[_PRESERVE_NONE] >= 2
 
 
-def test_g7e_property_surface_covers_required_structural_classes() -> None:
+def test_g7f_property_lineage_rejects_new_moved_kind_changed_and_oversuppressed_atoms() -> None:
+    prior = frozenset({(10, "self_performed")})
+
+    with pytest.raises(AssertionError):
+        _assert_lineage_transition(
+            prior,
+            frozenset({(10, "self_performed"), (20, "self_performed")}),
+            _RETAIN_EXACT,
+        )
+
+    with pytest.raises(AssertionError):
+        _assert_lineage_transition(
+            prior,
+            frozenset({(11, "self_performed")}),
+            _RETAIN_EXACT,
+        )
+
+    with pytest.raises(AssertionError):
+        _assert_lineage_transition(
+            prior,
+            frozenset({(10, "self_authorized")}),
+            _RETAIN_EXACT,
+        )
+
+    with pytest.raises(AssertionError):
+        _assert_lineage_transition(
+            prior,
+            frozenset(),
+            _RETAIN_EXACT,
+        )
+
+    with pytest.raises(AssertionError):
+        _assert_lineage_transition(
+            prior,
+            prior,
+            _REMOVE_STRICT,
+        )
+
+
+def test_g7f_property_b2ro06_recall_control_not_worsened() -> None:
+    cases = (
+        (
+            "La transferencia que hice para el pago del alquiler fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que eu fiz para o pagamento do aluguel foi golpe.",
+            "pt",
+        ),
+    )
+    for message, language in cases:
+        assert not _self_atom_signatures(message, language)
+
+
+def test_g7f_property_surface_covers_required_structural_classes() -> None:
     cases = _structural_cases()
     messages = tuple(message for message, _, _ in cases)
 
@@ -396,10 +618,18 @@ def test_g7e_property_surface_covers_required_structural_classes() -> None:
     assert any(" enfim depois de muito tempo " in message for message in messages)
     assert any(message.startswith("Cuando ") for message in messages)
     assert any(message.startswith("Embora ") for message in messages)
-    assert any("pero la transferencia fue un fraude" in message for message in messages)
-    assert any("mas a transferência foi golpe" in message for message in messages)
+    assert any(" aunque yo hice el pago " in message for message in messages)
+    assert any(" porque eu fiz o pagamento " in message for message in messages)
+    assert any(" después de que hice la compra " in message for message in messages)
+    assert any(" de la compra que hice " in message for message in messages)
+    assert any(" para a compra que eu fiz " in message for message in messages)
     assert any(
         message.count("transferencia") >= 2
         for message, language, _ in cases
         if language == "es"
+    )
+    assert any(
+        message.count("transferência") >= 2
+        for message, language, _ in cases
+        if language == "pt"
     )
