@@ -3762,3 +3762,102 @@ def test_b2r_g7d_b_does_not_move_relative_self_atom_to_prior_activity() -> None:
             for proposition in fraud_items
         )
 
+def test_b2r_g7d_c_distant_attached_self_performed_is_safely_embedded() -> None:
+    cases = (
+        (
+            "La transferencia que salió cuando yo por fin después de todo hice el pago fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que saiu quando eu enfim depois de muito tempo fiz o pagamento foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7d_c_distant_attached_self_authorized_is_safely_embedded() -> None:
+    cases = (
+        (
+            "La transferencia que salió cuando yo mismo ya por la tarde de ayer autoricé el pago fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que saiu quando eu mesmo já na tarde de ontem autorizei o pagamento foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7d_c_preserves_fronted_long_adverbial_referent() -> None:
+    cases = (
+        (
+            "Cuando yo por fin después de todo hice el pago la transferencia fue un fraude.",
+            "es",
+            "transferencia",
+        ),
+        (
+            "Quando eu enfim depois de muito tempo fiz o pagamento a transferência foi golpe.",
+            "pt",
+            "transferencia",
+        ),
+    )
+
+    for message, language, expected_activity in cases:
+        analysis = analyze_foundation(message, language)
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert item.activity_token_span is not None
+        assert (
+            analysis.tokens[item.activity_token_span[0]].normalized
+            == expected_activity
+        )
+        assert not item.counter_evidence
+
+
+def test_b2r_g7d_c_preserves_true_conjunct_long_self_referent() -> None:
+    cases = (
+        (
+            "La compra que hice está bien y cuando yo por fin después de todo hice la transferencia que autoricé fue un fraude.",
+            "es",
+            "transferencia",
+        ),
+        (
+            "A compra que eu fiz está certa e quando eu enfim depois de muito tempo fiz a transferência que autorizei foi golpe.",
+            "pt",
+            "transferencia",
+        ),
+    )
+
+    for message, language, expected_activity in cases:
+        analysis = analyze_foundation(message, language)
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert item.activity_token_span is not None
+        assert (
+            analysis.tokens[item.activity_token_span[0]].normalized
+            == expected_activity
+        )
+        assert item.counter_evidence
+

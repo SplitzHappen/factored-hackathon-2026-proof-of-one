@@ -4755,6 +4755,84 @@ def _p6_activity_is_frame_object(
     )
 
 
+def _p6_distant_self_activity_is_embedded(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    copula_index: int,
+    language: str,
+) -> bool:
+    """Recognize SELF-bearing activity inside a distant attached adverbial frame."""
+
+    if not _affirmative_self_fraud_counter_evidence(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    ):
+        return False
+
+    words = [token.normalized for token in analysis.tokens]
+    adverbial_markers = (
+        {"cuando", "mientras"}
+        if language == "es"
+        else {"quando", "enquanto"}
+    )
+    coordinators = (
+        {"y", "e", "pero"}
+        if language == "es"
+        else {"e", "mas", "porem"}
+    )
+    activity_spans = _activity_spans(analysis, clause)
+    distant_start = activity_span[0] - 9
+
+    for marker_index in range(
+        distant_start,
+        clause.token_start - 1,
+        -1,
+    ):
+        if words[marker_index] not in adverbial_markers:
+            continue
+
+        has_relative_attachment_head = any(
+            span[1] <= marker_index
+            and _p6_activity_heads_que_relative(
+                analysis,
+                span,
+                copula_index,
+                language,
+            )
+            and not any(
+                words[index] in coordinators
+                and not (
+                    words[index] == "e"
+                    and analysis.tokens[index].had_acute
+                )
+                for index in range(span[1], marker_index)
+            )
+            for span in activity_spans
+        )
+        if not has_relative_attachment_head:
+            continue
+
+        finite_between = any(
+            predicate.form.person is not None
+            and not predicate.accent_ambiguous
+            and predicate.token_start > marker_index
+            and predicate.token_end <= activity_span[0]
+            and _in_clause(
+                predicate.token_start,
+                predicate.token_end,
+                clause,
+            )
+            for predicate in analysis.predicates
+        )
+        if finite_between:
+            return True
+
+    return False
+
+
 def _p6_left_activity_is_embedded(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -4873,7 +4951,13 @@ def _p6_left_activity_is_embedded(
         if finite_between:
             return True
 
-    return False
+    return _p6_distant_self_activity_is_embedded(
+        analysis,
+        clause,
+        activity_span,
+        copula_index,
+        language,
+    )
 
 
 def _fraud_copular_propositions(
