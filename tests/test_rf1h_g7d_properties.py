@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 from itertools import product
+from pathlib import Path
+from typing import Iterable
 
 from app.unauthorized_grammar import (
     EvidenceAtomKind,
@@ -10,261 +13,393 @@ from app.unauthorized_grammar import (
 )
 
 
-# RF1H-G7D-P property surface.
+# RF1H-G7E-P structural property gate.
 #
-# Every sentence generated in this file is DEVELOPMENT-KNOWN. None may be
-# reused, paraphrased, transformed, or leaked into RF1J fresh wording,
-# realistic-language-v2 held-back wording, or any held-back confirmation set.
+# Every message, template, slot value, generated row and serialized baseline
+# entry in this file is DEVELOPMENT-KNOWN. None may be reused, paraphrased,
+# transformed, translated, pattern-preserved, or leaked into RF1J fresh
+# wording, realistic-language-v2 held-back wording, or any held-back set.
 #
-# The frozen semantic baseline is the accepted G7 lineage before B2R-N:
-# nested/right-of-attached-adverbial candidates must not acquire SELF atoms;
-# true later referents may retain only their own SELF atom; an atom-free
-# conservative drop is allowed because recall-only B2RL-02/B2RM-04 surfaces
-# remain explicitly deferred and are not the pre-B3 SELF hazard.
+# Referent identity is source-position based. Normalized activity nouns are
+# intentionally never used to decide whether a SELF atom belongs to the true
+# P6 referent.
+
+_SELF_KINDS = {
+    EvidenceAtomKind.SELF_PERFORMED,
+    EvidenceAtomKind.SELF_AUTHORIZED,
+}
+_BASELINE_PATH = (
+    Path(__file__).parent
+    / "fixtures"
+    / "rf1h_g7e_pre_g7e_self_baseline.json"
+)
 
 
-def _fraud_atom_signatures(
+def _render_marked(template: str) -> tuple[str, int]:
+    assert template.count("[[") == 1
+    assert template.count("]]") == 1
+    source_start = template.index("[[")
+    message = template.replace("[[", "", 1).replace("]]", "", 1)
+    return message, source_start
+
+
+def _self_atom_signatures(
     message: str,
     language: str,
-) -> tuple[tuple[str | None, tuple[EvidenceAtomKind, ...]], ...]:
+) -> frozenset[tuple[int, str]]:
     analysis = analyze_foundation(message, language)
-    signatures: list[tuple[str | None, tuple[EvidenceAtomKind, ...]]] = []
+    signatures: set[tuple[int, str]] = set()
 
     for proposition in build_positive_propositions(message, language):
         if proposition.family is not PropositionFamily.FRAUD_CHARACTERIZATION:
             continue
-        activity = (
-            analysis.tokens[proposition.activity_token_span[0]].normalized
-            if proposition.activity_token_span is not None
-            else None
-        )
-        atoms = tuple(atom.kind for atom in proposition.counter_evidence)
-        signatures.append((activity, atoms))
+        for atom in proposition.counter_evidence:
+            if atom.kind not in _SELF_KINDS:
+                continue
+            signatures.add(
+                (
+                    analysis.tokens[atom.activity_token_span[0]].start,
+                    atom.kind.value,
+                )
+            )
 
-    return tuple(signatures)
-
-
-def _assert_no_self_atom(message: str, language: str) -> None:
-    for _, atoms in _fraud_atom_signatures(message, language):
-        assert EvidenceAtomKind.SELF_PERFORMED not in atoms
-        assert EvidenceAtomKind.SELF_AUTHORIZED not in atoms
+    return frozenset(signatures)
 
 
-def _assert_no_new_or_moved_self_atom(
+def _assert_self_atoms_only_on_true_referent(
     message: str,
     language: str,
-    expected_activity: str,
-    expected_atoms: tuple[EvidenceAtomKind, ...],
+    true_source_start: int,
 ) -> None:
-    signatures = _fraud_atom_signatures(message, language)
-    atom_bearing = [
-        (activity, atoms)
-        for activity, atoms in signatures
-        if EvidenceAtomKind.SELF_PERFORMED in atoms
-        or EvidenceAtomKind.SELF_AUTHORIZED in atoms
-    ]
-    assert all(
-        activity == expected_activity
-        and atoms == expected_atoms
-        for activity, atoms in atom_bearing
-    )
+    analysis = analyze_foundation(message, language)
+
+    for proposition in build_positive_propositions(message, language):
+        if proposition.family is not PropositionFamily.FRAUD_CHARACTERIZATION:
+            continue
+
+        for atom in proposition.counter_evidence:
+            if atom.kind not in _SELF_KINDS:
+                continue
+
+            assert proposition.activity_token_span is not None
+            proposition_source_start = analysis.tokens[
+                proposition.activity_token_span[0]
+            ].start
+            atom_source_start = analysis.tokens[
+                atom.activity_token_span[0]
+            ].start
+
+            assert proposition_source_start == true_source_start
+            assert atom_source_start == true_source_start
 
 
-def test_g7d_property_nested_attached_frames_never_donate_self_atoms() -> None:
+def _attached_frame_cases() -> Iterable[tuple[str, str, int]]:
     es_heads = (
-        "La transferencia que salió de la cuenta",
-        "La compra que apareció en el extracto",
+        "La [[transferencia]] que salió de la cuenta",
+        "La [[transferencia]] de ayer",
+        "La [[transferencia]] que apareció en el extracto",
     )
     pt_heads = (
-        "A transferência que saiu da conta",
-        "A compra que apareceu no extrato",
+        "A [[transferência]] que saiu da conta",
+        "A [[transferência]] de ontem",
+        "A [[transferência]] que apareceu no extrato",
     )
-
-    es_relative_internal = (
+    es_links = ("", ",", " y", " pero", " y luego", " y volvió a aparecer")
+    pt_links = (
+        "",
+        ",",
+        " e",
+        " mas",
+        " porém",
+        " porem",
+        " e depois",
+        " e voltou a aparecer",
+    )
+    es_markers = ("cuando", "mientras")
+    pt_markers = ("quando", "enquanto")
+    es_frames = (
         "hice el pago",
         "autoricé el pago",
         "usé la tarjeta para el pago que hice",
-        "hice la compra y el pago que autoricé",
+        "el pago que hice salió",
+        "el pago que autoricé salió",
+        "el pago yo mismo lo autoricé",
+        "yo por fin después de todo hice el pago",
+        "yo por fin después de todo usé la tarjeta para el pago que hice",
     )
-    pt_relative_internal = (
+    pt_frames = (
         "fiz o pagamento",
         "autorizei o pagamento",
         "usei o cartão para o pagamento que eu fiz",
-        "fiz a compra e o pagamento que autorizei",
-    )
-
-    for head, coordinator, marker, frame in product(
-        es_heads,
-        ("y", "pero"),
-        ("cuando", "mientras"),
-        es_relative_internal,
-    ):
-        message = f"{head} {coordinator} {marker} {frame} volvió a aparecer fue un fraude."
-        _assert_no_self_atom(message, "es")
-
-    for head, coordinator, marker, frame in product(
-        pt_heads,
-        ("e", "mas", "porém"),
-        ("quando", "enquanto"),
-        pt_relative_internal,
-    ):
-        message = f"{head} {coordinator} {marker} {frame} voltou a aparecer foi golpe."
-        _assert_no_self_atom(message, "pt")
-
-    es_frame_subjects = (
-        "el pago que hice salió",
-        "el pago que autoricé salió",
-        "la compra que hice apareció",
-    )
-    pt_frame_subjects = (
         "o pagamento que eu fiz saiu",
         "o pagamento que eu autorizei saiu",
-        "a compra que eu fiz apareceu",
-    )
-
-    for head, marker, frame in product(
-        es_heads,
-        ("cuando", "mientras"),
-        es_frame_subjects,
-    ):
-        _assert_no_self_atom(f"{head} {marker} {frame} fue un fraude.", "es")
-
-    for head, marker, frame in product(
-        pt_heads,
-        ("quando", "enquanto"),
-        pt_frame_subjects,
-    ):
-        _assert_no_self_atom(f"{head} {marker} {frame} foi golpe.", "pt")
-
-    es_distant_frames = (
-        "yo por fin después de todo hice el pago",
-        "yo mismo ya por la tarde de ayer autoricé el pago",
-        "por fin y después de mucho esperar hice el pago",
-    )
-    pt_distant_frames = (
+        "o pagamento eu mesmo o autorizei",
         "eu enfim depois de muito tempo fiz o pagamento",
-        "eu mesmo já na tarde de ontem autorizei o pagamento",
+        "eu enfim depois de muito tempo usei o cartão para o pagamento que eu fiz",
     )
 
-    for head, marker, frame in product(
+    for head, link, marker, frame in product(
         es_heads,
-        ("cuando", "mientras"),
-        es_distant_frames,
+        es_links,
+        es_markers,
+        es_frames,
     ):
-        _assert_no_self_atom(f"{head} {marker} {frame} fue un fraude.", "es")
+        message, start = _render_marked(
+            f"{head}{link} {marker} {frame} voltou a aparecer".replace(
+                "voltou a aparecer", "volvió a aparecer"
+            )
+            + " fue un fraude."
+        )
+        yield message, "es", start
 
-    for head, marker, frame in product(
+    for head, link, marker, frame in product(
         pt_heads,
-        ("quando", "enquanto"),
-        pt_distant_frames,
+        pt_links,
+        pt_markers,
+        pt_frames,
     ):
-        _assert_no_self_atom(f"{head} {marker} {frame} foi golpe.", "pt")
+        message, start = _render_marked(
+            f"{head}{link} {marker} {frame} voltou a aparecer foi golpe."
+        )
+        yield message, "pt", start
+
+    explicit = (
+        (
+            "A [[transferência]] que e cobrada quando o pagamento que eu fiz saiu foi golpe.",
+            "pt",
+        ),
+        (
+            "La [[transferencia]], cuando el pago que hice salió, fue un fraude.",
+            "es",
+        ),
+        (
+            "La [[transferencia]] cuando el pago yo mismo lo autoricé fue un fraude.",
+            "es",
+        ),
+        (
+            "A [[transferência]], quando o pagamento que eu fiz saiu, foi golpe.",
+            "pt",
+        ),
+    )
+    for template, language in explicit:
+        message, start = _render_marked(template)
+        yield message, language, start
 
 
-def test_g7d_property_true_later_referent_keeps_only_its_own_self_atom() -> None:
-    es_first_conjuncts = (
+def _grid_q_cases() -> Iterable[tuple[str, str, int]]:
+    es_subjects = (
         "La compra que hice está bien",
-        "El pago que hice salió bien",
+        "El pago que yo mismo autoricé salió bien",
     )
-    pt_first_conjuncts = (
+    pt_subjects = (
         "A compra que eu fiz está certa",
-        "O pagamento que eu fiz saiu certo",
+        "O pagamento que eu mesmo autorizei saiu certo",
+    )
+    es_connectors = (" y ", " pero ", ", ", " ")
+    pt_connectors = (" e ", " mas ", ", ", " ")
+    es_targets = ("la [[transferencia]]", "la [[compra]]")
+    pt_targets = ("a [[transferência]]", "a [[compra]]")
+
+    for subject, connector, target in product(
+        es_subjects,
+        es_connectors,
+        es_targets,
+    ):
+        message, start = _render_marked(
+            f"{subject}{connector}{target} fue un fraude."
+        )
+        yield message, "es", start
+
+    for subject, connector, target in product(
+        pt_subjects,
+        pt_connectors,
+        pt_targets,
+    ):
+        message, start = _render_marked(
+            f"{subject}{connector}{target} foi golpe."
+        )
+        yield message, "pt", start
+
+    es_fronts = (
+        "Cuando",
+        "Mientras",
+        "Aunque",
+        "Si",
+        "Después de que",
+    )
+    pt_fronts = (
+        "Quando",
+        "Enquanto",
+        "Embora",
+        "Se",
+        "Depois que",
+    )
+    es_subject_frames = (
+        "el pago que hice salió",
+        "la compra que autoricé apareció",
+    )
+    pt_subject_frames = (
+        "o pagamento que eu fiz saiu",
+        "a compra que eu autorizei apareceu",
     )
 
+    for front, subject, comma in product(
+        es_fronts,
+        es_subject_frames,
+        ("", ","),
+    ):
+        message, start = _render_marked(
+            f"{front} {subject}{comma} la [[transferencia]] fue un fraude."
+        )
+        yield message, "es", start
+
+    for front, subject, comma in product(
+        pt_fronts,
+        pt_subject_frames,
+        ("", ","),
+    ):
+        message, start = _render_marked(
+            f"{front} {subject}{comma} a [[transferência]] foi golpe."
+        )
+        yield message, "pt", start
+
+
+def _true_later_self_cases() -> Iterable[tuple[str, str, int]]:
+    es_first = (
+        "La compra que hice está bien",
+        "El pago que autoricé salió bien",
+    )
+    pt_first = (
+        "A compra que eu fiz está certa",
+        "O pagamento que eu autorizei saiu certo",
+    )
     es_frames = (
-        (
-            "cuando usé la tarjeta la transferencia que hice",
-            "transferencia",
-            (EvidenceAtomKind.SELF_PERFORMED,),
-        ),
-        (
-            "mientras revisé la cuenta la transferencia que autoricé",
-            "transferencia",
-            (EvidenceAtomKind.SELF_AUTHORIZED,),
-        ),
-        (
-            "cuando yo por fin después de todo hice la transferencia que autoricé",
-            "transferencia",
-            (
-                EvidenceAtomKind.SELF_PERFORMED,
-                EvidenceAtomKind.SELF_AUTHORIZED,
-            ),
-        ),
+        "cuando usé la tarjeta la [[transferencia]] que hice",
+        "mientras revisé la cuenta la [[transferencia]] que autoricé",
+        "cuando yo por fin después de todo hice la [[transferencia]] que autoricé",
     )
     pt_frames = (
-        (
-            "quando usei o cartão a transferência que eu fiz",
-            "transferencia",
-            (EvidenceAtomKind.SELF_PERFORMED,),
-        ),
-        (
-            "enquanto revisei a conta a transferência que eu autorizei",
-            "transferencia",
-            (EvidenceAtomKind.SELF_AUTHORIZED,),
-        ),
-        (
-            "quando eu enfim depois de muito tempo fiz a transferência que autorizei",
-            "transferencia",
-            (
-                EvidenceAtomKind.SELF_PERFORMED,
-                EvidenceAtomKind.SELF_AUTHORIZED,
-            ),
-        ),
+        "quando usei o cartão a [[transferência]] que eu fiz",
+        "enquanto revisei a conta a [[transferência]] que eu autorizei",
+        "quando eu enfim depois de muito tempo fiz a [[transferência]] que autorizei",
     )
 
     for first, coordinator, frame in product(
-        es_first_conjuncts,
+        es_first,
         ("y", "pero"),
         es_frames,
     ):
-        frame_text, expected_activity, expected_atoms = frame
-        message = f"{first} {coordinator} {frame_text} fue un fraude."
-        _assert_no_new_or_moved_self_atom(
-            message,
-            "es",
-            expected_activity,
-            expected_atoms,
+        message, start = _render_marked(
+            f"{first} {coordinator} {frame} fue un fraude."
         )
+        yield message, "es", start
 
     for first, coordinator, frame in product(
-        pt_first_conjuncts,
+        pt_first,
         ("e", "mas"),
         pt_frames,
     ):
-        frame_text, expected_activity, expected_atoms = frame
-        message = f"{first} {coordinator} {frame_text} foi golpe."
-        _assert_no_new_or_moved_self_atom(
-            message,
+        message, start = _render_marked(
+            f"{first} {coordinator} {frame} foi golpe."
+        )
+        yield message, "pt", start
+
+
+def _ordinary_and_same_noun_cases() -> Iterable[tuple[str, str, int]]:
+    templates = (
+        ("La [[transferencia]] que hice fue un fraude.", "es"),
+        ("El [[pago]] que yo mismo autoricé fue un fraude.", "es"),
+        ("O [[Pix]] que eu fiz foi golpe.", "pt"),
+        (
+            "La transferencia que hice está bien y la [[transferencia]] fue un fraude.",
+            "es",
+        ),
+        (
+            "O pagamento que eu fiz saiu bem mas o [[pagamento]] foi golpe.",
             "pt",
-            expected_activity,
-            expected_atoms,
+        ),
+        (
+            "Cuando el pago que hice salió, la [[transferencia]] fue un fraude.",
+            "es",
+        ),
+        (
+            "Quando o pagamento que eu fiz saiu, a [[transferência]] foi golpe.",
+            "pt",
+        ),
+    )
+    for template, language in templates:
+        message, start = _render_marked(template)
+        yield message, language, start
+
+
+def _structural_cases() -> tuple[tuple[str, str, int], ...]:
+    cases = (
+        list(_attached_frame_cases())
+        + list(_grid_q_cases())
+        + list(_true_later_self_cases())
+        + list(_ordinary_and_same_noun_cases())
+    )
+    return tuple(dict.fromkeys(cases))
+
+
+def test_g7e_property_no_wrong_referent_self_atom_by_source_position() -> None:
+    cases = _structural_cases()
+    assert len(cases) >= 700
+
+    for message, language, true_source_start in cases:
+        _assert_self_atoms_only_on_true_referent(
+            message,
+            language,
+            true_source_start,
         )
 
 
-def test_g7d_property_fronted_frames_do_not_donate_self_atoms() -> None:
-    cases = (
-        (
-            "Cuando hice el pago la transferencia fue un fraude.",
-            "es",
-            "transferencia",
-        ),
-        (
-            "Cuando yo por fin después de todo hice el pago la transferencia fue un fraude.",
-            "es",
-            "transferencia",
-        ),
-        (
-            "Quando eu fiz o pagamento a transferência foi golpe.",
-            "pt",
-            "transferencia",
-        ),
-        (
-            "Quando eu enfim depois de muito tempo fiz o pagamento a transferência foi golpe.",
-            "pt",
-            "transferencia",
-        ),
-    )
+def test_g7e_property_frozen_pre_g7e_lineage_has_no_new_or_moved_self_atom() -> None:
+    baseline = json.loads(_BASELINE_PATH.read_text(encoding="utf-8"))
 
-    for message, language, expected_activity in cases:
-        signatures = _fraud_atom_signatures(message, language)
-        assert signatures == ((expected_activity, ()),)
+    assert baseline["schema"] == "rf1h-g7e-pre-g7e-self-baseline-v1"
+    assert (
+        baseline["frozen_public_sha"]
+        == "f9ee5b1d214e1d0ca4d022cb1ea9929781bb1854"
+    )
+    assert baseline["classification"] == "DEVELOPMENT-KNOWN"
+    assert len(baseline["cases"]) >= 20
+
+    for case in baseline["cases"]:
+        prior = frozenset(
+            (
+                atom["activity_source_start"],
+                atom["kind"],
+            )
+            for atom in case["self_atoms"]
+        )
+        current = _self_atom_signatures(
+            case["message"],
+            case["language"],
+        )
+
+        # G7E may conservatively remove a prior atom. It must never create a
+        # new kind or move a surviving atom to a different source referent.
+        assert current <= prior
+
+
+def test_g7e_property_surface_covers_required_structural_classes() -> None:
+    cases = _structural_cases()
+    messages = tuple(message for message, _, _ in cases)
+
+    assert any(" yo mismo lo autoricé " in message for message in messages)
+    assert any(" eu mesmo o autorizei " in message for message in messages)
+    assert any(" que e cobrada " in message for message in messages)
+    assert any(" y luego cuando " in message for message in messages)
+    assert any(" e depois quando " in message for message in messages)
+    assert any(" por fin después de todo " in message for message in messages)
+    assert any(" enfim depois de muito tempo " in message for message in messages)
+    assert any(message.startswith("Cuando ") for message in messages)
+    assert any(message.startswith("Embora ") for message in messages)
+    assert any("pero la transferencia fue un fraude" in message for message in messages)
+    assert any("mas a transferência foi golpe" in message for message in messages)
+    assert any(
+        message.count("transferencia") >= 2
+        for message, language, _ in cases
+        if language == "es"
+    )
