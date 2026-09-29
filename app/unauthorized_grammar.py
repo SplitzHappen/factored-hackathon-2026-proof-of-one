@@ -4819,6 +4819,45 @@ def _p6_left_activity_is_embedded(
         if marker == "que" and heads_que_relative:
             continue
 
+        if marker != "que" and heads_que_relative:
+            candidate_has_coordinator = any(
+                words[index] in coordinators
+                and not (
+                    words[index] == "e"
+                    and analysis.tokens[index].had_acute
+                )
+                for index in range(marker_index + 1, activity_span[0])
+            )
+            relative_attachment_head = any(
+                span[1] <= marker_index
+                and _p6_activity_heads_que_relative(
+                    analysis,
+                    span,
+                    copula_index,
+                    language,
+                )
+                and not any(
+                    words[index] in coordinators
+                    and not (
+                        words[index] == "e"
+                        and analysis.tokens[index].had_acute
+                    )
+                    for index in range(span[1], marker_index)
+                )
+                for span in activity_spans
+            )
+            if (
+                not candidate_has_coordinator
+                and relative_attachment_head
+                and _affirmative_self_fraud_counter_evidence(
+                    analysis,
+                    clause,
+                    activity_span,
+                    language,
+                )
+            ):
+                return True
+
         finite_between = any(
             predicate.form.person is not None
             and not predicate.accent_ambiguous
