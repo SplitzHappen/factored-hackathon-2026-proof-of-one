@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "contract_id": "FACTORED-EXAMPLE-REPLACE-ME",
+  "revision": 1,
+  "status": "frozen",
+  "project_slug": "factored-ai-data-hackathon-2026",
+  "risk_class": "high_assurance",
+  "baseline": {
+    "repository": "SplitzHappen/factored-hackathon-2026-proof-of-one",
+    "commit_sha": "0000000000000000000000000000000000000000"
+  },
+  "scope": {
+    "deliverables": ["Replace with concrete deliverable."],
+    "non_goals": ["Replace with explicit non-goal."],
+    "allowed_write_surfaces": ["app/**", "tests/**", "docs/**", ".github/verified-delivery/contracts/**"],
+    "forbidden_write_surfaces": ["data/raw/**"],
+    "protected_verifier_surfaces": [
+      "tests/**",
+      ".github/workflows/**",
+      "scripts/verify_delivery_contract.py",
+      "evaluation/**",
+      "data/heldout/**"
+    ]
+  },
+  "roles": {
+    "owner": "José Antonio",
+    "builder": "replace-with-builder-family-or-identity",
+    "independent_auditor": "replace-with-independent-auditor-family-or-identity"
+  },
+  "acceptance": [
+    {
+      "requirement_id": "REQ-001",
+      "condition": "Replace with a falsifiable acceptance condition.",
+      "verification_class": "test",
+      "required_evidence": ["Exact-candidate deterministic test output."]
+    }
+  ],
+  "assurance": {
+    "exact_candidate_required": true,
+    "builder_cannot_self_certify_independent_assurance": true,
+    "acceptance_changes_require_revision": true,
+    "owner_acceptance_required": true,
+    "heldout_policy": "protected_and_adversarial",
+    "repeat_failure_stop_after": 3
+  }
+}
