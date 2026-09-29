@@ -3635,3 +3635,142 @@ def test_b2r_g7d_a_short_coordinated_b2ri02_nonobject_stays_embedded() -> None:
             for proposition in propositions
         )
 
+def test_b2r_g7d_b_frame_subject_relative_self_stays_with_outer_head() -> None:
+    cases = (
+        (
+            "La compra que apareció cuando el pago que autoricé salió fue un fraude.",
+            "es",
+            "compra",
+        ),
+        (
+            "La transferencia que salió cuando el pago que hice salió fue un fraude.",
+            "es",
+            "transferencia",
+        ),
+        (
+            "A compra que apareceu quando o pagamento que eu autorizei saiu foi golpe.",
+            "pt",
+            "compra",
+        ),
+        (
+            "A transferência que saiu quando o pagamento que eu fiz saiu foi golpe.",
+            "pt",
+            "transferencia",
+        ),
+    )
+
+    for message, language, expected_activity in cases:
+        analysis = analyze_foundation(message, language)
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert item.activity_token_span is not None
+        assert (
+            analysis.tokens[item.activity_token_span[0]].normalized
+            == expected_activity
+        )
+        assert not item.counter_evidence
+
+
+def test_b2r_g7d_b_preserves_coordinated_relative_restoration_control() -> None:
+    cases = (
+        (
+            "Hice el pago cuando me pidieron y la transferencia que salió fue un fraude.",
+            "es",
+            "transferencia",
+        ),
+        (
+            "Fiz o pagamento quando me pediram e a transferência que saiu foi golpe.",
+            "pt",
+            "transferencia",
+        ),
+    )
+
+    for message, language, expected_activity in cases:
+        analysis = analyze_foundation(message, language)
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert item.activity_token_span is not None
+        assert (
+            analysis.tokens[item.activity_token_span[0]].normalized
+            == expected_activity
+        )
+        assert not item.counter_evidence
+
+
+def test_b2r_g7d_b_preserves_ordinary_post_frame_relative_referent() -> None:
+    cases = (
+        (
+            "Hice el pago cuando la transferencia que salió fue un fraude.",
+            "es",
+            "transferencia",
+        ),
+        (
+            "Fiz o pagamento quando a transferência que saiu foi golpe.",
+            "pt",
+            "transferencia",
+        ),
+    )
+
+    for message, language, expected_activity in cases:
+        analysis = analyze_foundation(message, language)
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert item.activity_token_span is not None
+        assert (
+            analysis.tokens[item.activity_token_span[0]].normalized
+            == expected_activity
+        )
+        assert not item.counter_evidence
+
+
+def test_b2r_g7d_b_does_not_move_relative_self_atom_to_prior_activity() -> None:
+    cases = (
+        (
+            "Hice el pago cuando la compra que hice fue un fraude.",
+            "es",
+            "compra",
+            "pago",
+        ),
+        (
+            "Fiz o pagamento quando a compra que eu fiz foi golpe.",
+            "pt",
+            "compra",
+            "pagamento",
+        ),
+    )
+
+    for message, language, expected_activity, forbidden_activity in cases:
+        analysis = analyze_foundation(message, language)
+        propositions = build_positive_propositions(message, language)
+        fraud_items = [
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        ]
+        item = fraud_items[0]
+        assert item.activity_token_span is not None
+        assert (
+            analysis.tokens[item.activity_token_span[0]].normalized
+            == expected_activity
+        )
+        assert not any(
+            proposition.activity_token_span is not None
+            and analysis.tokens[
+                proposition.activity_token_span[0]
+            ].normalized == forbidden_activity
+            and proposition.counter_evidence
+            for proposition in fraud_items
+        )
+
