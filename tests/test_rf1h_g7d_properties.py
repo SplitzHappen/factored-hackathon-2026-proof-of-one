@@ -185,7 +185,10 @@ def test_g7d_property_true_later_referent_keeps_only_its_own_self_atom() -> None
         (
             "cuando yo por fin después de todo hice la transferencia que autoricé",
             "transferencia",
-            (EvidenceAtomKind.SELF_AUTHORIZED,),
+            (
+                EvidenceAtomKind.SELF_PERFORMED,
+                EvidenceAtomKind.SELF_AUTHORIZED,
+            ),
         ),
     )
     pt_frames = (
@@ -202,7 +205,10 @@ def test_g7d_property_true_later_referent_keeps_only_its_own_self_atom() -> None
         (
             "quando eu enfim depois de muito tempo fiz a transferência que autorizei",
             "transferencia",
-            (EvidenceAtomKind.SELF_AUTHORIZED,),
+            (
+                EvidenceAtomKind.SELF_PERFORMED,
+                EvidenceAtomKind.SELF_AUTHORIZED,
+            ),
         ),
     )
 
@@ -225,7 +231,7 @@ def test_g7d_property_true_later_referent_keeps_only_its_own_self_atom() -> None
         ("e", "mas"),
         pt_frames,
     ):
-        frame_text, expected_activity, expected_atom = frame
+        frame_text, expected_activity, expected_atoms = frame
         message = f"{first} {coordinator} {frame_text} foi golpe."
         _assert_no_new_or_moved_self_atom(
             message,
