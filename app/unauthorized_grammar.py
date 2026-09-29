@@ -4664,12 +4664,7 @@ def _fraud_attributive_propositions(
                 evidence_spans=(activity_span, (marker_index, marker_index + 1)),
                 activity_span=activity_span,
                 predicate=None,
-                counter_evidence=_affirmative_self_fraud_counter_evidence(
-                    analysis,
-                    clause,
-                    activity_span,
-                    language,
-                ),
+                counter_evidence=counter_evidence,
             )
         )
     return output
@@ -4960,6 +4955,46 @@ def _p6_left_activity_is_embedded(
     )
 
 
+def _p6_self_counter_evidence_is_unsafe(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    copula_index: int,
+    language: str,
+    counter_evidence: tuple[EvidenceAtom, ...],
+) -> bool:
+    """Reject atom-bearing P6 selections with a structurally unsafe referent."""
+
+    if not counter_evidence:
+        return False
+
+    activity_spans = _activity_spans(analysis, clause)
+    if any(
+        span[0] >= activity_span[1]
+        and span[0] < copula_index
+        for span in activity_spans
+    ):
+        return True
+
+    words = [token.normalized for token in analysis.tokens]
+    adverbial_markers = (
+        {"cuando", "mientras"}
+        if language == "es"
+        else {"quando", "enquanto"}
+    )
+    return any(
+        words[marker_index] in adverbial_markers
+        and any(
+            span[1] <= marker_index
+            for span in activity_spans
+        )
+        for marker_index in range(
+            clause.token_start,
+            activity_span[0],
+        )
+    )
+
+
 def _fraud_copular_propositions(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -5088,6 +5123,22 @@ def _fraud_copular_propositions(
             activity_word = words[activity_index]
             if not _fraud_adjective_agrees(activity_word, marker_word, language):
                 continue
+
+        counter_evidence = _affirmative_self_fraud_counter_evidence(
+            analysis,
+            clause,
+            activity_span,
+            language,
+        )
+        if _p6_self_counter_evidence_is_unsafe(
+            analysis,
+            clause,
+            activity_span,
+            copula_index,
+            language,
+            counter_evidence,
+        ):
+            continue
 
         output.append(
             _make_proposition(
