@@ -3723,7 +3723,7 @@ def test_b2r_g7d_b_preserves_ordinary_post_frame_relative_referent() -> None:
         assert not item.counter_evidence
 
 
-def test_b2r_g7d_b_does_not_move_relative_self_atom_to_prior_activity() -> None:
+def test_b2r_g7d_b_suppresses_unsafe_relative_self_p6() -> None:
     cases = (
         (
             "Hice el pago cuando la compra que hice fue un fraude.",
@@ -3812,7 +3812,7 @@ def test_b2r_g7d_c_preserves_fronted_long_adverbial_referent() -> None:
         assert not item.counter_evidence
 
 
-def test_b2r_g7d_c_preserves_true_conjunct_long_self_referent() -> None:
+def test_b2r_g7d_c_conservatively_suppresses_long_conjunct_self_p6() -> None:
     cases = (
         (
             "La compra que hice está bien y cuando yo por fin después de todo hice la transferencia que autoricé fue un fraude.",
