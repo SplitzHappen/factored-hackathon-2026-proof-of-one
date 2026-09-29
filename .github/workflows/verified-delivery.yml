@@ -19,6 +19,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
+      - name: Test the governance gate
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest .github/verified-delivery/test_verify_delivery_contract.py -v
+
       - name: Verify high-assurance delivery contract
         env:
           PYTHONDONTWRITEBYTECODE: "1"
