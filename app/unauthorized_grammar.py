@@ -4999,33 +4999,11 @@ def _p6_has_left_attachment_material(
     marker_start: int,
     language: str,
 ) -> bool:
-    """Recognize bounded material that can anchor an attached adverbial frame."""
+    """Recognize lexical material to the left of an attached adverbial frame."""
 
-    activity_spans = _activity_spans(analysis, clause)
-    if any(span[1] <= marker_start for span in activity_spans):
-        return True
-
-    if any(
-        predicate.form.person is not None
-        and not predicate.accent_ambiguous
-        and predicate.token_end <= marker_start
-        and _in_clause(
-            predicate.token_start,
-            predicate.token_end,
-            clause,
-        )
-        for predicate in analysis.predicates
-    ):
-        return True
-
-    words = [token.normalized for token in analysis.tokens]
-    non_activity_heads = (
-        _ES_NON_ACTIVITY_FRAUD_HEADS
-        if language == "es"
-        else _PT_NON_ACTIVITY_FRAUD_HEADS
-    )
+    del language
     return any(
-        words[index] in non_activity_heads
+        analysis.tokens[index].normalized.isalnum()
         for index in range(clause.token_start, marker_start)
     )
 
