@@ -4736,8 +4736,21 @@ def _p6_left_activity_is_embedded(
         if marker not in markers:
             continue
 
+        coordinators = (
+            {"y", "e", "pero"}
+            if language == "es"
+            else {"e", "mas", "porem"}
+        )
         has_attachment_head = any(
             span[1] <= marker_index
+            and not any(
+                words[index] in coordinators
+                and not (
+                    words[index] == "e"
+                    and analysis.tokens[index].had_acute
+                )
+                for index in range(span[1], marker_index)
+            )
             for span in activity_spans
         )
         if not has_attachment_head:

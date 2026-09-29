@@ -3266,3 +3266,72 @@ def test_b2r_g6b_unlisted_relative_verb_still_embeds_known_actor() -> None:
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
     assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
 
+def test_b2r_g7a_coordinated_conjunct_does_not_attach_prior_activity_spanish() -> None:
+    message = "Hice el pago y cuando usé la tarjeta la compra fue un fraude."
+    analysis = analyze_foundation(message, "es")
+    propositions = build_positive_propositions(message, "es")
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.activity_token_span is not None
+    assert analysis.tokens[item.activity_token_span[0]].normalized == "compra"
+    assert not item.counter_evidence
+
+
+def test_b2r_g7a_coordinated_conjunct_does_not_attach_prior_activity_portuguese() -> None:
+    message = "Eu fiz o pagamento e quando usei o cartão a compra foi golpe."
+    analysis = analyze_foundation(message, "pt")
+    propositions = build_positive_propositions(message, "pt")
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.activity_token_span is not None
+    assert analysis.tokens[item.activity_token_span[0]].normalized == "compra"
+    assert not item.counter_evidence
+
+
+def test_b2r_g7a_coordinated_frame_with_comma_keeps_true_p6_referent() -> None:
+    message = "Hice el pago y cuando usé la tarjeta, la compra fue un fraude."
+    analysis = analyze_foundation(message, "es")
+    propositions = build_positive_propositions(message, "es")
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.activity_token_span is not None
+    assert analysis.tokens[item.activity_token_span[0]].normalized == "compra"
+    assert not item.counter_evidence
+
+
+def test_b2r_g7a_relative_internal_coordination_still_anchors_nested_activity() -> None:
+    cases = (
+        (
+            "La transferencia que salió y que apareció cuando hice el pago fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que apareceu e sumiu quando eu fiz o pagamento foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            and proposition.activity_token_span is not None
+            and proposition.counter_evidence
+            for proposition in propositions
+        )
+
