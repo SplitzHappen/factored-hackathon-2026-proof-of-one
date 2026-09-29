@@ -3477,6 +3477,17 @@ def _p5_known_actor_embedded_under_prior_unknown(
         if language == "es"
         else {"me", "te", "se", "o", "a", "os", "as", "lhe", "lhes"}
     ) | introducers | bridge_words
+    relative_fallback_nonverbs = (
+        {
+            "hoy", "ayer", "anteayer", "antes", "ya", "tambien",
+            "luego", "despues", "solo", "fue", "era", "es",
+        }
+        if language == "es"
+        else {
+            "hoje", "ontem", "anteontem", "antes", "ja", "tambem",
+            "logo", "depois", "so", "foi", "era", "e",
+        }
+    )
 
     if (
         prior_unknown[1] < clause.token_end
@@ -3520,6 +3531,7 @@ def _p5_known_actor_embedded_under_prior_unknown(
                 1 <= len(relative_material) <= 3
                 and "que" not in relative_material
                 and relative_material[0] not in relative_bridge_words
+                and relative_material[0] not in relative_fallback_nonverbs
                 and all(
                     word in relative_bridge_words
                     for word in relative_material[1:]
