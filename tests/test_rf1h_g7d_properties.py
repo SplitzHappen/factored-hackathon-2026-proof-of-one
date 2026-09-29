@@ -54,7 +54,7 @@ def _assert_no_new_or_moved_self_atom(
     message: str,
     language: str,
     expected_activity: str,
-    expected_atom: EvidenceAtomKind,
+    expected_atoms: tuple[EvidenceAtomKind, ...],
 ) -> None:
     signatures = _fraud_atom_signatures(message, language)
     atom_bearing = [
@@ -65,7 +65,7 @@ def _assert_no_new_or_moved_self_atom(
     ]
     assert all(
         activity == expected_activity
-        and atoms == (expected_atom,)
+        and atoms == expected_atoms
         for activity, atoms in atom_bearing
     )
 
@@ -175,34 +175,34 @@ def test_g7d_property_true_later_referent_keeps_only_its_own_self_atom() -> None
         (
             "cuando usé la tarjeta la transferencia que hice",
             "transferencia",
-            EvidenceAtomKind.SELF_PERFORMED,
+            (EvidenceAtomKind.SELF_PERFORMED,),
         ),
         (
             "mientras revisé la cuenta la transferencia que autoricé",
             "transferencia",
-            EvidenceAtomKind.SELF_AUTHORIZED,
+            (EvidenceAtomKind.SELF_AUTHORIZED,),
         ),
         (
             "cuando yo por fin después de todo hice la transferencia que autoricé",
             "transferencia",
-            EvidenceAtomKind.SELF_AUTHORIZED,
+            (EvidenceAtomKind.SELF_AUTHORIZED,),
         ),
     )
     pt_frames = (
         (
             "quando usei o cartão a transferência que eu fiz",
             "transferencia",
-            EvidenceAtomKind.SELF_PERFORMED,
+            (EvidenceAtomKind.SELF_PERFORMED,),
         ),
         (
             "enquanto revisei a conta a transferência que eu autorizei",
             "transferencia",
-            EvidenceAtomKind.SELF_AUTHORIZED,
+            (EvidenceAtomKind.SELF_AUTHORIZED,),
         ),
         (
             "quando eu enfim depois de muito tempo fiz a transferência que autorizei",
             "transferencia",
-            EvidenceAtomKind.SELF_AUTHORIZED,
+            (EvidenceAtomKind.SELF_AUTHORIZED,),
         ),
     )
 
@@ -211,13 +211,13 @@ def test_g7d_property_true_later_referent_keeps_only_its_own_self_atom() -> None
         ("y", "pero"),
         es_frames,
     ):
-        frame_text, expected_activity, expected_atom = frame
+        frame_text, expected_activity, expected_atoms = frame
         message = f"{first} {coordinator} {frame_text} fue un fraude."
         _assert_no_new_or_moved_self_atom(
             message,
             "es",
             expected_activity,
-            expected_atom,
+            expected_atoms,
         )
 
     for first, coordinator, frame in product(
@@ -231,7 +231,7 @@ def test_g7d_property_true_later_referent_keeps_only_its_own_self_atom() -> None
             message,
             "pt",
             expected_activity,
-            expected_atom,
+            expected_atoms,
         )
 
 
