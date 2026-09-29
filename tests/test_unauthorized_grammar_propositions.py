@@ -3225,3 +3225,44 @@ def test_b2r_g6a_nested_relative_under_adverbial_does_not_escape_embedding() -> 
             for proposition in propositions
         )
 
+def test_b2r_g6b_complementizer_adverb_known_subject_regains_precedence() -> None:
+    es = _families(
+        "Le conté a alguien que ayer mi hijo usó mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Contei para alguém que ontem meu filho usou meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
+
+
+def test_b2r_g6b_complementizer_copula_known_subject_regains_precedence() -> None:
+    es = _families(
+        "Le conté a alguien que fue mi hijo quien usó mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Contei para alguém que foi meu filho quem usou meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE not in pt
+
+
+def test_b2r_g6b_unlisted_relative_verb_still_embeds_known_actor() -> None:
+    es = _families(
+        "Alguien que conoce a mi hijo usó mi tarjeta.",
+        "es",
+    )
+    pt = _families(
+        "Alguém que conhece meu filho usou meu cartão.",
+        "pt",
+    )
+
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in es
+    assert PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE in pt
+
