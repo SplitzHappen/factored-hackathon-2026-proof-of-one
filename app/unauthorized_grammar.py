@@ -4709,6 +4709,52 @@ def _p6_activity_heads_que_relative(
     return index < copula_index and words[index] == "que"
 
 
+def _p6_activity_is_frame_object(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    marker_index: int,
+    language: str,
+) -> bool:
+    """Recognize the bounded activity object of a finite predicate inside a P6 frame."""
+
+    words = [token.normalized for token in analysis.tokens]
+    object_start = activity_span[0]
+
+    while (
+        object_start > marker_index + 1
+        and _is_closed_prenominal_modifier(
+            words[object_start - 1],
+            language,
+        )
+    ):
+        object_start -= 1
+
+    determiners = (
+        _ES_NOMINAL_DETERMINERS
+        if language == "es"
+        else _PT_NOMINAL_DETERMINERS
+    )
+    if (
+        object_start > marker_index + 1
+        and words[object_start - 1] in determiners
+    ):
+        object_start -= 1
+
+    return any(
+        predicate.form.person is not None
+        and not predicate.accent_ambiguous
+        and predicate.token_start > marker_index
+        and predicate.token_end == object_start
+        and _in_clause(
+            predicate.token_start,
+            predicate.token_end,
+            clause,
+        )
+        for predicate in analysis.predicates
+    )
+
+
 def _p6_left_activity_is_embedded(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -4750,7 +4796,16 @@ def _p6_left_activity_is_embedded(
                     and analysis.tokens[index].had_acute
                 )
                 and (
-                    index + 1 == marker_index
+                    (
+                        index + 1 == marker_index
+                        and not _p6_activity_is_frame_object(
+                            analysis,
+                            clause,
+                            activity_span,
+                            marker_index,
+                            language,
+                        )
+                    )
                     or "que" not in words[span[1]:index]
                 )
                 for index in range(span[1], marker_index)
