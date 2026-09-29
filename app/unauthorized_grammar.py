@@ -4664,7 +4664,12 @@ def _fraud_attributive_propositions(
                 evidence_spans=(activity_span, (marker_index, marker_index + 1)),
                 activity_span=activity_span,
                 predicate=None,
-                counter_evidence=counter_evidence,
+                counter_evidence=_affirmative_self_fraud_counter_evidence(
+                    analysis,
+                    clause,
+                    activity_span,
+                    language,
+                ),
             )
         )
     return output
@@ -5154,12 +5159,7 @@ def _fraud_copular_propositions(
                 ),
                 activity_span=activity_span,
                 predicate=None,
-                counter_evidence=_affirmative_self_fraud_counter_evidence(
-                    analysis,
-                    clause,
-                    activity_span,
-                    language,
-                ),
+                counter_evidence=counter_evidence,
             )
         )
 
