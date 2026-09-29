@@ -4798,6 +4798,7 @@ def _p6_left_activity_is_embedded(
                 and (
                     (
                         index + 1 == marker_index
+                        and not heads_que_relative
                         and not _p6_activity_is_frame_object(
                             analysis,
                             clause,
