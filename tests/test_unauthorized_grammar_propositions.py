@@ -3335,3 +3335,116 @@ def test_b2r_g7a_relative_internal_coordination_still_anchors_nested_activity() 
             for proposition in propositions
         )
 
+def test_b2r_g7b_long_relative_internal_y_e_keeps_nested_activity_embedded() -> None:
+    cases = (
+        (
+            "La transferencia que salió de la cuenta y apareció cuando hice el pago fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que saiu da conta e apareceu quando eu fiz o pagamento foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            and proposition.counter_evidence
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7b_long_relative_internal_pero_mas_keeps_nested_activity_embedded() -> None:
+    cases = (
+        (
+            "La transferencia que salió de la cuenta pero apareció cuando hice el pago fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que saiu da conta mas apareceu quando eu fiz o pagamento foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            and proposition.counter_evidence
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7b_coordinated_b2ri02_nested_relative_stays_embedded() -> None:
+    cases = (
+        (
+            "La transferencia que apareció y salió cuando hice el pago que me pidieron fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que apareceu e saiu quando eu fiz o pagamento que me pediram foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            and proposition.counter_evidence
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7b_relative_internal_coordination_does_not_donate_self_authorized() -> None:
+    cases = (
+        (
+            "La transferencia que salió de la cuenta y apareció cuando autoricé el pago fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que saiu da conta e apareceu quando autorizei o pagamento foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            and proposition.counter_evidence
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7b_true_conjunct_boundary_still_restores_later_referent() -> None:
+    cases = (
+        (
+            "La compra que hice está bien y cuando hice el pago la transferencia fue un fraude.",
+            "es",
+            "transferencia",
+        ),
+        (
+            "A compra que eu fiz está certa e quando eu fiz o pagamento a transferência foi golpe.",
+            "pt",
+            "transferencia",
+        ),
+    )
+
+    for message, language, expected_activity in cases:
+        analysis = analyze_foundation(message, language)
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert item.activity_token_span is not None
+        assert (
+            analysis.tokens[item.activity_token_span[0]].normalized
+            == expected_activity
+        )
+        assert not item.counter_evidence
+
