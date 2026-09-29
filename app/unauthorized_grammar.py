@@ -4678,6 +4678,39 @@ def _fraud_attributive_propositions(
 _ES_P6_EMBEDDING_MARKERS = frozenset({"que", "cuando", "mientras"})
 _PT_P6_EMBEDDING_MARKERS = frozenset({"que", "quando", "enquanto"})
 
+_ES_P6_ATTACHED_ADVERBIAL_PHRASES = (
+    ("cuando",),
+    ("mientras",),
+    ("aunque",),
+    ("porque",),
+    ("si",),
+    ("apenas",),
+    ("donde",),
+    ("despues", "de", "que"),
+    ("antes", "de", "que"),
+    ("desde", "que"),
+    ("ya", "que"),
+    ("una", "vez", "que"),
+)
+_PT_P6_ATTACHED_ADVERBIAL_PHRASES = (
+    ("quando",),
+    ("enquanto",),
+    ("embora",),
+    ("porque",),
+    ("se",),
+    ("onde",),
+    ("depois", "que"),
+    ("antes", "que"),
+    ("assim", "que"),
+    ("desde", "que"),
+    ("ja", "que"),
+    ("logo", "que"),
+)
+_ES_P6_ARTICLES = frozenset({"el", "la", "los", "las", "un", "una", "unos", "unas"})
+_PT_P6_ARTICLES = frozenset({"o", "a", "os", "as", "um", "uma", "uns", "umas"})
+_ES_P6_ARTICLE_PP_PREPOSITIONS = _ES_PREPOSITIONAL_ACTIVITY | frozenset({"tras"})
+_PT_P6_ARTICLE_PP_PREPOSITIONS = _PT_PREPOSITIONAL_ACTIVITY | frozenset({"apos"})
+
 
 def _p6_activity_heads_que_relative(
     analysis: FoundationAnalysis,
@@ -4960,6 +4993,89 @@ def _p6_left_activity_is_embedded(
     )
 
 
+def _p6_has_left_attachment_material(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    marker_start: int,
+    language: str,
+) -> bool:
+    """Recognize lexical material to the left of an attached adverbial frame."""
+
+    del language
+    return any(
+        analysis.tokens[index].normalized.isalnum()
+        for index in range(clause.token_start, marker_start)
+    )
+
+
+def _p6_self_activity_is_article_pp_nested(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+) -> bool:
+    """Reject SELF-bearing activity selected from a bounded article PP."""
+
+    words = [token.normalized for token in analysis.tokens]
+    articles = _ES_P6_ARTICLES if language == "es" else _PT_P6_ARTICLES
+    prepositions = (
+        _ES_P6_ARTICLE_PP_PREPOSITIONS
+        if language == "es"
+        else _PT_P6_ARTICLE_PP_PREPOSITIONS
+    )
+
+    nominal_start = activity_span[0]
+    while (
+        nominal_start > clause.token_start
+        and _is_closed_prenominal_modifier(
+            words[nominal_start - 1],
+            language,
+        )
+    ):
+        nominal_start -= 1
+
+    article_index = nominal_start - 1
+    preposition_index = article_index - 1
+    if preposition_index <= clause.token_start:
+        return False
+    return (
+        words[article_index] in articles
+        and words[preposition_index] in prepositions
+    )
+
+
+def _p6_self_activity_is_inside_attached_adverbial(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+) -> bool:
+    """Recognize SELF-bearing activity inside a bounded attached adverbial frame."""
+
+    phrases = (
+        _ES_P6_ATTACHED_ADVERBIAL_PHRASES
+        if language == "es"
+        else _PT_P6_ATTACHED_ADVERBIAL_PHRASES
+    )
+    for marker_start, marker_end in _phrase_spans(
+        analysis,
+        clause,
+        phrases,
+    ):
+        if marker_start <= clause.token_start:
+            continue
+        if marker_end > activity_span[0]:
+            continue
+        if _p6_has_left_attachment_material(
+            analysis,
+            clause,
+            marker_start,
+            language,
+        ):
+            return True
+    return False
+
+
 def _p6_self_counter_evidence_is_unsafe(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -4981,25 +5097,20 @@ def _p6_self_counter_evidence_is_unsafe(
     ):
         return True
 
-    words = [token.normalized for token in analysis.tokens]
-    adverbial_markers = (
-        {"cuando", "mientras"}
-        if language == "es"
-        else {"quando", "enquanto"}
-    )
-    return any(
-        words[marker_index] in adverbial_markers
-        and any(
-            span[1] <= marker_index
-            for span in activity_spans
-        )
-        for marker_index in range(
-            clause.token_start,
-            activity_span[0],
-        )
-    )
+    if _p6_self_activity_is_article_pp_nested(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    ):
+        return True
 
-
+    return _p6_self_activity_is_inside_attached_adverbial(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    )
 def _fraud_copular_propositions(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,

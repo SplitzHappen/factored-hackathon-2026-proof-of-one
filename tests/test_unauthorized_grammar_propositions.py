@@ -3980,3 +3980,130 @@ def test_b2r_g7e_a_preserves_ordinary_unframed_self_binding() -> None:
             expected_atom,
         )
 
+def test_b2r_g7f_a_blocks_nonactivity_head_closed_adverbial_wrong_self() -> None:
+    cases = (
+        (
+            "Lo que me cobraron cuando hice el pago fue un fraude.",
+            "es",
+        ),
+        (
+            "O que me cobraram quando fiz o pagamento foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7f_a_blocks_bounded_open_adverbial_wrong_self() -> None:
+    cases = (
+        (
+            "La transferencia, aunque yo hice el pago, fue un fraude.",
+            "es",
+        ),
+        (
+            "La transferencia de ayer, porque hice el pago, fue un fraude.",
+            "es",
+        ),
+        (
+            "El cargo de ayer, después de que hice la compra, fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência, porque eu fiz o pagamento, foi golpe.",
+            "pt",
+        ),
+        (
+            "A cobrança de ontem, depois que eu fiz a compra, foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7f_a_blocks_article_pp_nested_wrong_self() -> None:
+    cases = (
+        (
+            "La transferencia que salió por el pago que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "El cargo de la compra que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "A cobrança que apareceu com a compra que eu fiz foi golpe.",
+            "pt",
+        ),
+        (
+            "A cobrança para a compra que eu fiz foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7f_a_preserves_clause_initial_subjectless_self() -> None:
+    cases = (
+        (
+            "Cuando hice el pago fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Quando eu fiz o pagamento foi golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+    )
+
+    for message, language, expected_atom in cases:
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert expected_atom in {atom.kind for atom in item.counter_evidence}
+
+
+def test_b2r_g7f_a_preserves_complementizer_que_legitimate_self() -> None:
+    cases = (
+        (
+            "Me avisaron que la compra que hice fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Me avisaram que a compra que eu fiz foi golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+    )
+
+    for message, language, expected_atom in cases:
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert expected_atom in {atom.kind for atom in item.counter_evidence}
+
