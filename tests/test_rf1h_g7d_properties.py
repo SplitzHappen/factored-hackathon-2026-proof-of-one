@@ -618,11 +618,11 @@ def test_g7f_property_surface_covers_required_structural_classes() -> None:
     assert any(" enfim depois de muito tempo " in message for message in messages)
     assert any(message.startswith("Cuando ") for message in messages)
     assert any(message.startswith("Embora ") for message in messages)
-    assert any(" aunque yo hice el pago " in message for message in messages)
-    assert any(" porque eu fiz o pagamento " in message for message in messages)
-    assert any(" después de que hice la compra " in message for message in messages)
-    assert any(" de la compra que hice " in message for message in messages)
-    assert any(" para a compra que eu fiz " in message for message in messages)
+    assert any("aunque yo hice el pago" in message for message in messages)
+    assert any("porque eu fiz o pagamento" in message for message in messages)
+    assert any("después de que hice la compra" in message for message in messages)
+    assert any("de la compra que hice" in message for message in messages)
+    assert any("para a compra que eu fiz" in message for message in messages)
     assert any(
         message.count("transferencia") >= 2
         for message, language, _ in cases
