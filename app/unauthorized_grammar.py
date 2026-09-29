@@ -4704,24 +4704,34 @@ def _p6_left_activity_is_embedded(
     copula_index: int,
     language: str,
 ) -> bool:
-    if _p6_activity_heads_que_relative(
-        analysis,
-        activity_span,
-        copula_index,
-        language,
-    ):
-        return False
-
     words = [token.normalized for token in analysis.tokens]
     markers = (
         _ES_P6_EMBEDDING_MARKERS
         if language == "es"
         else _PT_P6_EMBEDDING_MARKERS
     )
+    activity_spans = _activity_spans(analysis, clause)
+    heads_que_relative = _p6_activity_heads_que_relative(
+        analysis,
+        activity_span,
+        copula_index,
+        language,
+    )
     lower_bound = max(clause.token_start, activity_span[0] - 8)
 
     for marker_index in range(activity_span[0] - 1, lower_bound - 1, -1):
-        if words[marker_index] not in markers:
+        marker = words[marker_index]
+        if marker not in markers:
+            continue
+
+        has_attachment_head = any(
+            span[1] <= marker_index
+            for span in activity_spans
+        )
+        if not has_attachment_head:
+            continue
+
+        if marker == "que" and heads_que_relative:
             continue
 
         finite_between = any(

@@ -3139,3 +3139,89 @@ def test_b2r_g5d_pt_terminal_nao_authorization_positive_control() -> None:
 
     assert PropositionFamily.AUTHORIZATION_DENIAL in pt
 
+def test_b2r_g6a_fronted_adverbial_keeps_main_p6_referent_with_comma() -> None:
+    cases = (
+        ("Cuando hice el pago, la transferencia fue un fraude.", "es", "transferencia"),
+        ("Quando eu fiz o pagamento, a transferência foi golpe.", "pt", "transferencia"),
+    )
+
+    for message, language, expected_activity in cases:
+        analysis = analyze_foundation(message, language)
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+
+        assert item.activity_token_span is not None
+        assert (
+            analysis.tokens[item.activity_token_span[0]].normalized
+            == expected_activity
+        )
+        assert not item.counter_evidence
+
+
+def test_b2r_g6a_fronted_adverbial_keeps_main_p6_referent_without_comma() -> None:
+    cases = (
+        ("Cuando hice el pago la transferencia fue un fraude.", "es", "transferencia"),
+        ("Quando eu fiz o pagamento a transferência foi golpe.", "pt", "transferencia"),
+    )
+
+    for message, language, expected_activity in cases:
+        analysis = analyze_foundation(message, language)
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+
+        assert item.activity_token_span is not None
+        assert (
+            analysis.tokens[item.activity_token_span[0]].normalized
+            == expected_activity
+        )
+        assert not item.counter_evidence
+
+
+def test_b2r_g6a_fronted_frame_relative_does_not_select_embedded_activity() -> None:
+    message = "Cuando hice el pago que me pidieron la transferencia fue un fraude."
+    analysis = analyze_foundation(message, "es")
+    propositions = build_positive_propositions(message, "es")
+
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.activity_token_span is not None
+    assert (
+        analysis.tokens[item.activity_token_span[0]].normalized
+        == "transferencia"
+    )
+    assert not item.counter_evidence
+
+
+def test_b2r_g6a_nested_relative_under_adverbial_does_not_escape_embedding() -> None:
+    cases = (
+        (
+            "La transferencia que apareció cuando hice el pago que me pidieron fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que apareceu quando eu fiz o pagamento que me pediram foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            and proposition.activity_token_span is not None
+            and proposition.counter_evidence
+            for proposition in propositions
+        )
+
