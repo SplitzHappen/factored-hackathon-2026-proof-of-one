@@ -4749,6 +4749,10 @@ def _p6_left_activity_is_embedded(
                     words[index] == "e"
                     and analysis.tokens[index].had_acute
                 )
+                and (
+                    index + 1 == marker_index
+                    or "que" not in words[span[1]:index]
+                )
                 for index in range(span[1], marker_index)
             )
             for span in activity_spans
