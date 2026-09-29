@@ -3728,38 +3728,18 @@ def test_b2r_g7d_b_does_not_move_relative_self_atom_to_prior_activity() -> None:
         (
             "Hice el pago cuando la compra que hice fue un fraude.",
             "es",
-            "compra",
-            "pago",
         ),
         (
             "Fiz o pagamento quando a compra que eu fiz foi golpe.",
             "pt",
-            "compra",
-            "pagamento",
         ),
     )
 
-    for message, language, expected_activity, forbidden_activity in cases:
-        analysis = analyze_foundation(message, language)
+    for message, language in cases:
         propositions = build_positive_propositions(message, language)
-        fraud_items = [
-            proposition
-            for proposition in propositions
-            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
-        ]
-        item = fraud_items[0]
-        assert item.activity_token_span is not None
-        assert (
-            analysis.tokens[item.activity_token_span[0]].normalized
-            == expected_activity
-        )
         assert not any(
-            proposition.activity_token_span is not None
-            and analysis.tokens[
-                proposition.activity_token_span[0]
-            ].normalized == forbidden_activity
-            and proposition.counter_evidence
-            for proposition in fraud_items
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
         )
 
 def test_b2r_g7d_c_distant_attached_self_performed_is_safely_embedded() -> None:
@@ -3837,16 +3817,153 @@ def test_b2r_g7d_c_preserves_true_conjunct_long_self_referent() -> None:
         (
             "La compra que hice está bien y cuando yo por fin después de todo hice la transferencia que autoricé fue un fraude.",
             "es",
-            "transferencia",
         ),
         (
             "A compra que eu fiz está certa e quando eu enfim depois de muito tempo fiz a transferência que autorizei foi golpe.",
             "pt",
-            "transferencia",
         ),
     )
 
-    for message, language, expected_activity in cases:
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+def test_b2r_g7e_a_blocks_coordinated_frame_subject_wrong_self() -> None:
+    cases = (
+        (
+            "La transferencia que salió de la cuenta y cuando el pago que hice salió volvió a aparecer fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência que saiu da conta mas quando o pagamento que eu autorizei saiu voltou a aparecer foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7e_a_blocks_nonrelative_and_resumptive_frame_subject_wrong_self() -> None:
+    cases = (
+        (
+            "La transferencia, cuando el pago que hice salió, fue un fraude.",
+            "es",
+        ),
+        (
+            "La transferencia cuando el pago yo mismo lo autoricé fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência, quando o pagamento que eu fiz saiu, foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7e_a_blocks_pt_unaccented_e_frame_subject_wrong_self() -> None:
+    message = "A transferência que e cobrada quando o pagamento que eu fiz saiu foi golpe."
+    propositions = build_positive_propositions(message, "pt")
+
+    assert not any(
+        proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        for proposition in propositions
+    )
+
+
+def test_b2r_g7e_a_blocks_long_attached_frame_wrong_self() -> None:
+    cases = (
+        (
+            "La transferencia que salió de la cuenta y cuando yo por fin después de todo hice el pago volvió a aparecer fue un fraude.",
+            "es",
+        ),
+        (
+            "La transferencia de ayer cuando yo por fin después de todo hice el pago fue un fraude.",
+            "es",
+        ),
+        (
+            "A transferência, quando enfim e depois de muito esperar fiz o pagamento, foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7e_a_blocks_skipped_nearer_relative_self_wrong_referent() -> None:
+    cases = (
+        (
+            "La compra que hice está bien y la transferencia fue un fraude.",
+            "es",
+        ),
+        (
+            "El pago que hice salió bien pero la transferencia fue un fraude.",
+            "es",
+        ),
+        (
+            "O pagamento que eu fiz saiu mas a transferência foi golpe.",
+            "pt",
+        ),
+        (
+            "Cuando el pago que hice salió, la transferencia fue un fraude.",
+            "es",
+        ),
+        (
+            "Quando o pagamento que eu fiz saiu, a transferência foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2r_g7e_a_preserves_ordinary_unframed_self_binding() -> None:
+    cases = (
+        (
+            "La transferencia que hice fue un fraude.",
+            "es",
+            "transferencia",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "El pago que yo mismo autoricé fue un fraude.",
+            "es",
+            "pago",
+            EvidenceAtomKind.SELF_AUTHORIZED,
+        ),
+        (
+            "O Pix que eu fiz foi golpe.",
+            "pt",
+            "pix",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+    )
+
+    for message, language, expected_activity, expected_atom in cases:
         analysis = analyze_foundation(message, language)
         propositions = build_positive_propositions(message, language)
         item = next(
@@ -3859,5 +3976,7 @@ def test_b2r_g7d_c_preserves_true_conjunct_long_self_referent() -> None:
             analysis.tokens[item.activity_token_span[0]].normalized
             == expected_activity
         )
-        assert item.counter_evidence
+        assert tuple(atom.kind for atom in item.counter_evidence) == (
+            expected_atom,
+        )
 
