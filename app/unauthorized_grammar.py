@@ -5643,7 +5643,7 @@ def _p6_self_activity_is_direct_nominal_conjunct(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     activity_span: tuple[int, int],
-    copula_index: int,
+    _copula_index: int,
     language: str,
 ) -> bool:
     """License only bounded top-level nominal conjunctions."""
