@@ -5425,6 +5425,50 @@ def _p6_self_activity_is_inside_attached_adverbial(
     return False
 
 
+def _p6_self_activity_has_prior_nominal_head(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+) -> bool:
+    """Reject later SELF activity after an earlier nominal head, except a noun conjunct."""
+
+    words = [token.normalized for token in analysis.tokens]
+    nominal_start = activity_span[0]
+    while (
+        nominal_start > clause.token_start
+        and _is_closed_prenominal_modifier(
+            words[nominal_start - 1],
+            language,
+        )
+    ):
+        nominal_start -= 1
+
+    boundary_index = nominal_start - 1
+    if boundary_index <= clause.token_start:
+        return False
+
+    coordinators = (
+        {"y", "e", "o", "u", "ni"}
+        if language == "es"
+        else {"e", "ou", "nem"}
+    )
+    if words[boundary_index] in coordinators:
+        return False
+    if (
+        boundary_index > clause.token_start
+        and words[boundary_index - 1] in coordinators
+    ):
+        return False
+
+    return _p6_has_earlier_nominal_head(
+        analysis,
+        clause,
+        boundary_index,
+        language,
+    )
+
+
 def _p6_self_counter_evidence_is_unsafe(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -5463,7 +5507,15 @@ def _p6_self_counter_evidence_is_unsafe(
     ):
         return True
 
-    return _p6_self_activity_is_inside_attached_adverbial(
+    if _p6_self_activity_is_inside_attached_adverbial(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    ):
+        return True
+
+    return _p6_self_activity_has_prior_nominal_head(
         analysis,
         clause,
         activity_span,
