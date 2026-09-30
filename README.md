@@ -44,7 +44,7 @@ Current verified examples include:
 - a supervised fraud-risk model that **failed** its pre-registered usefulness gate and was therefore **not deployed**;
 - a transparent descriptive behavioral-evidence fallback whose output is explicitly not a fraud probability or fraud determination.
 
-The concise public narrative is in [docs/DATA_EVIDENCE_SPINE.md](docs/DATA_EVIDENCE_SPINE.md). The detailed retrospective evidence → decision → consequence record is in [docs/ANALYTICAL_DECISION_LEDGER.md](docs/ANALYTICAL_DECISION_LEDGER.md). The realistic-language v1 evidence boundary is documented in [docs/REALISTIC_LANGUAGE_SLICE.md](docs/REALISTIC_LANGUAGE_SLICE.md), and the independent sealed-v2 requirements are in [docs/REALISTIC_LANGUAGE_V2_FREEZE_PROTOCOL.md](docs/REALISTIC_LANGUAGE_V2_FREEZE_PROTOCOL.md). No baseline-vs-LLM uplift claim is permitted until a compliant blind-authored v2 is reviewed and sealed.
+Known product, language, evaluation, and safety boundaries are maintained in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).\n\nThe concise public narrative is in [docs/DATA_EVIDENCE_SPINE.md](docs/DATA_EVIDENCE_SPINE.md). The detailed retrospective evidence → decision → consequence record is in [docs/ANALYTICAL_DECISION_LEDGER.md](docs/ANALYTICAL_DECISION_LEDGER.md). The realistic-language v1 evidence boundary is documented in [docs/REALISTIC_LANGUAGE_SLICE.md](docs/REALISTIC_LANGUAGE_SLICE.md), and the independent sealed-v2 requirements are in [docs/REALISTIC_LANGUAGE_V2_FREEZE_PROTOCOL.md](docs/REALISTIC_LANGUAGE_V2_FREEZE_PROTOCOL.md). No baseline-vs-LLM uplift claim is permitted until a compliant blind-authored v2 is reviewed and sealed.
 
 ## Safety architecture
 
