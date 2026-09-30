@@ -5603,17 +5603,24 @@ def _p6_self_atom_is_positively_licensed(
     if nominal_start == clause.token_start:
         return True
 
-    # Explicit bounded clause-initial topic frames.
+    # Explicit bounded clause-initial topic frames. License only when the
+    # selected activity is the first transaction immediately after the topic
+    # phrase; the nearest-to-copula invariant above still applies.
     topicalizers = (
         (("respecto", "a"), ("en", "cuanto", "a"))
         if language == "es"
         else (("quanto", "a"),)
     )
+    activity_spans = _activity_spans(analysis, clause)
+    first_activity = activity_spans[0] if activity_spans else None
     for phrase in topicalizers:
         width = len(phrase)
+        phrase_end = clause.token_start + width
         if (
-            tuple(words[clause.token_start:clause.token_start + width]) == phrase
-            and clause.token_start + width <= nominal_start
+            tuple(words[clause.token_start:phrase_end]) == phrase
+            and first_activity == activity_span
+            and activity_span[0] >= phrase_end
+            and activity_span[0] - phrase_end <= 2
         ):
             return True
 
