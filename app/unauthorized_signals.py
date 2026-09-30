@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 import unicodedata
 
+from app.unauthorized_grammar import PropositionMode, resolve_positive_propositions
+
 
 def normalize_unauthorized_text(text: str) -> str:
     """Normalize customer text for deterministic explicit-assertion checks."""
@@ -383,14 +385,10 @@ def _is_declarative_fraud_assertion(normalized: str) -> bool:
 
 
 def is_explicit_unauthorized_assertion(text: str) -> bool:
-    """Return True only for an explicit customer unauthorized/non-recognition assertion."""
+    """Return True when either supported grammar resolves an assertive positive."""
 
-    normalized = normalize_unauthorized_text(text)
-    if _is_scope_excluded(normalized):
-        return False
-    return (
-        _matches_any(_CORE_ASSERTION_PATTERNS, normalized)
-        or _matches_any(_COMPOSITIONAL_ASSERTION_PATTERNS, normalized)
-        or _is_permission_assertion(normalized)
-        or _is_declarative_fraud_assertion(normalized)
+    return any(
+        proposition.mode == PropositionMode.ASSERTIVE.value
+        for language in ("es", "pt")
+        for proposition in resolve_positive_propositions(text, language)
     )
