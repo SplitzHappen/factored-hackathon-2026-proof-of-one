@@ -5425,46 +5425,386 @@ def _p6_self_activity_is_inside_attached_adverbial(
     return False
 
 
-def _p6_self_activity_has_prior_nominal_head(
+def _p6_activity_nominal_start(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+) -> int:
+    """Return the bounded left edge of the activity noun phrase."""
+
+    words = [token.normalized for token in analysis.tokens]
+    determiners = (
+        _ES_NOMINAL_DETERMINERS
+        if language == "es"
+        else _PT_NOMINAL_DETERMINERS
+    )
+    start = activity_span[0]
+    while start > clause.token_start:
+        previous = words[start - 1]
+        if (
+            previous in determiners
+            or _is_closed_prenominal_modifier(previous, language)
+        ):
+            start -= 1
+            continue
+        break
+    return start
+
+
+def _p6_prefix_has_transactional_material(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    boundary_index: int,
+    language: str,
+) -> bool:
+    """Reject discourse/complement prefixes that already name transaction material."""
+
+    words = [token.normalized for token in analysis.tokens]
+    non_activity_heads = (
+        _ES_NON_ACTIVITY_FRAUD_HEADS
+        if language == "es"
+        else _PT_NON_ACTIVITY_FRAUD_HEADS
+    )
+
+    if any(
+        span[1] <= boundary_index
+        for span in _activity_spans(analysis, clause)
+    ):
+        return True
+    if any(
+        words[index] in non_activity_heads
+        or analysis.tokens[index].is_txid
+        or any(character.isdigit() for character in analysis.tokens[index].surface)
+        for index in range(clause.token_start, boundary_index)
+    ):
+        return True
+    return _p6_has_earlier_nominal_head(
+        analysis,
+        clause,
+        boundary_index,
+        language,
+    )
+
+
+def _p6_self_activity_is_direct_self_frame(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+    counter_evidence: tuple[EvidenceAtom, ...],
+) -> bool:
+    """License a clause-initial SELF predicate taking the activity as its object."""
+
+    words = [token.normalized for token in analysis.tokens]
+    nominal_start = _p6_activity_nominal_start(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    )
+    subject_words = (
+        {"yo", "nosotros", "nosotras"}
+        if language == "es"
+        else {"eu", "nos"}
+    )
+    emphatics = (
+        {"mismo", "misma", "mismos", "mismas"}
+        if language == "es"
+        else {"mesmo", "mesma", "mesmos", "mesmas"}
+    )
+    temporal = {"cuando"} if language == "es" else {"quando"}
+
+    for atom in counter_evidence:
+        predicate_start, predicate_end = atom.predicate_token_span
+        if predicate_end > nominal_start:
+            continue
+
+        prefix = list(words[clause.token_start:predicate_start])
+        if prefix and prefix[0] in temporal:
+            prefix = prefix[1:]
+        if all(word in subject_words | emphatics for word in prefix):
+            return True
+
+    return False
+
+
+def _p6_self_activity_is_topicalized_subject(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     activity_span: tuple[int, int],
     language: str,
 ) -> bool:
-    """Reject later SELF activity after an earlier nominal head, except a noun conjunct."""
+    """License the bounded clause-initial topicalizer surfaces retained by B2."""
 
     words = [token.normalized for token in analysis.tokens]
-    nominal_start = activity_span[0]
-    while (
-        nominal_start > clause.token_start
-        and _is_closed_prenominal_modifier(
-            words[nominal_start - 1],
-            language,
-        )
-    ):
-        nominal_start -= 1
+    nominal_start = _p6_activity_nominal_start(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    )
+    prefix = tuple(words[clause.token_start:nominal_start])
+    phrases = (
+        {("respecto", "a"), ("en", "cuanto", "a")}
+        if language == "es"
+        else {
+            ("quanto", "a"),
+            ("em", "relacao", "a"),
+            ("com", "relacao", "a"),
+        }
+    )
+    return prefix in phrases
 
-    boundary_index = nominal_start - 1
-    if boundary_index <= clause.token_start:
+
+def _p6_self_activity_is_complement_subject(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+) -> bool:
+    """License a bounded non-transactional discourse/complement frame ending in que."""
+
+    words = [token.normalized for token in analysis.tokens]
+    nominal_start = _p6_activity_nominal_start(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    )
+    marker_index = nominal_start - 1
+    if marker_index <= clause.token_start:
+        return False
+    if words[marker_index] != "que":
+        return False
+    if marker_index - clause.token_start > 7:
+        return False
+    return not _p6_prefix_has_transactional_material(
+        analysis,
+        clause,
+        marker_index,
+        language,
+    )
+
+
+def _p6_self_activity_is_discourse_subject(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    language: str,
+) -> bool:
+    """License a closed set of short non-transactional discourse/vocative frames."""
+
+    words = [token.normalized for token in analysis.tokens]
+    nominal_start = _p6_activity_nominal_start(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    )
+    prefix = tuple(words[clause.token_start:nominal_start])
+    phrases = (
+        {
+            ("sinceramente", ","),
+            ("honestamente", ","),
+            ("senorita", ","),
+            ("senor", ","),
+            ("en", "mi", "opinion", ","),
+            ("ahora", "lo", "veo", "claro", ":"),
+        }
+        if language == "es"
+        else {
+            ("sinceramente", ","),
+            ("na", "verdade", ","),
+            ("moco", ","),
+            ("moca", ","),
+            ("na", "minha", "opiniao", ","),
+        }
+    )
+    return prefix in phrases
+
+
+def _p6_prior_activity_for_conjunct(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    coordinator_index: int,
+) -> tuple[int, int] | None:
+    candidates = tuple(
+        span
+        for span in _activity_spans(analysis, clause)
+        if span[1] <= coordinator_index
+    )
+    if not candidates:
+        return None
+    return max(candidates, key=lambda span: span[0])
+
+
+def _p6_self_activity_is_direct_nominal_conjunct(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    copula_index: int,
+    language: str,
+) -> bool:
+    """License only bounded top-level nominal conjunctions."""
+
+    words = [token.normalized for token in analysis.tokens]
+    nominal_start = _p6_activity_nominal_start(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    )
+    if nominal_start <= clause.token_start:
         return False
 
-    coordinators = (
+    simple = (
         {"y", "e", "o", "u", "ni"}
         if language == "es"
         else {"e", "ou", "nem"}
     )
-    if words[boundary_index] in coordinators:
-        return False
+    coordinator_index: int | None = None
+    before = nominal_start - 1
+
     if (
-        boundary_index > clause.token_start
-        and words[boundary_index - 1] in coordinators
+        words[before] in simple
+        and not (
+            words[before] == "e"
+            and analysis.tokens[before].had_acute
+        )
+    ):
+        coordinator_index = before
+    elif (
+        before - 1 >= clause.token_start
+        and words[before] in {"tambien", "tambem"}
+        and words[before - 1] in simple
+    ):
+        coordinator_index = before - 1
+    elif (
+        words[before] in {"como", "quanto"}
+        and "tanto" in words[clause.token_start:before]
+    ):
+        coordinator_index = before
+
+    if coordinator_index is None:
+        return False
+
+    prior_activity = _p6_prior_activity_for_conjunct(
+        analysis,
+        clause,
+        coordinator_index,
+    )
+    if prior_activity is not None:
+        if _p6_self_activity_is_nested_pp(
+            analysis,
+            clause,
+            prior_activity,
+            language,
+        ):
+            return False
+        if _p6_self_activity_is_inside_attached_adverbial(
+            analysis,
+            clause,
+            prior_activity,
+            language,
+        ):
+            return False
+        return True
+
+    if not _p6_has_earlier_nominal_head(
+        analysis,
+        clause,
+        coordinator_index,
+        language,
     ):
         return False
 
-    return _p6_has_earlier_nominal_head(
+    prepositions = (
+        _ES_P6_NESTED_PP_PREPOSITIONS
+        if language == "es"
+        else _PT_P6_NESTED_PP_PREPOSITIONS
+    )
+    determiners = (
+        _ES_P6_HEAD_DETERMINERS
+        if language == "es"
+        else _PT_P6_HEAD_DETERMINERS
+    )
+    lower = max(clause.token_start, coordinator_index - 4)
+    for index in range(lower, coordinator_index):
+        if words[index] in prepositions and any(
+            words[next_index] in determiners
+            for next_index in range(index + 1, coordinator_index)
+        ):
+            return False
+        if (
+            language == "pt"
+            and _p6_pt_token_is_fused_preposition_determiner(
+                analysis,
+                index,
+            )
+        ):
+            return False
+
+    return True
+
+
+def _p6_self_activity_is_positively_licensed(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    copula_index: int,
+    language: str,
+    counter_evidence: tuple[EvidenceAtom, ...],
+) -> bool:
+    """Allow SELF on copular P6 only in explicitly licensed bounded positions."""
+
+    nominal_start = _p6_activity_nominal_start(
         analysis,
         clause,
-        boundary_index,
+        activity_span,
+        language,
+    )
+    if nominal_start == clause.token_start:
+        return True
+
+    if _p6_self_activity_is_direct_self_frame(
+        analysis,
+        clause,
+        activity_span,
+        language,
+        counter_evidence,
+    ):
+        return True
+
+    if _p6_self_activity_is_topicalized_subject(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    ):
+        return True
+
+    if _p6_self_activity_is_complement_subject(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    ):
+        return True
+
+    if _p6_self_activity_is_discourse_subject(
+        analysis,
+        clause,
+        activity_span,
+        language,
+    ):
+        return True
+
+    return _p6_self_activity_is_direct_nominal_conjunct(
+        analysis,
+        clause,
+        activity_span,
+        copula_index,
         language,
     )
 
@@ -5515,11 +5855,13 @@ def _p6_self_counter_evidence_is_unsafe(
     ):
         return True
 
-    return _p6_self_activity_has_prior_nominal_head(
+    return not _p6_self_activity_is_positively_licensed(
         analysis,
         clause,
         activity_span,
+        copula_index,
         language,
+        counter_evidence,
     )
 
 
