@@ -60,3 +60,35 @@ def test_b5_public_wrapper_bypasses_legacy_regex_inventory(
     assert unauthorized_signals.is_explicit_unauthorized_assertion(
         "¿Es un fraude?"
     ) is False
+
+
+def test_b5_help_seeking_wh_relative_keeps_present_positive_assertive() -> None:
+    assert unauthorized_signals.is_explicit_unauthorized_assertion(
+        "¿Cómo reporto una compra que no reconozco?"
+    ) is True
+
+
+def test_b5_indefinite_future_protasis_remains_hypothetical() -> None:
+    assert unauthorized_signals.is_explicit_unauthorized_assertion(
+        "Si algún día veo un cargo que no hice, ¿a quién tengo que llamar?"
+    ) is False
+
+
+def test_b5_frozen_english_code_switch_ownership_atom_is_preserved() -> None:
+    assert unauthorized_signals.is_explicit_unauthorized_assertion(
+        "No reconozco este movimiento; that charge wasn't mine."
+    ) is True
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "I did not make this purchase.",
+        "I did not authorize that transaction.",
+        "I did not approve this charge.",
+    ],
+)
+def test_b5_frozen_english_code_switch_action_atom_is_preserved(
+    message: str,
+) -> None:
+    assert unauthorized_signals.is_explicit_unauthorized_assertion(message) is True

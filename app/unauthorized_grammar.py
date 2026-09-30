@@ -1124,10 +1124,20 @@ def _is_conditional_marker(
         if previous not in {".", "?", "!", ";", ":", "-", "¿", "¡", "pero", "mas", "porem"}:
             return False
 
+    words = tuple(item.normalized for item in tokens)
+    indefinite_future_frame = (
+        language == "es"
+        and words[index + 1 : index + 3] == ("algun", "dia")
+    ) or (
+        language == "pt"
+        and words[index + 1 : index + 3] == ("um", "dia")
+    )
+    max_gap = 10 if indefinite_future_frame else 5
+
     for predicate in predicates:
         if predicate.token_start <= index:
             continue
-        if predicate.token_start - index > 5:
+        if predicate.token_start - index > max_gap:
             break
         if language == "pt" and word == "caso" and predicate.form.mood != "subjunctive":
             continue
@@ -7087,15 +7097,108 @@ def _elliptical_continuations(
     return output
 
 
+
+_EN_CODE_SWITCH_ACTIVITY = frozenset({"charge", "transaction", "purchase"})
+_EN_CODE_SWITCH_DEMONSTRATIVE = frozenset({"that", "this"})
+_EN_CODE_SWITCH_OWNERSHIP_AUX = frozenset({"isn't", "wasn't"})
+
+
+def _english_compatibility_propositions(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    """Retain only the two frozen narrow English code-switch safety atoms."""
+
+    words = tuple(token.normalized for token in analysis.tokens)
+    output: list[PositiveProposition] = []
+
+    for index in range(clause.token_start, clause.token_end - 2):
+        if words[index] not in _EN_CODE_SWITCH_DEMONSTRATIVE:
+            continue
+        activity_index = index + 1
+        if words[activity_index] not in _EN_CODE_SWITCH_ACTIVITY:
+            continue
+
+        tail = activity_index + 1
+        ownership_end: int | None = None
+        if (
+            tail + 1 < clause.token_end
+            and words[tail] in _EN_CODE_SWITCH_OWNERSHIP_AUX
+            and words[tail + 1] == "mine"
+        ):
+            ownership_end = tail + 2
+        elif (
+            tail + 2 < clause.token_end
+            and words[tail] in {"is", "was"}
+            and words[tail + 1] == "not"
+            and words[tail + 2] == "mine"
+        ):
+            ownership_end = tail + 3
+
+        if ownership_end is not None:
+            output.append(
+                _make_proposition(
+                    analysis,
+                    clause,
+                    family=PropositionFamily.OWNERSHIP_DENIAL,
+                    rule="P1-code-switch-en",
+                    language=language,
+                    evidence_spans=((index, ownership_end),),
+                    activity_span=(activity_index, activity_index + 1),
+                    predicate=None,
+                    activity_ref="explicit_activity",
+                )
+            )
+
+    for index in range(clause.token_start, clause.token_end - 5):
+        if words[index : index + 3] != ("i", "did", "not"):
+            continue
+        verb = words[index + 3]
+        if verb not in {"make", "authorize", "approve"}:
+            continue
+        demonstrative_index = index + 4
+        activity_index = index + 5
+        if (
+            words[demonstrative_index] not in _EN_CODE_SWITCH_DEMONSTRATIVE
+            or words[activity_index] not in _EN_CODE_SWITCH_ACTIVITY
+        ):
+            continue
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=(
+                    PropositionFamily.PERFORMANCE_DENIAL
+                    if verb == "make"
+                    else PropositionFamily.AUTHORIZATION_DENIAL
+                ),
+                rule=(
+                    "P2-code-switch-en"
+                    if verb == "make"
+                    else "P4-code-switch-en"
+                ),
+                language=language,
+                evidence_spans=((index, activity_index + 1),),
+                activity_span=(activity_index, activity_index + 1),
+                predicate=None,
+                activity_ref="explicit_activity",
+            )
+        )
+
+    return output
+
+
 def build_positive_propositions(
     text: str,
     language: str,
 ) -> tuple[PositiveProposition, ...]:
-    """Construct unresolved RF1H-B2 positive propositions.
+    """Construct unresolved RF1H positive propositions.
 
-    This API is intentionally internal to the grammar engine. It does not apply
-    B3 scope/exclusion or message-level retraction and is not wired into the
-    production boolean classifier.
+    This API is internal to the grammar engine. It does not apply B3
+    scope/exclusion or message-level retraction; production classification
+    consumes its propositions only through resolve_positive_propositions().
     """
 
     analysis = analyze_foundation(text, language)
@@ -7158,6 +7261,13 @@ def build_positive_propositions(
         )
         propositions.extend(
             _first_person_compromise(analysis, clause, language)
+        )
+        propositions.extend(
+            _english_compatibility_propositions(
+                analysis,
+                clause,
+                language,
+            )
         )
 
     propositions.extend(
@@ -7930,6 +8040,58 @@ def _b3_operator_domains_for_clause(
     return tuple(domains)
 
 
+
+_B3_ASSERTIVE_WH_WORDS = {
+    "es": frozenset({"como", "que", "quien", "quienes", "cual", "cuales", "donde", "cuando"}),
+    "pt": frozenset({"como", "que", "quem", "qual", "quais", "onde", "quando"}),
+}
+_B3_WH_PREPOSITIONS = frozenset({"a", "de", "por", "para"})
+
+
+def _b3_question_preserves_assertive_relative(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    proposition: PositiveProposition,
+    language: str,
+) -> bool:
+    """Keep frozen assertive wh-question relative-clause positives assertive."""
+
+    if proposition.activity_token_span is None or proposition.predicate_token_span is None:
+        return False
+
+    opener = next(
+        (
+            index
+            for index in range(clause.token_start, clause.token_end)
+            if LexicalTag.QUESTION_OPEN in analysis.tags[index]
+        ),
+        None,
+    )
+    if opener is None:
+        return False
+
+    first = opener + 1
+    if first >= clause.token_end:
+        return False
+    words = tuple(token.normalized for token in analysis.tokens)
+    wh_words = _B3_ASSERTIVE_WH_WORDS[language]
+    first_word = words[first]
+    wh_question = first_word in wh_words or (
+        first_word in _B3_WH_PREPOSITIONS
+        and first + 1 < clause.token_end
+        and words[first + 1] in wh_words
+    )
+    if not wh_question:
+        return False
+
+    activity_end = proposition.activity_token_span[1]
+    predicate_start = proposition.predicate_token_span[0]
+    if activity_end >= predicate_start:
+        return False
+
+    return "que" in words[activity_end:predicate_start]
+
+
 def _b3_domain_overlaps_proposition(
     domain: ScopeDomain,
     proposition: PositiveProposition,
@@ -8116,10 +8278,20 @@ def resolve_positive_propositions(
             resolved.append(proposition)
             continue
 
+        preserve_assertive_question = _b3_question_preserves_assertive_relative(
+            analysis,
+            clause,
+            proposition,
+            language,
+        )
         overlapping = tuple(
             domain
             for domain in domains_by_clause.get(clause.index, ())
             if _b3_domain_overlaps_proposition(domain, proposition)
+            and not (
+                preserve_assertive_question
+                and domain.mode is PropositionMode.QUESTIONED
+            )
         )
         if not overlapping:
             resolved.append(
