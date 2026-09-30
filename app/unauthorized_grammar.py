@@ -5554,13 +5554,8 @@ def _p6_self_activity_is_licensed_nominal_conjunct(
 
     # Simple top-level NP conjunction: "la alerta y el pago...".
     if not predicates_before:
-        return bool(activity_before) or any(
-            analysis.tokens[index].normalized
-            in (
-                _ES_NON_ACTIVITY_FRAUD_HEADS
-                if language == "es"
-                else _PT_NON_ACTIVITY_FRAUD_HEADS
-            )
+        return any(
+            words[index].isalpha()
             for index in range(clause.token_start, coordinator_index)
         )
 
