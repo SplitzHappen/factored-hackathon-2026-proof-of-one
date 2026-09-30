@@ -4111,6 +4111,37 @@ def _unattended_absence_spans(
     )
 
 
+def _purpose_limited_before_later_action(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    action_span: tuple[int, int],
+    absence: tuple[int, int],
+    language: str,
+) -> bool:
+    """True when a purpose phrase and a later finite action separate action/absence."""
+
+    words = [token.normalized for token in analysis.tokens]
+    purpose_words = {"para"} if language == "es" else {"para", "pra"}
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.person is None or predicate.accent_ambiguous:
+            continue
+        if not _source_accent_selects_predicate(analysis, predicate):
+            continue
+        if not (
+            action_span[1] <= predicate.token_start
+            and predicate.token_end <= absence[0]
+        ):
+            continue
+        if any(
+            words[index] in purpose_words
+            for index in range(action_span[1], predicate.token_start)
+        ):
+            return True
+    return False
+
+
 def _unattended_third_party_actions(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -4145,7 +4176,10 @@ def _unattended_third_party_actions(
     charge_words = (
         _ES_CHARGE_ACTIONS if language == "es" else _PT_CHARGE_ACTIONS
     )
-    actions: list[tuple[tuple[int, int], PredicateMatch | None]] = []
+    # (span, predicate, may_link_to_preceding_target). Only passive
+    # participle frames may link backward to their grammatical subject; finite
+    # actions bind to targets that follow them, as in P5.
+    actions: list[tuple[tuple[int, int], PredicateMatch | None, bool]] = []
     for predicate in analysis.predicates:
         if not _in_clause(predicate.token_start, predicate.token_end, clause):
             continue
@@ -4161,11 +4195,11 @@ def _unattended_third_party_actions(
         if _predicate_has_denial(analysis, clause, predicate, language):
             continue
         actions.append(
-            ((predicate.token_start, predicate.token_end), predicate)
+            ((predicate.token_start, predicate.token_end), predicate, False)
         )
     for index in range(clause.token_start, clause.token_end):
         if words[index] in charge_words:
-            actions.append(((index, index + 1), None))
+            actions.append(((index, index + 1), None, False))
 
     # Passive use ("Mi tarjeta fue usada ...") and "permission to use" frames
     # ("Nadie tenía permiso para usar mi tarjeta") are not finite predicates.
@@ -4177,7 +4211,7 @@ def _unattended_third_party_actions(
             words[index] in _USE_ACCESS_PARTICIPLES[language]
             and words[index - 1] in passive_auxiliaries
         ):
-            actions.append(((index - 1, index + 1), None))
+            actions.append(((index - 1, index + 1), None, True))
         if (
             words[index] in _USE_ACCESS_INFINITIVES[language]
             and words[index - 1] == "para"
@@ -4188,7 +4222,7 @@ def _unattended_third_party_actions(
                 for absence in absences
             )
         ):
-            actions.append(((index, index + 1), None))
+            actions.append(((index, index + 1), None, False))
 
     first_person = tuple(
         (predicate.token_start, predicate.token_end)
@@ -4201,12 +4235,12 @@ def _unattended_third_party_actions(
     activity_span = _nearest_activity_span(analysis, clause, None)
     output: list[PositiveProposition] = []
 
-    for action_span, predicate in actions:
+    for action_span, predicate, may_link_backward in actions:
         target: tuple[tuple[int, int], tuple[int, int]] | None = None
         for target_span, possessor_span in targets:
             after = target_span[0] - action_span[1]
             before = action_span[0] - target_span[1]
-            if 0 <= after <= 12 or 0 <= before <= 3:
+            if 0 <= after <= 12 or (may_link_backward and 0 <= before <= 3):
                 target = (target_span, possessor_span)
                 break
         if target is None:
@@ -4253,6 +4287,17 @@ def _unattended_third_party_actions(
             if any(
                 fp[0] >= low and fp[1] <= high for fp in first_person
             ):
+                continue
+            if absence[0] >= action_span[1] and _purpose_limited_before_later_action(
+                analysis,
+                clause,
+                action_span,
+                absence,
+                language,
+            ):
+                # B2 boundary: a later permission absence does not relabel an
+                # earlier purpose-limited use ("usó mi tarjeta para gasolina y
+                # compró otra compra sin permiso").
                 continue
             chosen = absence
             break

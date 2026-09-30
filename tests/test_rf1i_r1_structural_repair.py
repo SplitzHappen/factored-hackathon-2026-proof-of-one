@@ -78,6 +78,9 @@ _POSITIVES: list[tuple[str, str]] = [
     ("Me cobraron de la cuenta sin mi autorización.", "P5b"),
     ("Nadie tenía autorización para utilizar mi cuenta.", "P5b"),
     ("Ninguém tinha autorização para usar minha conta.", "P5b"),
+    # Coordinated actions under one permission absence (no overt unknown actor).
+    ("Un amigo agarró mi celular y transfirió dinero a su cuenta sin que yo lo permitiera.", "P5b"),
+    ("Minha prima pegou meu celular e fez uma compra sem eu saber.", "P5b"),
     # Unknown actor acting on a customer device/app target.
     ("Alguien entró a mi app del banco.", "P5"),
     ("Alguém acessou meu aplicativo.", "P5"),
@@ -113,6 +116,10 @@ _NEGATIVES: list[str] = [
     "¿Qué pasa si usan mi cuenta sin que yo lo autorice?",
     "Se alguém usar meu cartão sem minha permissão, o que eu faço?",
     "O banco pode debitar minha conta sin minha autorização?",
+    # B2 boundary: a later permission absence does not relabel an earlier,
+    # purpose-limited use of the instrument.
+    "Mi hermano usó mi tarjeta para gasolina y compró otra compra sin permiso.",
+    "Meu irmão usou meu cartão para gasolina e comprou outra coisa sem permissão.",
     # First-person acts are never third-party use.
     "Yo usé la tarjeta sin que mi madre lo supiera.",
     # Exculpation must stay a closed form: authorized/known actor, retraction,
