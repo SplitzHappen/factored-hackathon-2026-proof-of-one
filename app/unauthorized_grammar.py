@@ -5755,19 +5755,14 @@ def _p6_self_counter_evidence_is_unsafe(
     language: str,
     counter_evidence: tuple[EvidenceAtom, ...],
 ) -> bool:
-    """Fail closed unless every SELF atom occupies an explicitly licensed P6 shape."""
+    """Disable copular P6 SELF under the final B2 scope-reduction contract."""
 
-    if not counter_evidence:
-        return False
-
-    return not _p6_self_counter_evidence_is_positively_licensed(
-        analysis,
-        clause,
-        activity_span,
-        copula_index,
-        language,
-        counter_evidence,
-    )
+    # B2R-T showed that every positive-license category can still attach SELF
+    # to the customer's legitimate transaction when the disputed referent is
+    # implicit/headless.  The safe hackathon contract therefore suppresses the
+    # entire P6-copular proposition whenever SELF evidence would be attached.
+    del analysis, clause, activity_span, copula_index, language
+    return bool(counter_evidence)
 
 def _fraud_copular_propositions(
     analysis: FoundationAnalysis,
