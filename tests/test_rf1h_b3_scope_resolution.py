@@ -213,3 +213,138 @@ def test_b3_2_descriptor_clarification_does_not_suppress_later_assertion() -> No
         if proposition.family is PropositionFamily.OWNERSHIP_DENIAL
     )
     assert ownership.mode == PropositionMode.ASSERTIVE.value
+
+def test_b3_3_spanish_authorized_third_party_scope_is_nonassertive() -> None:
+    propositions = resolve_positive_propositions(
+        "Autoricé a mi hijo a hacer esta compra fraudulenta.",
+        "es",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.mode == PropositionMode.AUTHORIZED_THIRD_PARTY.value
+    assert item.exclusion_provenance == (
+        "M6:authorized_third_party:authorize",
+    )
+
+
+def test_b3_3_portuguese_authorized_third_party_scope_is_nonassertive() -> None:
+    propositions = resolve_positive_propositions(
+        "Autorizei meu filho a fazer esta compra fraudulenta.",
+        "pt",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.mode == PropositionMode.AUTHORIZED_THIRD_PARTY.value
+    assert item.exclusion_provenance == (
+        "M6:authorized_third_party:authorize",
+    )
+
+
+def test_b3_3_authorization_scope_does_not_suppress_later_assertion() -> None:
+    propositions = resolve_positive_propositions(
+        "Autoricé a mi hijo a hacer esta compra fraudulenta, "
+        "pero este cargo no es mío.",
+        "es",
+    )
+    fraud = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+    ownership = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.OWNERSHIP_DENIAL
+    )
+
+    assert fraud.mode == PropositionMode.AUTHORIZED_THIRD_PARTY.value
+    assert ownership.mode == PropositionMode.ASSERTIVE.value
+    assert ownership.exclusion_provenance == ()
+
+
+def test_b3_3_exceeded_authorization_stays_assertive() -> None:
+    cases = (
+        ("Mi hermano gastó más de lo que autoricé.", "es"),
+        ("Meu irmão gastou mais do que eu autorizei.", "pt"),
+    )
+
+    for message, language in cases:
+        propositions = resolve_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.rule == "P5-exceeded-authorization-amount"
+        )
+        assert item.mode == PropositionMode.ASSERTIVE.value
+        assert item.exclusion_provenance == ()
+
+
+def test_b3_3_limited_grant_does_not_suppress_out_of_scope_purchase() -> None:
+    cases = (
+        (
+            "Le di la tarjeta a mi hijo para la gasolina "
+            "y compró otras cosas sin permiso.",
+            "es",
+        ),
+        (
+            "Dei o cartão ao meu irmão para gasolina "
+            "e ele comprou outras coisas sem permissão.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = resolve_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.rule == "P5-exceeded-authorization-purpose"
+        )
+        assert item.mode == PropositionMode.ASSERTIVE.value
+        assert item.exclusion_provenance == ()
+
+
+def test_b3_3_questioned_authorization_is_not_an_affirmative_grant() -> None:
+    propositions = resolve_positive_propositions(
+        "¿Autoricé a mi hijo a hacer esta compra fraudulenta?",
+        "es",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    )
+
+    assert item.mode == PropositionMode.QUESTIONED.value
+    assert item.exclusion_provenance == ("M8:explicit_question",)
+
+
+
+def test_b3_3_recovery_does_not_change_b2_spanish_target_typing() -> None:
+    propositions = build_positive_propositions(
+        "Autoricé a mi hijo a hacer esta compra fraudulenta.",
+        "es",
+    )
+    assert not any(
+        proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        for proposition in propositions
+    )
+
+
+def test_b3_3_recovery_requires_bounded_authorization_or_question_scope() -> None:
+    propositions = resolve_positive_propositions(
+        "Vi a mi hijo hacer esta compra fraudulenta.",
+        "es",
+    )
+    assert not any(
+        proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        for proposition in propositions
+    )

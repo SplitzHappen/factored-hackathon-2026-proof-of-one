@@ -7183,10 +7183,11 @@ def build_positive_propositions(
 
 
 _B3_MODE_PRECEDENCE = {
-    PropositionMode.HYPOTHETICAL: 0,
-    PropositionMode.UNCERTAIN: 1,
-    PropositionMode.INFORMATION_REQUEST: 2,
-    PropositionMode.QUESTIONED: 3,
+    PropositionMode.AUTHORIZED_THIRD_PARTY: 0,
+    PropositionMode.HYPOTHETICAL: 1,
+    PropositionMode.UNCERTAIN: 2,
+    PropositionMode.INFORMATION_REQUEST: 3,
+    PropositionMode.QUESTIONED: 4,
     PropositionMode.ASSERTIVE: 99,
 }
 
@@ -7272,9 +7273,159 @@ def _b3_information_request_domain(
     )
 
 
+def _b3_domain_contains_index(
+    domain: ScopeDomain,
+    index: int,
+) -> bool:
+    return domain.token_start <= index < domain.token_end
+
+
+def _b3_authorization_domain_end(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    grant_end: int,
+    language: str,
+) -> int:
+    """Bound M6 to the local grant/purpose surface, never a later activity."""
+
+    coordinator = "y" if language == "es" else "e"
+    for index in range(grant_end, clause.token_end):
+        if _b3_scope_barrier(analysis, index):
+            return index
+        if analysis.tokens[index].normalized == coordinator:
+            return index
+    return clause.token_end
+
+
+def _b3_authorized_third_party_domains(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+    prior_domains: tuple[ScopeDomain, ...],
+) -> tuple[ScopeDomain, ...]:
+    """Recognize bounded affirmative M6 grants to a known third party.
+
+    This is deliberately narrower than general authorization semantics. A grant
+    must be first-person, affirmative, non-irrealis, and locally linked to a
+    known actor. The domain stops before a comma/contrast/coordinator so it
+    cannot suppress a subsequent exceeded-authorization proposition.
+    """
+
+    actor_spans = _known_actor_spans(analysis, clause, language)
+    if not actor_spans:
+        return ()
+
+    candidates: list[tuple[int, int, str]] = []
+
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.family not in {
+            PredicateFamily.AUTHORIZE,
+            PredicateFamily.GIVE_PERMISSION,
+        }:
+            continue
+        if predicate.form.person != 1:
+            continue
+        if predicate.form.mood != "indicative":
+            continue
+        if predicate.form.tense_aspect in {"future", "conditional"}:
+            continue
+        if not _source_accent_selects_predicate(analysis, predicate):
+            continue
+        if _predicate_has_denial(analysis, clause, predicate, language):
+            continue
+        if any(
+            domain.mode in {
+                PropositionMode.HYPOTHETICAL,
+                PropositionMode.UNCERTAIN,
+                PropositionMode.INFORMATION_REQUEST,
+                PropositionMode.QUESTIONED,
+            }
+            and _b3_domain_contains_index(domain, predicate.token_start)
+            for domain in prior_domains
+        ):
+            continue
+
+        end = _b3_authorization_domain_end(
+            analysis,
+            clause,
+            predicate.token_end,
+            language,
+        )
+        if predicate.form.family is PredicateFamily.GIVE_PERMISSION:
+            has_auth_noun = any(
+                LexicalTag.AUTH_NOUN in analysis.tags[index]
+                for index in range(predicate.token_end, end)
+            )
+            if not has_auth_noun:
+                continue
+
+        candidates.append(
+            (
+                predicate.token_start,
+                end,
+                "authorize"
+                if predicate.form.family is PredicateFamily.AUTHORIZE
+                else "give_permission",
+            )
+        )
+
+    for start, end in _limited_grant_surface_spans(
+        analysis,
+        clause,
+        language,
+    ):
+        if any(
+            domain.mode in {
+                PropositionMode.HYPOTHETICAL,
+                PropositionMode.UNCERTAIN,
+                PropositionMode.INFORMATION_REQUEST,
+                PropositionMode.QUESTIONED,
+            }
+            and _b3_domain_contains_index(domain, start)
+            for domain in prior_domains
+        ):
+            continue
+        candidates.append(
+            (
+                start,
+                _b3_authorization_domain_end(
+                    analysis,
+                    clause,
+                    end,
+                    language,
+                ),
+                "limited_grant",
+            )
+        )
+
+    domains: list[ScopeDomain] = []
+    for start, end, source in candidates:
+        if end <= start:
+            continue
+        has_local_actor = any(
+            start <= actor_start < end
+            for actor_start, _ in actor_spans
+        )
+        if not has_local_actor:
+            continue
+        domains.append(
+            ScopeDomain(
+                mode=PropositionMode.AUTHORIZED_THIRD_PARTY,
+                token_start=start,
+                token_end=end,
+                provenance=f"M6:authorized_third_party:{source}",
+            )
+        )
+
+    return tuple(domains)
+
+
 def _b3_operator_domains_for_clause(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
+    language: str,
 ) -> tuple[ScopeDomain, ...]:
     domains: list[ScopeDomain] = []
 
@@ -7311,6 +7462,15 @@ def _b3_operator_domains_for_clause(
     if information_request is not None:
         domains.append(information_request)
 
+    domains.extend(
+        _b3_authorized_third_party_domains(
+            analysis,
+            clause,
+            language,
+            tuple(domains),
+        )
+    )
+
     return tuple(domains)
 
 
@@ -7324,6 +7484,138 @@ def _b3_domain_overlaps_proposition(
     )
 
 
+def _b3_recovered_nonassertive_third_party_fraud_candidates(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+    domains: tuple[ScopeDomain, ...],
+) -> tuple[PositiveProposition, ...]:
+    """Recover audit-only attributive fraud candidates suppressed by B2 target typing.
+
+    B2 intentionally refuses to assert an activity as customer-anchored when an
+    explicit third-person relational phrase is attached to it. B3 still needs a
+    proposition-shaped candidate to classify a bounded authorization grant or
+    explicit question as nonassertive. This helper is therefore used only by the
+    B3 audit/debug resolver; production B2 proposition generation is unchanged.
+    """
+
+    eligible_domains = tuple(
+        domain
+        for domain in domains
+        if domain.mode in {
+            PropositionMode.AUTHORIZED_THIRD_PARTY,
+            PropositionMode.QUESTIONED,
+        }
+    )
+    if not eligible_domains:
+        return ()
+
+    actor_spans = _known_actor_spans(analysis, clause, language)
+    if not actor_spans:
+        return ()
+
+    authorization_predicates = tuple(
+        predicate
+        for predicate in analysis.predicates
+        if _in_clause(predicate.token_start, predicate.token_end, clause)
+        and predicate.form.family in {
+            PredicateFamily.AUTHORIZE,
+            PredicateFamily.GIVE_PERMISSION,
+        }
+        and predicate.form.person == 1
+        and predicate.form.mood == "indicative"
+        and predicate.form.tense_aspect not in {"future", "conditional"}
+        and _source_accent_selects_predicate(analysis, predicate)
+        and not _predicate_has_denial(
+            analysis,
+            clause,
+            predicate,
+            language,
+        )
+    )
+    if not authorization_predicates:
+        return ()
+
+    fraud_adjectives = (
+        _ES_FRAUD_ADJECTIVES
+        if language == "es"
+        else _PT_FRAUD_ADJECTIVES
+    )
+    output: list[PositiveProposition] = []
+
+    for activity_span in _activity_spans(analysis, clause):
+        marker_index = activity_span[1]
+        if marker_index >= clause.token_end:
+            continue
+        marker_word = analysis.tokens[marker_index].normalized
+        if marker_word not in fraud_adjectives:
+            continue
+        if _span_has_bound_denial(
+            analysis,
+            clause,
+            marker_index,
+            marker_index + 1,
+            language,
+        ):
+            continue
+        if not _fraud_adjective_agrees(
+            analysis.tokens[activity_span[0]].normalized,
+            marker_word,
+            language,
+        ):
+            continue
+
+        # Recover only the exact B2 target-typing exclusion that motivated M6:
+        # an explicit third-person relational phrase near the activity.
+        if not _explicit_third_person_activity_possession(
+            analysis,
+            clause,
+            activity_span,
+            language,
+        ):
+            continue
+        if _customer_anchored_activity(
+            analysis,
+            clause,
+            activity_span,
+            language,
+        ):
+            continue
+
+        for predicate in authorization_predicates:
+            if predicate.token_end > activity_span[0]:
+                continue
+            if not any(
+                predicate.token_end <= actor_start < activity_span[0]
+                for actor_start, _ in actor_spans
+            ):
+                continue
+
+            candidate = _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.FRAUD_CHARACTERIZATION,
+                rule="P6-attributive",
+                language=language,
+                evidence_spans=(
+                    activity_span,
+                    (marker_index, marker_index + 1),
+                ),
+                activity_span=activity_span,
+                predicate=None,
+            )
+            if not any(
+                _b3_domain_overlaps_proposition(domain, candidate)
+                for domain in eligible_domains
+            ):
+                continue
+
+            output.append(candidate)
+            break
+
+    return tuple(output)
+
+
 def resolve_positive_propositions(
     text: str,
     language: str,
@@ -7331,19 +7623,34 @@ def resolve_positive_propositions(
     """Apply the first bounded RF1H-B3 local-mode scaffold.
 
     This audit/debug API currently implements explicit conditional,
-    lexical-uncertainty, bounded security/prevention information-request, and
-    question domains. M5 remains pre-filtered by B2 target typing; M6-M7 and
-    message-level retraction remain intentionally deferred. Production boolean
-    behavior is not switched by this function.
+    lexical-uncertainty, bounded security/prevention information-request,
+    authorized-third-party, and question domains. M5 remains pre-filtered by
+    B2 target typing; M7 and message-level retraction remain intentionally
+    deferred. Production boolean behavior is not switched by this function.
     """
 
     analysis = analyze_foundation(text, language)
-    unresolved = build_positive_propositions(text, language)
+    base_unresolved = build_positive_propositions(text, language)
     clause_by_index = {clause.index: clause for clause in analysis.clauses}
     domains_by_clause = {
-        clause.index: _b3_operator_domains_for_clause(analysis, clause)
+        clause.index: _b3_operator_domains_for_clause(
+            analysis,
+            clause,
+            language,
+        )
         for clause in analysis.clauses
     }
+    recovered = tuple(
+        proposition
+        for clause in analysis.clauses
+        for proposition in _b3_recovered_nonassertive_third_party_fraud_candidates(
+            analysis,
+            clause,
+            language,
+            domains_by_clause.get(clause.index, ()),
+        )
+    )
+    unresolved = (*base_unresolved, *recovered)
 
     resolved: list[PositiveProposition] = []
     for proposition in unresolved:
