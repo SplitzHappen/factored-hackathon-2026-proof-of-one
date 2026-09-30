@@ -4981,6 +4981,25 @@ def _p6_left_activity_is_embedded(
     language: str,
 ) -> bool:
     words = [token.normalized for token in analysis.tokens]
+
+    # Preserve the already-supported clause-initial topicalization frames so
+    # they can reach the authoritative positive-license gate below P6.
+    topicalizers = (
+        (("respecto", "a"), ("en", "cuanto", "a"))
+        if language == "es"
+        else (("quanto", "a"),)
+    )
+    activity_spans = _activity_spans(analysis, clause)
+    first_activity = activity_spans[0] if activity_spans else None
+    for phrase in topicalizers:
+        phrase_end = clause.token_start + len(phrase)
+        if (
+            tuple(words[clause.token_start:phrase_end]) == phrase
+            and first_activity == activity_span
+            and activity_span[0] >= phrase_end
+            and activity_span[0] - phrase_end <= 2
+        ):
+            return False
     markers = (
         _ES_P6_EMBEDDING_MARKERS
         if language == "es"
