@@ -4249,6 +4249,56 @@ def test_b2rq_blocks_br_pt_article_possessive_and_fused_pp_wrong_self() -> None:
         )
 
 
+def test_b2rs_positive_license_blocks_unrecognized_wrong_self_shapes() -> None:
+    cases = (
+        (
+            "Los 91 pesos cobrados junto a la compra que hice fueron fraude.",
+            "es",
+        ),
+        (
+            "Lo añadido encima del pago que autoricé es un fraude.",
+            "es",
+        ),
+        (
+            "El débito puesto entre la cuota y la transferencia que hice es fraude.",
+            "es",
+        ),
+        (
+            "Me cobraron un extra junto con el retiro que hice y eso es fraude.",
+            "es",
+        ),
+        (
+            "R$ 32,40 debitados junto do pagamento que eu fiz são golpe.",
+            "pt",
+        ),
+        (
+            "O que acrescentaram acima do Pix que eu autorizei é fraude.",
+            "pt",
+        ),
+        (
+            "A cobrança colocada entre a parcela e a compra que eu fiz é golpe.",
+            "pt",
+        ),
+        (
+            "Cobraram um extra junto do Pix que eu fiz e isso é fraude.",
+            "pt",
+        ),
+    )
+    self_kinds = {
+        EvidenceAtomKind.SELF_PERFORMED,
+        EvidenceAtomKind.SELF_AUTHORIZED,
+    }
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            atom.kind in self_kinds
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for atom in proposition.counter_evidence
+        )
+
+
 def test_b2rr_blocks_prior_nominal_head_wrong_self_across_verb_mediation() -> None:
     cases = (
         (
@@ -4281,6 +4331,30 @@ def test_b2rr_blocks_prior_nominal_head_wrong_self_across_verb_mediation() -> No
             if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
             for atom in proposition.counter_evidence
         )
+
+
+def test_b2rs_positive_license_preserves_direct_self_object() -> None:
+    cases = (
+        (
+            "Yo mismo hice este pago y fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Eu mesma fiz este Pix e foi golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+    )
+
+    for message, language, expected_atom in cases:
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert expected_atom in {atom.kind for atom in item.counter_evidence}
 
 
 def test_b2rq_preserves_nominal_conjunct_true_later_self() -> None:

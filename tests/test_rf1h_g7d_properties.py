@@ -591,6 +591,46 @@ def _b2rr_structural_cases() -> Iterable[tuple[str, str, int]]:
         yield message, language, start
 
 
+def _b2rs_positive_license_challenge_cases() -> Iterable[tuple[str, str, int]]:
+    cases = (
+        (
+            "[[Los 68 pesos]] agregados junto al retiro que hice fueron un fraude.",
+            "es",
+        ),
+        (
+            "[[Aquello]] que cargaron encima del pago que autoricé es fraude.",
+            "es",
+        ),
+        (
+            "El [[recargo]] ubicado entre la cuota mensual y la transferencia que hice es fraude.",
+            "es",
+        ),
+        (
+            "Me aplicaron un [[débito]] doble junto a la compra que hice y eso es fraude.",
+            "es",
+        ),
+        (
+            "[[R$ 47,50]] lançados ao lado do Pix que eu fiz são golpe.",
+            "pt",
+        ),
+        (
+            "[[Aquilo]] que cobraram acima do pagamento que eu autorizei é fraude.",
+            "pt",
+        ),
+        (
+            "A [[tarifa]] posicionada entre a mensalidade e a compra que eu fiz é golpe.",
+            "pt",
+        ),
+        (
+            "Debitaram uma [[taxa]] extra junto do Pix que eu fiz e isso é golpe.",
+            "pt",
+        ),
+    )
+    for template, language in cases:
+        message, start = _render_marked(template)
+        yield message, language, start
+
+
 def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
     cases = (
         (
@@ -673,6 +713,16 @@ def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
             "pt",
             "prior_nominal_conjunct",
         ),
+        (
+            "Yo mismo hice este [[pago]] y fue un fraude.",
+            "es",
+            "direct_self_object",
+        ),
+        (
+            "Eu mesma fiz este [[Pix]] e foi golpe.",
+            "pt",
+            "direct_self_object",
+        ),
     )
     for template, language, class_id in cases:
         message, start = _render_marked(template)
@@ -689,6 +739,7 @@ def _structural_cases() -> tuple[tuple[str, str, int | None], ...]:
         + list(_b2rp_structural_cases())
         + list(_b2rq_structural_cases())
         + list(_b2rr_structural_cases())
+        + list(_b2rs_positive_license_challenge_cases())
     )
     return tuple(dict.fromkeys(cases))
 
@@ -730,6 +781,7 @@ def test_g7f_property_legitimate_self_retention_has_per_class_minimums() -> None
     assert retained["two_activity_true_later"] >= 2
     assert retained["relative_nominal_conjunct"] >= 2
     assert retained["prior_nominal_conjunct"] >= 2
+    assert retained["direct_self_object"] >= 2
 
 
 def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal() -> None:
@@ -860,6 +912,18 @@ def test_b2_final_property_b2ro06_recall_control_has_no_wrong_referent() -> None
 def test_b2_final_property_structural_gap_classes_use_source_position_identity() -> None:
     cases = tuple(_b2rp_structural_cases())
     assert len(cases) >= 36
+
+    for message, language, true_source_start in cases:
+        _assert_self_atoms_only_on_true_referent(
+            message,
+            language,
+            true_source_start,
+        )
+
+
+def test_b2rs_property_positive_license_fails_closed_on_unlicensed_shapes() -> None:
+    cases = tuple(_b2rs_positive_license_challenge_cases())
+    assert len(cases) >= 8
 
     for message, language, true_source_start in cases:
         _assert_self_atoms_only_on_true_referent(
