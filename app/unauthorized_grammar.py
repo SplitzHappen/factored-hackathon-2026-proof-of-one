@@ -5559,7 +5559,12 @@ def _p6_self_activity_is_licensed_nominal_conjunct(
             for index in range(clause.token_start, coordinator_index)
         )
 
-    # First-person verb-led frame: "revisé la compra y el pago...".
+    # A prior transaction at the same clause level licenses the later
+    # activity conjunct once prepositional nesting has already been excluded.
+    if activity_before:
+        return True
+
+    # First-person verb-led frame with no tagged earlier activity.
     if any(
         predicate.token_start == clause.token_start
         and predicate.form.person == 1
@@ -5622,6 +5627,7 @@ def _p6_self_atom_is_positively_licensed(
         return True
 
     # A complementizer-led activity subject with no earlier transaction.
+    # The reporting predicate need not belong to RF1H's narrow predicate lexicon.
     if (
         nominal_start > clause.token_start
         and words[nominal_start - 1] == "que"
@@ -5629,11 +5635,7 @@ def _p6_self_atom_is_positively_licensed(
             span[1] <= nominal_start - 1
             for span in _activity_spans(analysis, clause)
         )
-        and any(
-            predicate.token_end <= nominal_start - 1
-            for predicate in analysis.predicates
-            if _in_clause(predicate.token_start, predicate.token_end, clause)
-        )
+        and nominal_start - 1 > clause.token_start
     ):
         return True
 
@@ -5710,51 +5712,11 @@ def _p6_self_counter_evidence_is_unsafe(
     language: str,
     counter_evidence: tuple[EvidenceAtom, ...],
 ) -> bool:
-    """Reject atom-bearing P6 selections with a structurally unsafe referent."""
+    """Fail closed unless every SELF atom occupies an explicitly licensed P6 shape."""
 
+    del copula_index
     if not counter_evidence:
         return False
-
-    activity_spans = _activity_spans(analysis, clause)
-    if any(
-        span[0] >= activity_span[1]
-        and span[0] < copula_index
-        for span in activity_spans
-    ):
-        return True
-
-    if _p6_self_activity_is_nested_pp(
-        analysis,
-        clause,
-        activity_span,
-        language,
-    ):
-        return True
-
-    if _p6_self_activity_is_nested_in_activity_relative(
-        analysis,
-        clause,
-        activity_span,
-        copula_index,
-        language,
-    ):
-        return True
-
-    if _p6_self_activity_is_inside_attached_adverbial(
-        analysis,
-        clause,
-        activity_span,
-        language,
-    ):
-        return True
-
-    if _p6_self_activity_has_prior_nominal_head(
-        analysis,
-        clause,
-        activity_span,
-        language,
-    ):
-        return True
 
     return not _p6_self_counter_evidence_is_positively_licensed(
         analysis,
@@ -5763,7 +5725,6 @@ def _p6_self_counter_evidence_is_unsafe(
         language,
         counter_evidence,
     )
-
 
 def _fraud_copular_propositions(
     analysis: FoundationAnalysis,
