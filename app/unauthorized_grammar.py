@@ -5121,21 +5121,22 @@ def _p6_pt_token_is_fused_preposition_determiner(
 ) -> bool:
     """Recognize bounded BR-PT fused preposition+determiner forms."""
 
-    word = analysis.tokens[index].normalized
+    token = analysis.tokens[index]
+    word = token.normalized
     if word in _PT_P6_FUSED_PREPOSITION_DETERMINERS:
         return True
-    return (
-        analysis.tokens[index].had_acute
-        and word
-        in {
-            "a",
-            "as",
-            "aquele",
-            "aquela",
-            "aqueles",
-            "aquelas",
-        }
-    )
+
+    # The tokenizer's accent bit intentionally tracks acute accents only.
+    # Portuguese crase uses a grave accent, so preserve this distinction
+    # locally from the source surface instead of widening tokenizer semantics.
+    return token.surface.casefold() in {
+        "à",
+        "às",
+        "àquele",
+        "àquela",
+        "àqueles",
+        "àquelas",
+    }
 
 
 def _p6_has_earlier_nominal_head(
