@@ -326,3 +326,25 @@ def test_b3_3_questioned_authorization_is_not_an_affirmative_grant() -> None:
     assert item.mode == PropositionMode.QUESTIONED.value
     assert item.exclusion_provenance == ("M8:explicit_question",)
 
+
+
+def test_b3_3_recovery_does_not_change_b2_spanish_target_typing() -> None:
+    propositions = build_positive_propositions(
+        "Autoricé a mi hijo a hacer esta compra fraudulenta.",
+        "es",
+    )
+    assert not any(
+        proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        for proposition in propositions
+    )
+
+
+def test_b3_3_recovery_requires_bounded_authorization_or_question_scope() -> None:
+    propositions = resolve_positive_propositions(
+        "Vi a mi hijo hacer esta compra fraudulenta.",
+        "es",
+    )
+    assert not any(
+        proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        for proposition in propositions
+    )
