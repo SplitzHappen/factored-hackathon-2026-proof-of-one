@@ -1,0 +1,92 @@
+{
+  "schema": "rf1h-b2rq-pre-repair-self-baseline-v1",
+  "frozen_public_sha": "e2d99180ef9ed982ce8e68cc1210b4f692129b80",
+  "classification": "DEVELOPMENT-KNOWN",
+  "note": "Frozen source-position SELF signatures at the exact B2R-Q pre-repair public candidate. These cases pin removal of the three audited unsafe mechanisms while preserving legitimate SELF and atom-free controls.",
+  "cases": [
+    {
+      "class": "ordinary_retention",
+      "transition": "retain_exact",
+      "language": "es",
+      "message": "La transferencia que autoricé fue un fraude.",
+      "self_atoms": [{"activity_source_start": 3, "kind": "self_authorized"}]
+    },
+    {
+      "class": "ordinary_retention",
+      "transition": "retain_exact",
+      "language": "pt",
+      "message": "O pagamento que eu fiz foi golpe.",
+      "self_atoms": [{"activity_source_start": 2, "kind": "self_performed"}]
+    },
+    {
+      "class": "nominal_conjunct_retention",
+      "transition": "retain_exact",
+      "language": "es",
+      "message": "El cargo que llegó ayer y el pago que hice fue un fraude.",
+      "self_atoms": [{"activity_source_start": 29, "kind": "self_performed"}]
+    },
+    {
+      "class": "nominal_conjunct_retention",
+      "transition": "retain_exact",
+      "language": "pt",
+      "message": "O débito que chegou ontem e o pagamento que eu fiz foi golpe.",
+      "self_atoms": [{"activity_source_start": 30, "kind": "self_performed"}]
+    },
+    {
+      "class": "b2rq01_nonactivity_head",
+      "transition": "remove_strict",
+      "language": "es",
+      "message": "La notificación sobre el pago que autoricé fue un fraude.",
+      "self_atoms": [{"activity_source_start": 25, "kind": "self_authorized"}]
+    },
+    {
+      "class": "b2rq01_oov_head",
+      "transition": "remove_strict",
+      "language": "pt",
+      "message": "O aviso sobre o pagamento que eu autorizei foi golpe.",
+      "self_atoms": [{"activity_source_start": 16, "kind": "self_authorized"}]
+    },
+    {
+      "class": "b2rq02_postmodifier_relative",
+      "transition": "remove_strict",
+      "language": "es",
+      "message": "El débito reciente que acompañó el pago que hice fue un fraude.",
+      "self_atoms": [{"activity_source_start": 35, "kind": "self_performed"}]
+    },
+    {
+      "class": "b2rq02_relative_pronoun",
+      "transition": "remove_strict",
+      "language": "pt",
+      "message": "O débito o qual acompanhou o pagamento que eu fiz foi golpe.",
+      "self_atoms": [{"activity_source_start": 29, "kind": "self_performed"}]
+    },
+    {
+      "class": "b2rq03_article_possessive",
+      "transition": "remove_strict",
+      "language": "pt",
+      "message": "O débito com o meu pagamento que eu fiz foi golpe.",
+      "self_atoms": [{"activity_source_start": 19, "kind": "self_performed"}]
+    },
+    {
+      "class": "b2rq03_fused_preposition",
+      "transition": "remove_strict",
+      "language": "pt",
+      "message": "A cobrança pelo meu pix que eu autorizei foi golpe.",
+      "self_atoms": [{"activity_source_start": 20, "kind": "self_authorized"}]
+    },
+    {
+      "class": "negated_control",
+      "transition": "preserve_none",
+      "language": "es",
+      "message": "La transferencia que no hice fue un fraude.",
+      "self_atoms": []
+    },
+    {
+      "class": "negated_control",
+      "transition": "preserve_none",
+      "language": "pt",
+      "message": "O pagamento que não autorizei foi golpe.",
+      "self_atoms": []
+    }
+  ]
+}
