@@ -4167,6 +4167,106 @@ def test_b2_final_closure_blocks_nested_pp_determiner_and_preposition_variation(
         )
 
 
+def test_b2rq_blocks_nested_pp_with_nonactivity_and_oov_heads() -> None:
+    cases = (
+        (
+            "La notificación sobre el pago que autoricé fue un fraude.",
+            "es",
+        ),
+        (
+            "La membresía por la transferencia que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "O aviso sobre o pagamento que eu autorizei foi golpe.",
+            "pt",
+        ),
+        (
+            "A mensalidade para a compra que eu fiz foi golpe.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2rq_blocks_nonadjacent_and_coordinated_nested_relatives() -> None:
+    cases = (
+        (
+            "El débito reciente que acompañó el pago que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "El cargo de hoy que acompañó la compra que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "A cobrança, que acompanhou o pix que eu fiz, foi golpe.",
+            "pt",
+        ),
+        (
+            "O débito o qual acompanhou o pagamento que eu fiz foi golpe.",
+            "pt",
+        ),
+        (
+            "El cargo que apareció hoy y acompañó el pago que hice fue un fraude.",
+            "es",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2rq_blocks_br_pt_article_possessive_and_fused_pp_forms() -> None:
+    cases = (
+        "O débito com o meu pagamento que eu fiz foi golpe.",
+        "A cobrança pelo meu pix que eu autorizei foi golpe.",
+        "O saque numa compra que eu fiz foi golpe.",
+        "A cobrança àquela compra que eu fiz foi golpe.",
+    )
+
+    for message in cases:
+        propositions = build_positive_propositions(message, "pt")
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2rq_preserves_nominal_conjunct_true_later_self() -> None:
+    cases = (
+        (
+            "El cargo que llegó ayer y el pago que hice fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "O débito que chegou ontem e o pagamento que eu fiz foi golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+    )
+
+    for message, language, expected_atom in cases:
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert expected_atom in {atom.kind for atom in item.counter_evidence}
+
+
 def test_b2_final_closure_blocks_unambiguous_temporal_subordinator_parity() -> None:
     cases = (
         (
