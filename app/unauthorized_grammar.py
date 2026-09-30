@@ -4740,8 +4740,83 @@ _PT_P6_NESTED_PP_PREPOSITIONS = _PT_PREPOSITIONAL_ACTIVITY | frozenset(
         "sem",
         "sob",
         "apos",
+        "ao",
+        "aos",
+        "do",
+        "dos",
+        "da",
+        "das",
+        "no",
+        "nos",
+        "na",
+        "nas",
+        "pelo",
+        "pelos",
+        "pela",
+        "pelas",
+        "num",
+        "nuns",
+        "numa",
+        "numas",
     }
 )
+_ES_P6_HEAD_DETERMINERS = _ES_NOMINAL_DETERMINERS | frozenset(
+    {
+        "nuestro",
+        "nuestra",
+        "nuestros",
+        "nuestras",
+    }
+)
+_PT_P6_HEAD_DETERMINERS = _PT_NOMINAL_DETERMINERS | frozenset(
+    {
+        "nosso",
+        "nossa",
+        "nossos",
+        "nossas",
+    }
+)
+_PT_P6_ARTICLES = frozenset({"o", "a", "os", "as"})
+_PT_P6_POSSESSIVES = frozenset(
+    {
+        "meu",
+        "minha",
+        "meus",
+        "minhas",
+        "seu",
+        "sua",
+        "seus",
+        "suas",
+        "nosso",
+        "nossa",
+        "nossos",
+        "nossas",
+    }
+)
+_PT_P6_FUSED_PREPOSITION_DETERMINERS = frozenset(
+    {
+        "ao",
+        "aos",
+        "do",
+        "dos",
+        "da",
+        "das",
+        "no",
+        "nos",
+        "na",
+        "nas",
+        "pelo",
+        "pelos",
+        "pela",
+        "pelas",
+        "num",
+        "nuns",
+        "numa",
+        "numas",
+    }
+)
+_ES_P6_RELATIVE_QUAL = frozenset({"cual", "cuales"})
+_PT_P6_RELATIVE_QUAL = frozenset({"qual", "quais"})
 
 
 def _p6_activity_heads_que_relative(
@@ -5040,19 +5115,90 @@ def _p6_has_left_attachment_material(
     )
 
 
+def _p6_pt_token_is_fused_preposition_determiner(
+    analysis: FoundationAnalysis,
+    index: int,
+) -> bool:
+    """Recognize bounded BR-PT fused preposition+determiner forms."""
+
+    token = analysis.tokens[index]
+    word = token.normalized
+    if word in _PT_P6_FUSED_PREPOSITION_DETERMINERS:
+        return True
+
+    # The tokenizer's accent bit intentionally tracks acute accents only.
+    # Portuguese crase uses a grave accent, so preserve this distinction
+    # locally from the source surface instead of widening tokenizer semantics.
+    return token.surface.casefold() in {
+        "à",
+        "às",
+        "àquele",
+        "àquela",
+        "àqueles",
+        "àquelas",
+    }
+
+
+def _p6_has_earlier_nominal_head(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    boundary_index: int,
+    language: str,
+) -> bool:
+    """Recognize an earlier bounded nominal head before a nested PP."""
+
+    words = [token.normalized for token in analysis.tokens]
+    determiners = (
+        _ES_P6_HEAD_DETERMINERS
+        if language == "es"
+        else _PT_P6_HEAD_DETERMINERS
+    )
+    prepositions = (
+        _ES_P6_NESTED_PP_PREPOSITIONS
+        if language == "es"
+        else _PT_P6_NESTED_PP_PREPOSITIONS
+    )
+    non_activity_heads = (
+        _ES_NON_ACTIVITY_FRAUD_HEADS
+        if language == "es"
+        else _PT_NON_ACTIVITY_FRAUD_HEADS
+    )
+
+    if any(
+        span[1] <= boundary_index
+        for span in _activity_spans(analysis, clause)
+    ):
+        return True
+
+    for index in range(clause.token_start, boundary_index):
+        word = words[index]
+        if word in non_activity_heads:
+            return True
+        if (
+            index > clause.token_start
+            and words[index - 1] in determiners
+            and word.isalpha()
+            and word not in determiners
+            and word not in prepositions
+        ):
+            return True
+
+    return False
+
+
 def _p6_self_activity_is_nested_pp(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     activity_span: tuple[int, int],
     language: str,
 ) -> bool:
-    """Reject SELF-bearing activity nested in an earlier activity's bounded PP."""
+    """Reject SELF-bearing activity nested in an earlier nominal head's bounded PP."""
 
     words = [token.normalized for token in analysis.tokens]
     determiners = (
-        _ES_NOMINAL_DETERMINERS
+        _ES_P6_HEAD_DETERMINERS
         if language == "es"
-        else _PT_NOMINAL_DETERMINERS
+        else _PT_P6_HEAD_DETERMINERS
     )
     prepositions = (
         _ES_P6_NESTED_PP_PREPOSITIONS
@@ -5071,19 +5217,121 @@ def _p6_self_activity_is_nested_pp(
         nominal_start -= 1
 
     determiner_index = nominal_start - 1
-    preposition_index = determiner_index - 1
-    if preposition_index <= clause.token_start:
-        return False
-    if (
-        words[determiner_index] not in determiners
-        or words[preposition_index] not in prepositions
-    ):
+    if determiner_index <= clause.token_start:
         return False
 
-    return any(
-        span[1] <= preposition_index
-        for span in _activity_spans(analysis, clause)
+    preposition_index: int
+    if (
+        language == "pt"
+        and _p6_pt_token_is_fused_preposition_determiner(
+            analysis,
+            determiner_index,
+        )
+    ):
+        preposition_index = determiner_index
+    else:
+        if words[determiner_index] not in determiners:
+            return False
+
+        preposition_index = determiner_index - 1
+        if (
+            language == "pt"
+            and words[determiner_index] in _PT_P6_POSSESSIVES
+            and preposition_index > clause.token_start
+            and words[preposition_index] in _PT_P6_ARTICLES
+        ):
+            preposition_index -= 1
+
+        if preposition_index <= clause.token_start:
+            return False
+        if (
+            words[preposition_index] not in prepositions
+            and not (
+                language == "pt"
+                and _p6_pt_token_is_fused_preposition_determiner(
+                    analysis,
+                    preposition_index,
+                )
+            )
+        ):
+            return False
+
+    return _p6_has_earlier_nominal_head(
+        analysis,
+        clause,
+        preposition_index,
+        language,
     )
+
+
+def _p6_activity_relative_marker_span(
+    analysis: FoundationAnalysis,
+    head_span: tuple[int, int],
+    activity_start: int,
+    copula_index: int,
+    language: str,
+) -> tuple[int, int] | None:
+    """Find a bounded relative marker following an earlier activity head."""
+
+    words = [token.normalized for token in analysis.tokens]
+    coordinators = (
+        {"y", "e", "pero"}
+        if language == "es"
+        else {"e", "mas", "porem"}
+    )
+    qual_words = (
+        _ES_P6_RELATIVE_QUAL
+        if language == "es"
+        else _PT_P6_RELATIVE_QUAL
+    )
+    lower = head_span[1]
+    upper = min(activity_start, copula_index, lower + 8)
+
+    for index in range(lower, upper):
+        word = words[index]
+        if word in _NOMINAL_ACTIVITY_BOUNDARIES:
+            return None
+        if (
+            word in coordinators
+            and not (
+                word == "e"
+                and analysis.tokens[index].had_acute
+            )
+        ):
+            return None
+        if word == "que":
+            return index, index + 1
+        if word in qual_words:
+            return index, index + 1
+
+    return None
+
+
+def _p6_relative_coordinator_starts_nominal_conjunct(
+    analysis: FoundationAnalysis,
+    coordinator_index: int,
+    activity_start: int,
+    language: str,
+) -> bool:
+    """Distinguish a bounded nominal conjunct from coordinated relative VP material."""
+
+    next_index = coordinator_index + 1
+    if next_index >= activity_start:
+        return False
+
+    word = analysis.tokens[next_index].normalized
+    determiners = (
+        _ES_P6_HEAD_DETERMINERS
+        if language == "es"
+        else _PT_P6_HEAD_DETERMINERS
+    )
+    activity = _ES_ACTIVITY if language == "es" else _PT_ACTIVITY
+    non_activity_heads = (
+        _ES_NON_ACTIVITY_FRAUD_HEADS
+        if language == "es"
+        else _PT_NON_ACTIVITY_FRAUD_HEADS
+    )
+    return word in determiners | activity | non_activity_heads
 
 
 def _p6_self_activity_is_nested_in_activity_relative(
@@ -5093,7 +5341,7 @@ def _p6_self_activity_is_nested_in_activity_relative(
     copula_index: int,
     language: str,
 ) -> bool:
-    """Reject SELF-bearing activity nested inside an earlier activity que-relative."""
+    """Reject SELF-bearing activity nested inside an earlier bounded relative."""
 
     words = [token.normalized for token in analysis.tokens]
     coordinators = (
@@ -5105,36 +5353,40 @@ def _p6_self_activity_is_nested_in_activity_relative(
     for head_span in _activity_spans(analysis, clause):
         if head_span[1] > activity_span[0]:
             continue
-        if not _p6_activity_heads_que_relative(
+
+        marker_span = _p6_activity_relative_marker_span(
             analysis,
             head_span,
+            activity_span[0],
             copula_index,
             language,
-        ):
-            continue
-
-        marker_index = next(
-            (
-                index
-                for index in range(
-                    head_span[1],
-                    min(activity_span[0], head_span[1] + 3),
-                )
-                if words[index] == "que"
-            ),
-            None,
         )
-        if marker_index is None or marker_index >= activity_span[0]:
+        if marker_span is None:
+            continue
+        marker_start, marker_end = marker_span
+        if marker_start >= activity_span[0]:
             continue
 
-        if any(
-            words[index] in coordinators
-            and not (
-                words[index] == "e"
-                and analysis.tokens[index].had_acute
-            )
-            for index in range(marker_index + 1, activity_span[0])
-        ):
+        nominal_conjunct = False
+        for index in range(marker_end, activity_span[0]):
+            if (
+                words[index] not in coordinators
+                or (
+                    words[index] == "e"
+                    and analysis.tokens[index].had_acute
+                )
+            ):
+                continue
+            if _p6_relative_coordinator_starts_nominal_conjunct(
+                analysis,
+                index,
+                activity_span[0],
+                language,
+            ):
+                nominal_conjunct = True
+                break
+
+        if nominal_conjunct:
             continue
 
         return True

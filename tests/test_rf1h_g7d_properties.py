@@ -36,6 +36,11 @@ _BASELINE_PATH = (
     / "fixtures"
     / "rf1h_g7f_pre_g7f_self_baseline.json"
 )
+_B2RQ_BASELINE_PATH = (
+    Path(__file__).parent
+    / "fixtures"
+    / "rf1h_b2rq_pre_repair_self_baseline.json"
+)
 
 _RETAIN_EXACT = "retain_exact"
 _REMOVE_STRICT = "remove_strict"
@@ -480,6 +485,80 @@ def _b2rp_structural_cases() -> Iterable[tuple[str, str, int]]:
         yield message, language, start
 
 
+def _b2rq_structural_cases() -> Iterable[tuple[str, str, int]]:
+    es_nested_pp = (
+        ("aviso", "sobre", "pago", "autoricé"),
+        ("membresía", "por", "transferencia", "hice"),
+        ("recibo", "para", "retiro", "realicé"),
+    )
+    for head, preposition, activity, predicate in es_nested_pp:
+        message, start = _render_marked(
+            f"El [[{head}]] {preposition} el {activity} que {predicate} fue un fraude."
+        )
+        yield message, "es", start
+
+    pt_nested_pp = (
+        ("aviso", "sobre", "pagamento", "autorizei"),
+        ("mensalidade", "para", "compra", "fiz"),
+        ("recibo", "com", "saque", "realizei"),
+    )
+    for head, preposition, activity, predicate in pt_nested_pp:
+        message, start = _render_marked(
+            f"O [[{head}]] {preposition} o {activity} que eu {predicate} foi golpe."
+        )
+        yield message, "pt", start
+
+    relative_cases = (
+        (
+            "El [[débito]] reciente que acompañó el pago que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "El [[cargo]] de hoy que acompañó la compra que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "El [[cobro]], que acompañó el retiro que realicé, fue un fraude.",
+            "es",
+        ),
+        (
+            "A [[cobrança]], que acompanhou o pix que eu fiz, foi golpe.",
+            "pt",
+        ),
+        (
+            "O [[débito]] o qual acompanhou o pagamento que eu fiz foi golpe.",
+            "pt",
+        ),
+        (
+            "O [[saque]] de hoje que acompanhou a compra que eu fiz foi golpe.",
+            "pt",
+        ),
+        (
+            "El [[cargo]] que apareció hoy y acompañó el pago que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "O [[débito]] que apareceu hoje e acompanhou a compra que eu fiz foi golpe.",
+            "pt",
+        ),
+    )
+    for template, language in relative_cases:
+        message, start = _render_marked(template)
+        yield message, language, start
+
+    pt_nested_forms = (
+        "O [[débito]] com o meu pagamento que eu fiz foi golpe.",
+        "A [[cobrança]] sobre a minha compra que eu fiz foi golpe.",
+        "A [[cobrança]] pelo meu pix que eu autorizei foi golpe.",
+        "O [[saque]] numa compra que eu fiz foi golpe.",
+        "A [[cobrança]] àquela compra que eu fiz foi golpe.",
+        "O [[débito]] com a nossa compra que eu fiz foi golpe.",
+    )
+    for template in pt_nested_forms:
+        message, start = _render_marked(template)
+        yield message, "pt", start
+
+
 def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
     cases = (
         (
@@ -542,6 +621,16 @@ def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
             "pt",
             "two_activity_true_later",
         ),
+        (
+            "El cargo que llegó ayer y el [[pago]] que hice fue un fraude.",
+            "es",
+            "relative_nominal_conjunct",
+        ),
+        (
+            "O débito que chegou ontem e o [[pagamento]] que eu fiz foi golpe.",
+            "pt",
+            "relative_nominal_conjunct",
+        ),
     )
     for template, language, class_id in cases:
         message, start = _render_marked(template)
@@ -555,6 +644,7 @@ def _structural_cases() -> tuple[tuple[str, str, int | None], ...]:
         + list(_ordinary_and_same_noun_cases())
         + list(_b2ro_residual_cases())
         + list(_b2rp_structural_cases())
+        + list(_b2rq_structural_cases())
     )
     return tuple(dict.fromkeys(cases))
 
@@ -594,6 +684,7 @@ def test_g7f_property_legitimate_self_retention_has_per_class_minimums() -> None
     assert retained["complementizer_que"] >= 2
     assert retained["topicalized_pp"] >= 2
     assert retained["two_activity_true_later"] >= 2
+    assert retained["relative_nominal_conjunct"] >= 2
 
 
 def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal() -> None:
@@ -626,6 +717,39 @@ def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal
 
     assert transitions[_RETAIN_EXACT] >= 7
     assert transitions[_REMOVE_STRICT] >= 7
+    assert transitions[_PRESERVE_NONE] >= 2
+
+
+def test_b2rq_property_frozen_pre_repair_lineage_pins_exit_repair() -> None:
+    baseline = json.loads(_B2RQ_BASELINE_PATH.read_text(encoding="utf-8"))
+
+    assert baseline["schema"] == "rf1h-b2rq-pre-repair-self-baseline-v1"
+    assert (
+        baseline["frozen_public_sha"]
+        == "e2d99180ef9ed982ce8e68cc1210b4f692129b80"
+    )
+    assert baseline["classification"] == "DEVELOPMENT-KNOWN"
+    assert len(baseline["cases"]) >= 12
+
+    transitions = Counter()
+    for case in baseline["cases"]:
+        prior = frozenset(
+            (
+                atom["activity_source_start"],
+                atom["kind"],
+            )
+            for atom in case["self_atoms"]
+        )
+        current = _self_atom_signatures(
+            case["message"],
+            case["language"],
+        )
+        transition = case["transition"]
+        _assert_lineage_transition(prior, current, transition)
+        transitions[transition] += 1
+
+    assert transitions[_RETAIN_EXACT] >= 4
+    assert transitions[_REMOVE_STRICT] >= 6
     assert transitions[_PRESERVE_NONE] >= 2
 
 
@@ -740,6 +864,11 @@ def test_g7f_property_surface_covers_required_structural_classes() -> None:
     assert any("que substituiu o gasto que eu realizei" in message for message in messages)
     assert any("en cuanto yo realicé el retiro" in message for message in messages)
     assert any("tan pronto como hice la transferencia" in message for message in messages)
+    assert any("membresía" in message for message in messages)
+    assert any("o meu pagamento" in message for message in messages)
+    assert any("pelo meu pix" in message for message in messages)
+    assert any("o qual acompanhou" in message for message in messages)
+    assert any("que apareció hoy y acompañó" in message for message in messages)
     assert any(
         message.count("transferencia") >= 2
         for message, language, _ in cases
