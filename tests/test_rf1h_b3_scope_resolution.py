@@ -528,3 +528,34 @@ def test_b3_4_portuguese_ia_dizer_frame_is_reported_prior_belief() -> None:
     )
 
     assert item.mode == PropositionMode.REPORTED_PRIOR_BELIEF.value
+
+
+
+def test_b3_4_retraction_does_not_cross_unrelated_intervening_clause() -> None:
+    propositions = resolve_positive_propositions(
+        "No hice esta transferencia. Hablamos de otra cosa. Pero sí la hice.",
+        "es",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert item.mode == PropositionMode.ASSERTIVE.value
+    assert item.retraction_provenance == ()
+
+
+def test_b3_4_correction_on_different_semantic_axis_does_not_retract() -> None:
+    propositions = resolve_positive_propositions(
+        "No hice esta transferencia, pero sí autoricé esta transferencia.",
+        "es",
+    )
+    performance = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert performance.mode == PropositionMode.ASSERTIVE.value
+    assert performance.retraction_provenance == ()

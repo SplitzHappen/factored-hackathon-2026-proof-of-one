@@ -7826,6 +7826,9 @@ def _b3_apply_retractions(
             for index, proposition in enumerate(resolved)
             if proposition.mode == PropositionMode.ASSERTIVE.value
             and proposition.token_end <= correction.token_start
+            and 0
+            <= correction.clause_index - proposition.clause_index
+            <= 1
             and _b3_proposition_axis(proposition) == correction.axis
         ]
         if not candidate_indices:
