@@ -4249,6 +4249,102 @@ def test_b2rq_blocks_br_pt_article_possessive_and_fused_pp_wrong_self() -> None:
         )
 
 
+def test_b2rs_positive_license_blocks_unlicensed_wrong_self() -> None:
+    cases = (
+        (
+            "Los 52 pesos que aparecieron junto con la compra que hice son fraude.",
+            "es",
+        ),
+        (
+            "O que debitaram depois do pagamento que eu autorizei é golpe.",
+            "pt",
+        ),
+        (
+            "El recargo que figura entre el retiro y la transferencia que hice es fraude.",
+            "es",
+        ),
+        (
+            "A cobrança que ficou entre o boleto e a compra que eu fiz é golpe.",
+            "pt",
+        ),
+        (
+            "Me cobraron un extra junto al pago que autoricé, eso es fraude.",
+            "es",
+        ),
+        (
+            "Debitaram duas vezes junto do Pix que eu fiz, isso é golpe.",
+            "pt",
+        ),
+    )
+    self_kinds = {
+        EvidenceAtomKind.SELF_PERFORMED,
+        EvidenceAtomKind.SELF_AUTHORIZED,
+    }
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            atom.kind in self_kinds
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for atom in proposition.counter_evidence
+        )
+
+
+def test_b2rs_positive_license_preserves_explicit_trusted_positions() -> None:
+    cases = (
+        (
+            "La transferencia que hice fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Eu mesmo fiz este Pix e foi golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Cuando hice el pago fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Quanto a esse saque que eu fiz, foi golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Me avisaron que la compra que hice fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Na verdade, a compra que eu fiz foi golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Tanto el retiro como la transferencia que hice son fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "A tarifa e o pagamento que eu autorizei foram golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_AUTHORIZED,
+        ),
+    )
+
+    for message, language, expected_atom in cases:
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert expected_atom in {atom.kind for atom in item.counter_evidence}
+
+
 def test_b2rr_blocks_prior_nominal_head_wrong_self_across_verb_mediation() -> None:
     cases = (
         (
