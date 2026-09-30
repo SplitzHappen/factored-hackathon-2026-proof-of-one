@@ -594,35 +594,35 @@ def _b2rr_structural_cases() -> Iterable[tuple[str, str, int]]:
 def _b2rs_positive_license_challenge_cases() -> Iterable[tuple[str, str, int]]:
     cases = (
         (
-            "Los 68 pesos agregados junto al retiro que hice fueron un fraude.",
+            "[[Los 68 pesos]] agregados junto al retiro que hice fueron un fraude.",
             "es",
         ),
         (
-            "Aquello que cargaron encima del pago que autoricé es fraude.",
+            "[[Aquello]] que cargaron encima del pago que autoricé es fraude.",
             "es",
         ),
         (
-            "El recargo ubicado entre la cuota mensual y la transferencia que hice es fraude.",
+            "El [[recargo]] ubicado entre la cuota mensual y la transferencia que hice es fraude.",
             "es",
         ),
         (
-            "Me aplicaron un débito doble junto a la compra que hice y eso es fraude.",
+            "Me aplicaron un [[débito]] doble junto a la compra que hice y eso es fraude.",
             "es",
         ),
         (
-            "R$ 47,50 lançados ao lado do Pix que eu fiz são golpe.",
+            "[[R$ 47,50]] lançados ao lado do Pix que eu fiz são golpe.",
             "pt",
         ),
         (
-            "Aquilo que cobraram acima do pagamento que eu autorizei é fraude.",
+            "[[Aquilo]] que cobraram acima do pagamento que eu autorizei é fraude.",
             "pt",
         ),
         (
-            "A tarifa posicionada entre a mensalidade e a compra que eu fiz é golpe.",
+            "A [[tarifa]] posicionada entre a mensalidade e a compra que eu fiz é golpe.",
             "pt",
         ),
         (
-            "Debitaram uma taxa extra junto do Pix que eu fiz e isso é golpe.",
+            "Debitaram uma [[taxa]] extra junto do Pix que eu fiz e isso é golpe.",
             "pt",
         ),
     )
