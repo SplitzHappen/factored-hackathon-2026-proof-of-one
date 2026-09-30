@@ -5565,6 +5565,31 @@ def _p6_self_activity_is_licensed_nominal_conjunct(
             for index in range(nearest[1], coordinator_index)
         )
 
+    # Simple top-level nominal conjunction with an ordinary earlier head.
+    # Require the coordinator to follow a determiner+noun NP directly and
+    # reject any finite predicate before the coordinator.
+    determiners = (
+        _ES_P6_HEAD_DETERMINERS
+        if language == "es"
+        else _PT_P6_HEAD_DETERMINERS
+    )
+    prior_index = coordinator_index - 1
+    if (
+        prior_index > clause.token_start
+        and words[prior_index].isalpha()
+        and words[prior_index - 1] in determiners
+        and not any(
+            predicate.token_start < coordinator_index
+            and _in_clause(
+                predicate.token_start,
+                predicate.token_end,
+                clause,
+            )
+            for predicate in analysis.predicates
+        )
+    ):
+        return True
+
     non_activity_heads = (
         _ES_NON_ACTIVITY_FRAUD_HEADS
         if language == "es"
