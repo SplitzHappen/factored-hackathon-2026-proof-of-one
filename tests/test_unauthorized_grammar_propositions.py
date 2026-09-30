@@ -2015,67 +2015,30 @@ def test_b2r_b11_f20_participial_exceedance_respects_action_denial() -> None:
 
 
 
-def test_b2r_c1_f12_self_performed_fraud_carries_counter_evidence() -> None:
-    es = build_positive_propositions(
-        "La transferencia que yo mismo hice fue un fraude.",
-        "es",
-    )
-    pt = build_positive_propositions(
-        "Eu mesmo fiz esse Pix e foi um golpe.",
-        "pt",
-    )
-
-    es_p6 = next(
-        item for item in es
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
-    )
-    pt_p6 = next(
-        item for item in pt
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
-    )
-
-    assert EvidenceAtomKind.SELF_PERFORMED in {
-        atom.kind for atom in es_p6.counter_evidence
-    }
-    assert EvidenceAtomKind.SELF_PERFORMED in {
-        atom.kind for atom in pt_p6.counter_evidence
-    }
-    assert all(
-        atom.activity_token_span == es_p6.activity_token_span
-        for atom in es_p6.counter_evidence
-    )
-    assert all(
-        atom.activity_token_span == pt_p6.activity_token_span
-        for atom in pt_p6.counter_evidence
+def _assert_no_copular_p6(message: str, language: str) -> None:
+    propositions = build_positive_propositions(message, language)
+    assert not any(
+        proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        and proposition.rule == "P6-copular"
+        for proposition in propositions
     )
 
 
-def test_b2r_c1_f12_self_authorized_fraud_carries_counter_evidence() -> None:
-    es = build_positive_propositions(
-        "Esta transferencia que yo autoricé fue un fraude.",
-        "es",
+def test_b2rt_scope_reduction_suppresses_self_performed_copular_fraud() -> None:
+    cases = (
+        ("La transferencia que yo mismo hice fue un fraude.", "es"),
+        ("Eu mesmo fiz esse Pix e foi um golpe.", "pt"),
     )
-    pt = build_positive_propositions(
-        "Este Pix que eu autorizei foi um golpe.",
-        "pt",
-    )
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
-    es_p6 = next(
-        item for item in es
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+def test_b2rt_scope_reduction_suppresses_self_authorized_copular_fraud() -> None:
+    cases = (
+        ("Esta transferencia que yo autoricé fue un fraude.", "es"),
+        ("Este Pix que eu autorizei foi um golpe.", "pt"),
     )
-    pt_p6 = next(
-        item for item in pt
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
-    )
-
-    assert EvidenceAtomKind.SELF_AUTHORIZED in {
-        atom.kind for atom in es_p6.counter_evidence
-    }
-    assert EvidenceAtomKind.SELF_AUTHORIZED in {
-        atom.kind for atom in pt_p6.counter_evidence
-    }
-
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
 def test_b2r_c1_f12_third_party_performance_does_not_create_self_counter_evidence() -> None:
     es = build_positive_propositions(
@@ -2101,27 +2064,28 @@ def test_b2r_c1_f12_third_party_performance_does_not_create_self_counter_evidenc
 
 
 def test_b2r_c1_f12_separate_unauthorized_proposition_remains_independent() -> None:
-    es = build_positive_propositions(
-        "La transferencia que yo mismo hice fue un fraude. Este cargo no es mío.",
-        "es",
-    )
-    pt = build_positive_propositions(
-        "Eu mesmo fiz esse Pix e foi um golpe. Este débito não é meu.",
-        "pt",
+    cases = (
+        (
+            "La transferencia que yo mismo hice fue un fraude. Este cargo no es mío.",
+            "es",
+        ),
+        (
+            "Eu mesmo fiz esse Pix e foi um golpe. Este débito não é meu.",
+            "pt",
+        ),
     )
 
-    for propositions in (es, pt):
-        p6 = next(
-            item for item in propositions
-            if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            and item.rule == "P6-copular"
+            for item in propositions
         )
-        assert p6.counter_evidence
         assert any(
             item.family is PropositionFamily.OWNERSHIP_DENIAL
             for item in propositions
         )
-
-
 
 def test_b2r_c2_f14_p2_clitic_links_prior_activity_in_spanish_and_portuguese() -> None:
     es = build_positive_propositions(
@@ -2297,32 +2261,13 @@ def test_b2r_e1a_p6_closed_modifiers_preserve_customer_anchor() -> None:
 
 
 
-def test_b2r_e1b_f12_direct_object_self_action_keeps_same_referent_atom() -> None:
-    es = build_positive_propositions(
-        "Yo hice esta transferencia y fue un fraude.",
-        "es",
+def test_b2rt_scope_reduction_suppresses_direct_object_copular_self() -> None:
+    cases = (
+        ("Yo hice esta transferencia y fue un fraude.", "es"),
+        ("Eu autorizei este Pix e foi um golpe.", "pt"),
     )
-    pt = build_positive_propositions(
-        "Eu autorizei este Pix e foi um golpe.",
-        "pt",
-    )
-
-    es_p6 = next(
-        item for item in es
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
-    )
-    pt_p6 = next(
-        item for item in pt
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
-    )
-
-    assert EvidenceAtomKind.SELF_PERFORMED in {
-        atom.kind for atom in es_p6.counter_evidence
-    }
-    assert EvidenceAtomKind.SELF_AUTHORIZED in {
-        atom.kind for atom in pt_p6.counter_evidence
-    }
-
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
 def test_b2r_e1b_f12_unrelated_self_action_does_not_attach_to_fraud_p6() -> None:
     es = build_positive_propositions(
@@ -2759,59 +2704,21 @@ def test_b2r_e4_frozen_public_positive_inventory_yields_unresolved_proposition()
 
 
 
-def test_b2r_g1_f12_relative_head_keeps_same_referent_atom() -> None:
-    es = build_positive_propositions(
-        "La transferencia que yo mismo hice fue un fraude.",
-        "es",
+def test_b2rt_scope_reduction_suppresses_relative_head_copular_self() -> None:
+    cases = (
+        ("La transferencia que yo mismo hice fue un fraude.", "es"),
+        ("O Pix que eu fiz foi um golpe.", "pt"),
     )
-    pt = build_positive_propositions(
-        "O Pix que eu fiz foi um golpe.",
-        "pt",
-    )
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
-    es_p6 = next(
-        item for item in es
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
+def test_b2rt_scope_reduction_suppresses_resumptive_copular_self() -> None:
+    cases = (
+        ("Esta compra la hice yo y fue un fraude.", "es"),
+        ("Esta transferência eu a fiz e foi golpe.", "pt"),
     )
-    pt_p6 = next(
-        item for item in pt
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
-    )
-
-    assert EvidenceAtomKind.SELF_PERFORMED in {
-        atom.kind for atom in es_p6.counter_evidence
-    }
-    assert EvidenceAtomKind.SELF_PERFORMED in {
-        atom.kind for atom in pt_p6.counter_evidence
-    }
-
-
-def test_b2r_g1_f12_resumptive_clitic_keeps_same_referent_atom() -> None:
-    es = build_positive_propositions(
-        "Esta compra la hice yo y fue un fraude.",
-        "es",
-    )
-    pt = build_positive_propositions(
-        "Esta transferência eu a fiz e foi golpe.",
-        "pt",
-    )
-
-    es_p6 = next(
-        item for item in es
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
-    )
-    pt_p6 = next(
-        item for item in pt
-        if item.family is PropositionFamily.FRAUD_CHARACTERIZATION
-    )
-
-    assert EvidenceAtomKind.SELF_PERFORMED in {
-        atom.kind for atom in es_p6.counter_evidence
-    }
-    assert EvidenceAtomKind.SELF_PERFORMED in {
-        atom.kind for atom in pt_p6.counter_evidence
-    }
-
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
 def test_b2r_g1_f12_subordinate_or_finite_barrier_blocks_unrelated_atom() -> None:
     es = build_positive_propositions(
@@ -3080,18 +2987,13 @@ def test_b2r_g5c_p6_skips_embedded_activity_referent_in_portuguese() -> None:
     assert not item.counter_evidence
 
 
-def test_b2r_g5c_p6_preserves_valid_que_relative_activity_head() -> None:
-    es = _families(
-        "La transferencia que hice fue un fraude.",
-        "es",
+def test_b2rt_scope_reduction_suppresses_valid_que_relative_copular_self() -> None:
+    cases = (
+        ("La transferencia que hice fue un fraude.", "es"),
+        ("O Pix que eu fiz foi golpe.", "pt"),
     )
-    pt = _families(
-        "O Pix que eu fiz foi golpe.",
-        "pt",
-    )
-
-    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
-    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
 def test_b2r_g5d_p6_que_on_fraud_noun_does_not_donate_self_counter_evidence() -> None:
     message = "Esta transferencia fue un fraude que descubrí cuando hice el reclamo."
@@ -3941,44 +3843,14 @@ def test_b2r_g7e_a_blocks_skipped_nearer_relative_self_wrong_referent() -> None:
         )
 
 
-def test_b2r_g7e_a_preserves_ordinary_unframed_self_binding() -> None:
+def test_b2rt_scope_reduction_suppresses_ordinary_unframed_copular_self() -> None:
     cases = (
-        (
-            "La transferencia que hice fue un fraude.",
-            "es",
-            "transferencia",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
-        (
-            "El pago que yo mismo autoricé fue un fraude.",
-            "es",
-            "pago",
-            EvidenceAtomKind.SELF_AUTHORIZED,
-        ),
-        (
-            "O Pix que eu fiz foi golpe.",
-            "pt",
-            "pix",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
+        ("La transferencia que hice fue un fraude.", "es"),
+        ("El pago que yo mismo autoricé fue un fraude.", "es"),
+        ("O Pix que eu fiz foi golpe.", "pt"),
     )
-
-    for message, language, expected_activity, expected_atom in cases:
-        analysis = analyze_foundation(message, language)
-        propositions = build_positive_propositions(message, language)
-        item = next(
-            proposition
-            for proposition in propositions
-            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
-        )
-        assert item.activity_token_span is not None
-        assert (
-            analysis.tokens[item.activity_token_span[0]].normalized
-            == expected_activity
-        )
-        assert tuple(atom.kind for atom in item.counter_evidence) == (
-            expected_atom,
-        )
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
 def test_b2r_g7f_a_blocks_nonactivity_head_closed_adverbial_wrong_self() -> None:
     cases = (
@@ -4060,52 +3932,21 @@ def test_b2r_g7f_a_blocks_article_pp_nested_wrong_self() -> None:
         )
 
 
-def test_b2r_g7f_a_preserves_clause_initial_subjectless_self() -> None:
+def test_b2rt_scope_reduction_suppresses_clause_initial_temporal_copular_self() -> None:
     cases = (
-        (
-            "Cuando hice el pago fue un fraude.",
-            "es",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
-        (
-            "Quando eu fiz o pagamento foi golpe.",
-            "pt",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
+        ("Cuando hice el pago fue un fraude.", "es"),
+        ("Quando eu fiz o pagamento foi golpe.", "pt"),
     )
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
-    for message, language, expected_atom in cases:
-        propositions = build_positive_propositions(message, language)
-        item = next(
-            proposition
-            for proposition in propositions
-            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
-        )
-        assert expected_atom in {atom.kind for atom in item.counter_evidence}
-
-
-def test_b2r_g7f_a_preserves_complementizer_que_legitimate_self() -> None:
+def test_b2rt_scope_reduction_suppresses_complementizer_copular_self() -> None:
     cases = (
-        (
-            "Me avisaron que la compra que hice fue un fraude.",
-            "es",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
-        (
-            "Me avisaram que a compra que eu fiz foi golpe.",
-            "pt",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
+        ("Me avisaron que la compra que hice fue un fraude.", "es"),
+        ("Me avisaram que a compra que eu fiz foi golpe.", "pt"),
     )
-
-    for message, language, expected_atom in cases:
-        propositions = build_positive_propositions(message, language)
-        item = next(
-            proposition
-            for proposition in propositions
-            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
-        )
-        assert expected_atom in {atom.kind for atom in item.counter_evidence}
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
 def test_b2_final_closure_blocks_nested_relative_wrong_self() -> None:
     cases = (
@@ -4333,53 +4174,21 @@ def test_b2rr_blocks_prior_nominal_head_wrong_self_across_verb_mediation() -> No
         )
 
 
-def test_b2rs_positive_license_preserves_direct_self_object() -> None:
+def test_b2rt_scope_reduction_suppresses_positive_license_direct_self() -> None:
     cases = (
-        (
-            "Yo mismo hice este pago y fue un fraude.",
-            "es",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
-        (
-            "Eu mesma fiz este Pix e foi golpe.",
-            "pt",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
+        ("Yo mismo hice este pago y fue un fraude.", "es"),
+        ("Eu mesma fiz este Pix e foi golpe.", "pt"),
     )
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
-    for message, language, expected_atom in cases:
-        propositions = build_positive_propositions(message, language)
-        item = next(
-            proposition
-            for proposition in propositions
-            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
-        )
-        assert expected_atom in {atom.kind for atom in item.counter_evidence}
-
-
-def test_b2rq_preserves_nominal_conjunct_true_later_self() -> None:
+def test_b2rt_scope_reduction_suppresses_nominal_conjunct_copular_self() -> None:
     cases = (
-        (
-            "El cargo que llegó ayer y el pago que hice fue un fraude.",
-            "es",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
-        (
-            "O débito que chegou ontem e o pagamento que eu fiz foi golpe.",
-            "pt",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
+        ("El cargo que llegó ayer y el pago que hice fue un fraude.", "es"),
+        ("O débito que chegou ontem e o pagamento que eu fiz foi golpe.", "pt"),
     )
-
-    for message, language, expected_atom in cases:
-        propositions = build_positive_propositions(message, language)
-        item = next(
-            proposition
-            for proposition in propositions
-            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
-        )
-        assert expected_atom in {atom.kind for atom in item.counter_evidence}
-
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
 def test_b2_final_closure_blocks_unambiguous_temporal_subordinator_parity() -> None:
     cases = (
@@ -4401,55 +4210,20 @@ def test_b2_final_closure_blocks_unambiguous_temporal_subordinator_parity() -> N
         )
 
 
-def test_b2_final_closure_preserves_topicalized_legitimate_self() -> None:
+def test_b2rt_scope_reduction_suppresses_topicalized_copular_self() -> None:
     cases = (
-        (
-            "Respecto a la compra que hice ayer, fue un fraude.",
-            "es",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
-        (
-            "En cuanto a mi retiro que hice, fue un fraude.",
-            "es",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
-        (
-            "Quanto a esse saque que eu fiz, foi golpe.",
-            "pt",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
+        ("Respecto a la compra que hice ayer, fue un fraude.", "es"),
+        ("En cuanto a mi retiro que hice, fue un fraude.", "es"),
+        ("Quanto a esse saque que eu fiz, foi golpe.", "pt"),
     )
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
-    for message, language, expected_atom in cases:
-        propositions = build_positive_propositions(message, language)
-        item = next(
-            proposition
-            for proposition in propositions
-            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
-        )
-        assert expected_atom in {atom.kind for atom in item.counter_evidence}
-
-
-def test_b2_final_closure_preserves_true_later_self_with_earlier_activity() -> None:
+def test_b2rt_scope_reduction_suppresses_true_later_copular_self() -> None:
     cases = (
-        (
-            "Revisé la compra y el pago que hice fue un fraude.",
-            "es",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
-        (
-            "Revisei a compra e o pagamento que fiz foi golpe.",
-            "pt",
-            EvidenceAtomKind.SELF_PERFORMED,
-        ),
+        ("Revisé la compra y el pago que hice fue un fraude.", "es"),
+        ("Revisei a compra e o pagamento que fiz foi golpe.", "pt"),
     )
-
-    for message, language, expected_atom in cases:
-        propositions = build_positive_propositions(message, language)
-        item = next(
-            proposition
-            for proposition in propositions
-            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
-        )
-        assert expected_atom in {atom.kind for atom in item.counter_evidence}
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 

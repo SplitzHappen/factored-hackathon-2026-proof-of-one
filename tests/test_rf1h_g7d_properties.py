@@ -106,6 +106,15 @@ def _assert_self_atoms_only_on_true_referent(
             assert atom_source_start == true_source_start
 
 
+def _assert_no_copular_p6(message: str, language: str) -> None:
+    propositions = build_positive_propositions(message, language)
+    assert not any(
+        proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        and proposition.rule == "P6-copular"
+        for proposition in propositions
+    )
+
+
 def _assert_lineage_transition(
     prior: frozenset[tuple[int, str]],
     current: frozenset[tuple[int, str]],
@@ -756,35 +765,15 @@ def test_g7f_property_no_wrong_referent_self_atom_by_source_position() -> None:
         )
 
 
-def test_g7f_property_legitimate_self_retention_has_per_class_minimums() -> None:
-    retained = Counter()
+def test_b2rt_scope_reduction_suppresses_previous_copular_self_retention_surface() -> None:
+    cases = tuple(_retention_cases())
+    assert len(cases) >= 18
 
-    for message, language, true_source_start, class_id in _retention_cases():
-        _assert_self_atoms_only_on_true_referent(
-            message,
-            language,
-            true_source_start,
-        )
-        signatures = _self_atom_signatures(message, language)
-        on_true_referent = {
-            signature
-            for signature in signatures
-            if signature[0] == true_source_start
-        }
-        assert on_true_referent
-        retained[class_id] += len(on_true_referent)
+    for message, language, _, _ in cases:
+        _assert_no_copular_p6(message, language)
+        assert not _self_atom_signatures(message, language)
 
-    assert retained["ordinary_relative"] >= 4
-    assert retained["clause_initial_subjectless"] >= 2
-    assert retained["complementizer_que"] >= 2
-    assert retained["topicalized_pp"] >= 2
-    assert retained["two_activity_true_later"] >= 2
-    assert retained["relative_nominal_conjunct"] >= 2
-    assert retained["prior_nominal_conjunct"] >= 2
-    assert retained["direct_self_object"] >= 2
-
-
-def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal() -> None:
+def test_b2rt_scope_reduction_overrides_pre_g7f_copular_self_lineage() -> None:
     baseline = json.loads(_BASELINE_PATH.read_text(encoding="utf-8"))
 
     assert baseline["schema"] == "rf1h-g7f-pre-g7f-self-baseline-v1"
@@ -795,7 +784,7 @@ def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal
     assert baseline["classification"] == "DEVELOPMENT-KNOWN"
     assert len(baseline["cases"]) >= 16
 
-    transitions = Counter()
+    prior_self_cases = 0
     for case in baseline["cases"]:
         prior = frozenset(
             (
@@ -804,20 +793,17 @@ def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal
             )
             for atom in case["self_atoms"]
         )
-        current = _self_atom_signatures(
+        if prior:
+            prior_self_cases += 1
+            _assert_no_copular_p6(case["message"], case["language"])
+        assert not _self_atom_signatures(
             case["message"],
             case["language"],
         )
-        transition = case["transition"]
-        _assert_lineage_transition(prior, current, transition)
-        transitions[transition] += 1
 
-    assert transitions[_RETAIN_EXACT] >= 7
-    assert transitions[_REMOVE_STRICT] >= 7
-    assert transitions[_PRESERVE_NONE] >= 2
+    assert prior_self_cases >= 14
 
-
-def test_b2rq_property_frozen_pre_repair_lineage_pins_exit_repair() -> None:
+def test_b2rt_scope_reduction_overrides_b2rq_copular_self_lineage() -> None:
     baseline = json.loads(_B2RQ_BASELINE_PATH.read_text(encoding="utf-8"))
 
     assert baseline["schema"] == "rf1h-b2rq-pre-repair-self-baseline-v1"
@@ -828,7 +814,7 @@ def test_b2rq_property_frozen_pre_repair_lineage_pins_exit_repair() -> None:
     assert baseline["classification"] == "DEVELOPMENT-KNOWN"
     assert len(baseline["cases"]) >= 12
 
-    transitions = Counter()
+    prior_self_cases = 0
     for case in baseline["cases"]:
         prior = frozenset(
             (
@@ -837,18 +823,15 @@ def test_b2rq_property_frozen_pre_repair_lineage_pins_exit_repair() -> None:
             )
             for atom in case["self_atoms"]
         )
-        current = _self_atom_signatures(
+        if prior:
+            prior_self_cases += 1
+            _assert_no_copular_p6(case["message"], case["language"])
+        assert not _self_atom_signatures(
             case["message"],
             case["language"],
         )
-        transition = case["transition"]
-        _assert_lineage_transition(prior, current, transition)
-        transitions[transition] += 1
 
-    assert transitions[_RETAIN_EXACT] >= 4
-    assert transitions[_REMOVE_STRICT] >= 6
-    assert transitions[_PRESERVE_NONE] >= 2
-
+    assert prior_self_cases >= 10
 
 def test_g7f_property_lineage_rejects_new_moved_kind_changed_and_oversuppressed_atoms() -> None:
     prior = frozenset({(10, "self_performed")})
@@ -945,7 +928,7 @@ def test_b2rr_property_prior_nominal_guard_uses_source_position_identity() -> No
         )
 
 
-def test_b2_final_property_two_activity_retention_pins_referent_position() -> None:
+def test_b2rt_scope_reduction_suppresses_two_activity_copular_self() -> None:
     cases = tuple(
         case
         for case in _retention_cases()
@@ -953,12 +936,9 @@ def test_b2_final_property_two_activity_retention_pins_referent_position() -> No
     )
     assert len(cases) == 2
 
-    for message, language, true_source_start, _ in cases:
-        signatures = _self_atom_signatures(message, language)
-        assert signatures
-        assert {source_start for source_start, _ in signatures} == {
-            true_source_start
-        }
+    for message, language, _, _ in cases:
+        _assert_no_copular_p6(message, language)
+        assert not _self_atom_signatures(message, language)
 
 def test_g7f_property_surface_covers_required_structural_classes() -> None:
     cases = _structural_cases()
