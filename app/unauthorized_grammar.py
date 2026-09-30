@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 import re
 import unicodedata
@@ -1455,6 +1455,32 @@ class PropositionFamily(str, Enum):
 class EvidenceAtomKind(str, Enum):
     SELF_PERFORMED = "self_performed"
     SELF_AUTHORIZED = "self_authorized"
+
+
+class PropositionMode(str, Enum):
+    """RF1H-B3 local proposition modes."""
+
+    ASSERTIVE = "assertive"
+    HYPOTHETICAL = "hypothetical"
+    UNCERTAIN = "uncertain"
+    INFORMATION_REQUEST = "information_request"
+    DESCRIPTOR_CLARIFICATION = "descriptor_clarification"
+    AUTHORIZED_THIRD_PARTY = "authorized_third_party"
+    RETRACTED = "retracted"
+    QUESTIONED = "questioned"
+    REPORTED_PRIOR_BELIEF = "reported_prior_belief"
+
+
+@dataclass(frozen=True)
+class ScopeDomain:
+    """Bounded B3 operator domain over token positions."""
+
+    mode: PropositionMode
+    token_start: int
+    token_end: int
+    provenance: str
+
+
 
 
 @dataclass(frozen=True)
@@ -7154,6 +7180,198 @@ def build_positive_propositions(
         )
         unique[key] = proposition
     return tuple(unique.values())
+
+
+_B3_MODE_PRECEDENCE = {
+    PropositionMode.HYPOTHETICAL: 0,
+    PropositionMode.UNCERTAIN: 1,
+    PropositionMode.QUESTIONED: 2,
+    PropositionMode.ASSERTIVE: 99,
+}
+
+
+def _b3_scope_barrier(
+    analysis: FoundationAnalysis,
+    index: int,
+) -> bool:
+    token = analysis.tokens[index]
+    return (
+        token.normalized in {",", ";", ":"}
+        or LexicalTag.CONTRAST in analysis.tags[index]
+    )
+
+
+def _b3_domain_end(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    operator_index: int,
+) -> int:
+    for index in range(operator_index + 1, clause.token_end):
+        if _b3_scope_barrier(analysis, index):
+            return index
+    return clause.token_end
+
+
+def _b3_question_domain(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+) -> ScopeDomain | None:
+    opener = next(
+        (
+            index
+            for index in range(clause.token_start, clause.token_end)
+            if LexicalTag.QUESTION_OPEN in analysis.tags[index]
+        ),
+        None,
+    )
+    if opener is not None:
+        return ScopeDomain(
+            mode=PropositionMode.QUESTIONED,
+            token_start=opener + 1,
+            token_end=clause.token_end,
+            provenance="M8:explicit_question",
+        )
+
+    boundary_index = clause.token_end
+    if (
+        boundary_index < len(analysis.tokens)
+        and analysis.tokens[boundary_index].normalized == "?"
+    ):
+        return ScopeDomain(
+            mode=PropositionMode.QUESTIONED,
+            token_start=clause.token_start,
+            token_end=clause.token_end,
+            provenance="M8:question_boundary",
+        )
+    return None
+
+
+def _b3_operator_domains_for_clause(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+) -> tuple[ScopeDomain, ...]:
+    domains: list[ScopeDomain] = []
+
+    for index in range(clause.token_start, clause.token_end):
+        tags = analysis.tags[index]
+        if LexicalTag.CONDITIONAL in tags:
+            domains.append(
+                ScopeDomain(
+                    mode=PropositionMode.HYPOTHETICAL,
+                    token_start=index,
+                    token_end=_b3_domain_end(analysis, clause, index),
+                    provenance=f"M2:conditional:{analysis.tokens[index].normalized}",
+                )
+            )
+        if LexicalTag.UNCERTAINTY in tags:
+            domains.append(
+                ScopeDomain(
+                    mode=PropositionMode.UNCERTAIN,
+                    token_start=index,
+                    token_end=_b3_domain_end(analysis, clause, index),
+                    provenance=f"M3:uncertainty:{analysis.tokens[index].normalized}",
+                )
+            )
+
+    question = _b3_question_domain(analysis, clause)
+    if question is not None:
+        domains.append(question)
+
+    return tuple(domains)
+
+
+def _b3_domain_overlaps_proposition(
+    domain: ScopeDomain,
+    proposition: PositiveProposition,
+) -> bool:
+    return (
+        proposition.token_start < domain.token_end
+        and proposition.token_end > domain.token_start
+    )
+
+
+def resolve_positive_propositions(
+    text: str,
+    language: str,
+) -> tuple[PositiveProposition, ...]:
+    """Apply the first bounded RF1H-B3 local-mode scaffold.
+
+    This audit/debug API currently implements only explicit conditional,
+    lexical-uncertainty and question domains. M4-M7 and message-level
+    retraction remain intentionally deferred. Production boolean behavior is
+    not switched by this function.
+    """
+
+    analysis = analyze_foundation(text, language)
+    unresolved = build_positive_propositions(text, language)
+    clause_by_index = {clause.index: clause for clause in analysis.clauses}
+    domains_by_clause = {
+        clause.index: _b3_operator_domains_for_clause(analysis, clause)
+        for clause in analysis.clauses
+    }
+
+    resolved: list[PositiveProposition] = []
+    for proposition in unresolved:
+        clause = clause_by_index.get(proposition.clause_index)
+        if clause is None:
+            resolved.append(proposition)
+            continue
+
+        overlapping = tuple(
+            domain
+            for domain in domains_by_clause.get(clause.index, ())
+            if _b3_domain_overlaps_proposition(domain, proposition)
+        )
+        if not overlapping:
+            resolved.append(
+                replace(
+                    proposition,
+                    mode=PropositionMode.ASSERTIVE.value,
+                    exclusion_provenance=(),
+                )
+            )
+            continue
+
+        selected_mode = min(
+            (domain.mode for domain in overlapping),
+            key=lambda mode: _B3_MODE_PRECEDENCE.get(mode, 50),
+        )
+        provenance = tuple(
+            domain.provenance
+            for domain in overlapping
+            if domain.mode is selected_mode
+        )
+        resolved.append(
+            replace(
+                proposition,
+                mode=selected_mode.value,
+                exclusion_provenance=provenance,
+            )
+        )
+
+    return tuple(resolved)
+
+
+def dump_resolved_propositions(
+    text: str,
+    language: str,
+) -> tuple[dict[str, object], ...]:
+    """Return a compact B3 audit view without changing production routing."""
+
+    propositions = resolve_positive_propositions(text, language)
+    return tuple(
+        {
+            "family": proposition.family.value,
+            "rule": proposition.rule,
+            "clause_index": proposition.clause_index,
+            "activity_ref": proposition.activity_ref,
+            "source": text[proposition.source_start : proposition.source_end],
+            "mode": proposition.mode,
+            "exclusion_provenance": proposition.exclusion_provenance,
+            "retraction_provenance": proposition.retraction_provenance,
+        }
+        for proposition in propositions
+    )
 
 
 def dump_positive_propositions(
