@@ -591,6 +591,53 @@ def _b2rr_structural_cases() -> Iterable[tuple[str, str, int]]:
         yield message, language, start
 
 
+def _b2rs_positive_license_block_cases() -> Iterable[tuple[str, str, int | None]]:
+    cases = (
+        (
+            "Los 64 euros que cobraron junto con la compra que hice son fraude.",
+            "es",
+        ),
+        (
+            "R$ 47,50 que debitaram junto do Pix que eu fiz são golpe.",
+            "pt",
+        ),
+        (
+            "Lo que descontaron después del pago que autoricé es fraude.",
+            "es",
+        ),
+        (
+            "Tudo que cobraram junto da transferência que eu fiz é golpe.",
+            "pt",
+        ),
+        (
+            "La comisión que figura entre el retiro y la transferencia que hice es fraude.",
+            "es",
+        ),
+        (
+            "A tarifa que ficou entre o boleto e a compra que eu fiz é golpe.",
+            "pt",
+        ),
+        (
+            "Me cargaron dos veces junto al pago que autoricé, eso es fraude.",
+            "es",
+        ),
+        (
+            "Debitaram um valor extra junto do Pix que eu fiz, isso é golpe.",
+            "pt",
+        ),
+        (
+            "Veo un cobro desconocido. Apareció junto a la compra que hice y es fraude.",
+            "es",
+        ),
+        (
+            "Tem um débito estranho. Entrou junto do pagamento que eu autorizei e é golpe.",
+            "pt",
+        ),
+    )
+    for message, language in cases:
+        yield message, language, None
+
+
 def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
     cases = (
         (
@@ -673,6 +720,36 @@ def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
             "pt",
             "prior_nominal_conjunct",
         ),
+        (
+            "Yo mismo hice el [[pago]] y fue un fraude.",
+            "es",
+            "positive_license_self_frame",
+        ),
+        (
+            "Eu mesmo fiz este [[Pix]] e foi golpe.",
+            "pt",
+            "positive_license_self_frame",
+        ),
+        (
+            "Sinceramente, el [[pago]] que hice fue un fraude.",
+            "es",
+            "positive_license_discourse",
+        ),
+        (
+            "Na verdade, a [[compra]] que eu fiz foi golpe.",
+            "pt",
+            "positive_license_discourse",
+        ),
+        (
+            "Tanto el retiro como la [[transferencia]] que hice son fraude.",
+            "es",
+            "positive_license_paired_conjunct",
+        ),
+        (
+            "Tanto a mensagem quanto a [[transferência]] que eu fiz foram golpe.",
+            "pt",
+            "positive_license_paired_conjunct",
+        ),
     )
     for template, language, class_id in cases:
         message, start = _render_marked(template)
@@ -689,6 +766,7 @@ def _structural_cases() -> tuple[tuple[str, str, int | None], ...]:
         + list(_b2rp_structural_cases())
         + list(_b2rq_structural_cases())
         + list(_b2rr_structural_cases())
+        + list(_b2rs_positive_license_block_cases())
     )
     return tuple(dict.fromkeys(cases))
 
@@ -730,6 +808,9 @@ def test_g7f_property_legitimate_self_retention_has_per_class_minimums() -> None
     assert retained["two_activity_true_later"] >= 2
     assert retained["relative_nominal_conjunct"] >= 2
     assert retained["prior_nominal_conjunct"] >= 2
+    assert retained["positive_license_self_frame"] >= 2
+    assert retained["positive_license_discourse"] >= 2
+    assert retained["positive_license_paired_conjunct"] >= 2
 
 
 def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal() -> None:
@@ -869,6 +950,18 @@ def test_b2_final_property_structural_gap_classes_use_source_position_identity()
         )
 
 
+def test_b2rs_positive_license_blocks_unlicensed_self_positions() -> None:
+    cases = tuple(_b2rs_positive_license_block_cases())
+    assert len(cases) >= 10
+
+    for message, language, true_source_start in cases:
+        _assert_self_atoms_only_on_true_referent(
+            message,
+            language,
+            true_source_start,
+        )
+
+
 def test_b2rr_property_prior_nominal_guard_uses_source_position_identity() -> None:
     cases = tuple(_b2rr_structural_cases())
     assert len(cases) >= 6
@@ -930,6 +1023,10 @@ def test_g7f_property_surface_covers_required_structural_classes() -> None:
     assert any("destinado a revisar el pago" in message for message in messages)
     assert any("exigida para processar a transferência" in message for message in messages)
     assert any("pedindo verificar o pagamento" in message for message in messages)
+    assert any("64 euros" in message for message in messages)
+    assert any("Lo que descontaron" in message for message in messages)
+    assert any("entre el retiro y la transferencia" in message for message in messages)
+    assert any("isso é golpe" in message for message in messages)
     assert any(
         message.count("transferencia") >= 2
         for message, language, _ in cases
