@@ -36,6 +36,11 @@ _BASELINE_PATH = (
     / "fixtures"
     / "rf1h_g7f_pre_g7f_self_baseline.json"
 )
+_B2RQ_BASELINE_PATH = (
+    Path(__file__).parent
+    / "fixtures"
+    / "rf1h_b2rq_pre_repair_self_baseline.json"
+)
 
 _RETAIN_EXACT = "retain_exact"
 _REMOVE_STRICT = "remove_strict"
@@ -712,6 +717,39 @@ def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal
 
     assert transitions[_RETAIN_EXACT] >= 7
     assert transitions[_REMOVE_STRICT] >= 7
+    assert transitions[_PRESERVE_NONE] >= 2
+
+
+def test_b2rq_property_frozen_pre_repair_lineage_pins_exit_repair() -> None:
+    baseline = json.loads(_B2RQ_BASELINE_PATH.read_text(encoding="utf-8"))
+
+    assert baseline["schema"] == "rf1h-b2rq-pre-repair-self-baseline-v1"
+    assert (
+        baseline["frozen_public_sha"]
+        == "e2d99180ef9ed982ce8e68cc1210b4f692129b80"
+    )
+    assert baseline["classification"] == "DEVELOPMENT-KNOWN"
+    assert len(baseline["cases"]) >= 12
+
+    transitions = Counter()
+    for case in baseline["cases"]:
+        prior = frozenset(
+            (
+                atom["activity_source_start"],
+                atom["kind"],
+            )
+            for atom in case["self_atoms"]
+        )
+        current = _self_atom_signatures(
+            case["message"],
+            case["language"],
+        )
+        transition = case["transition"]
+        _assert_lineage_transition(prior, current, transition)
+        transitions[transition] += 1
+
+    assert transitions[_RETAIN_EXACT] >= 4
+    assert transitions[_REMOVE_STRICT] >= 6
     assert transitions[_PRESERVE_NONE] >= 2
 
 
