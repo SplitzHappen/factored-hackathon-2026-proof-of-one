@@ -7183,11 +7183,12 @@ def build_positive_propositions(
 
 
 _B3_MODE_PRECEDENCE = {
-    PropositionMode.AUTHORIZED_THIRD_PARTY: 0,
-    PropositionMode.HYPOTHETICAL: 1,
-    PropositionMode.UNCERTAIN: 2,
-    PropositionMode.INFORMATION_REQUEST: 3,
-    PropositionMode.QUESTIONED: 4,
+    PropositionMode.REPORTED_PRIOR_BELIEF: 0,
+    PropositionMode.AUTHORIZED_THIRD_PARTY: 1,
+    PropositionMode.HYPOTHETICAL: 2,
+    PropositionMode.UNCERTAIN: 3,
+    PropositionMode.INFORMATION_REQUEST: 4,
+    PropositionMode.QUESTIONED: 5,
     PropositionMode.ASSERTIVE: 99,
 }
 
@@ -7422,6 +7423,453 @@ def _b3_authorized_third_party_domains(
     return tuple(domains)
 
 
+_ES_REPORTED_PRIOR_BELIEF_FRAMES = (
+    ("pense", "que"),
+    ("crei", "que"),
+)
+_PT_REPORTED_PRIOR_BELIEF_FRAMES = (
+    ("achei", "que"),
+    ("pensei", "que"),
+    ("ia", "dizer", "que"),
+)
+
+_ES_RETRACTION_DISTINGUISHERS = frozenset(
+    {
+        "otro", "otra", "otros", "otras",
+        "anterior", "ayer",
+        "primero", "primera", "primeros", "primeras",
+        "segundo", "segunda", "segundos", "segundas",
+    }
+)
+_PT_RETRACTION_DISTINGUISHERS = frozenset(
+    {
+        "outro", "outra", "outros", "outras",
+        "anterior", "ontem",
+        "primeiro", "primeira", "primeiros", "primeiras",
+        "segundo", "segunda", "segundos", "segundas",
+    }
+)
+_ES_OWNERSHIP_AFFIRM = frozenset({"mio", "mia", "mios", "mias"})
+_PT_OWNERSHIP_AFFIRM = frozenset({"meu", "minha", "meus", "minhas"})
+_ES_SELF_CORRECTION_COPULA = frozenset({"soy", "fui", "era"})
+_PT_SELF_CORRECTION_COPULA = frozenset({"sou", "fui", "era"})
+
+
+@dataclass(frozen=True)
+class _B3RetractionCorrection:
+    axis: str
+    clause_index: int
+    token_start: int
+    token_end: int
+    activity_token_span: tuple[int, int] | None
+    has_activity_anaphor: bool
+    has_distinguishing_referent: bool
+    provenance: str
+
+
+def _b3_reported_prior_belief_domains(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[ScopeDomain, ...]:
+    """Recognize the frozen R7 past-belief frames as local nonassertive scope."""
+
+    frames = (
+        _ES_REPORTED_PRIOR_BELIEF_FRAMES
+        if language == "es"
+        else _PT_REPORTED_PRIOR_BELIEF_FRAMES
+    )
+    domains: list[ScopeDomain] = []
+    words = [token.normalized for token in analysis.tokens]
+
+    for index in range(clause.token_start, clause.token_end):
+        for frame in frames:
+            end = index + len(frame)
+            if end > clause.token_end:
+                continue
+            if tuple(words[index:end]) != frame:
+                continue
+            if (
+                language == "es"
+                and frame[0] in {"pense", "crei"}
+                and not analysis.tokens[index].had_acute
+            ):
+                continue
+            domains.append(
+                ScopeDomain(
+                    mode=PropositionMode.REPORTED_PRIOR_BELIEF,
+                    token_start=index,
+                    token_end=_b3_domain_end(analysis, clause, index),
+                    provenance=(
+                        "R7:reported_prior_belief:"
+                        + "_".join(frame)
+                    ),
+                )
+            )
+    return tuple(domains)
+
+
+def _b3_proposition_axis(
+    proposition: PositiveProposition,
+) -> str | None:
+    if proposition.family is PropositionFamily.OWNERSHIP_DENIAL:
+        return "own"
+    if proposition.family in {
+        PropositionFamily.PERFORMANCE_DENIAL,
+        PropositionFamily.ORIGINATION_DENIAL,
+    }:
+        return "perform"
+    if proposition.family is PropositionFamily.AUTHORIZATION_DENIAL:
+        return "authorize"
+    if (
+        proposition.family is PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE
+        and "exceeded-authorization" not in proposition.rule
+    ):
+        return "authorize"
+    return None
+
+
+def _b3_region_has_denial(
+    analysis: FoundationAnalysis,
+    start: int,
+    end: int,
+) -> bool:
+    return any(
+        analysis.tags[index]
+        & {
+            LexicalTag.NEGATOR,
+            LexicalTag.NEG_QUANTIFIER,
+            LexicalTag.COORD_NEGATION,
+        }
+        for index in range(start, end)
+    )
+
+
+def _b3_correction_activity_span(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    start: int,
+    end: int,
+) -> tuple[int, int] | None:
+    return next(
+        (
+            span
+            for span in _activity_spans(analysis, clause)
+            if start <= span[0] < end
+        ),
+        None,
+    )
+
+
+def _b3_retraction_corrections(
+    analysis: FoundationAnalysis,
+    language: str,
+) -> tuple[_B3RetractionCorrection, ...]:
+    """Return bounded affirmative corrections following an explicit contrast."""
+
+    anaphors = (
+        _ES_ACTIVITY_ANAPHORS
+        if language == "es"
+        else _PT_ACTIVITY_ANAPHORS
+    )
+    distinguishers = (
+        _ES_RETRACTION_DISTINGUISHERS
+        if language == "es"
+        else _PT_RETRACTION_DISTINGUISHERS
+    )
+    ownership_words = (
+        _ES_OWNERSHIP_AFFIRM
+        if language == "es"
+        else _PT_OWNERSHIP_AFFIRM
+    )
+    self_copulas = (
+        _ES_SELF_CORRECTION_COPULA
+        if language == "es"
+        else _PT_SELF_CORRECTION_COPULA
+    )
+    self_pronoun = "yo" if language == "es" else "eu"
+    words = [token.normalized for token in analysis.tokens]
+    output: list[_B3RetractionCorrection] = []
+
+    for clause in analysis.clauses:
+        boundaries = [
+            index
+            for index in range(clause.token_start, clause.token_end)
+            if LexicalTag.CONTRAST in analysis.tags[index]
+        ]
+        for boundary in boundaries:
+            region_start = boundary + 1
+            region_end = _b3_domain_end(analysis, clause, boundary)
+            if region_start >= region_end:
+                continue
+
+            activity_span = _b3_correction_activity_span(
+                analysis,
+                clause,
+                region_start,
+                region_end,
+            )
+            has_anaphor = any(
+                words[index] in anaphors
+                for index in range(region_start, region_end)
+                if activity_span is None or index != activity_span[0]
+            )
+            has_distinguishing = any(
+                words[index] in distinguishers
+                for index in range(region_start, region_end)
+            )
+
+            for predicate in analysis.predicates:
+                if not (
+                    region_start
+                    <= predicate.token_start
+                    < predicate.token_end
+                    <= region_end
+                ):
+                    continue
+                if predicate.form.person != 1:
+                    continue
+                if predicate.form.mood != "indicative":
+                    continue
+                if predicate.form.tense_aspect in {"future", "conditional"}:
+                    continue
+                if not _source_accent_selects_predicate(analysis, predicate):
+                    continue
+                if _b3_region_has_denial(
+                    analysis,
+                    region_start,
+                    predicate.token_end,
+                ):
+                    continue
+
+                axis: str | None = None
+                if predicate.form.family in {
+                    PredicateFamily.PERFORM,
+                    PredicateFamily.ORIGINATE,
+                }:
+                    axis = "perform"
+                elif predicate.form.family is PredicateFamily.AUTHORIZE:
+                    axis = "authorize"
+                elif predicate.form.family is PredicateFamily.GIVE_PERMISSION:
+                    if any(
+                        LexicalTag.AUTH_NOUN in analysis.tags[index]
+                        for index in range(
+                            predicate.token_end,
+                            region_end,
+                        )
+                    ):
+                        axis = "authorize"
+
+                if axis is None:
+                    continue
+                output.append(
+                    _B3RetractionCorrection(
+                        axis=axis,
+                        clause_index=clause.index,
+                        token_start=region_start,
+                        token_end=region_end,
+                        activity_token_span=activity_span,
+                        has_activity_anaphor=has_anaphor,
+                        has_distinguishing_referent=has_distinguishing,
+                        provenance=(
+                            f"M7:retraction:{axis}:"
+                            f"{analysis.tokens[boundary].normalized}"
+                        ),
+                    )
+                )
+
+            for copula_index in range(region_start, region_end):
+                if words[copula_index] not in (
+                    _ES_COPULA if language == "es" else _PT_COPULA
+                ):
+                    continue
+                ownership_index = next(
+                    (
+                        index
+                        for index in range(
+                            copula_index + 1,
+                            min(region_end, copula_index + 4),
+                        )
+                        if words[index] in ownership_words
+                    ),
+                    None,
+                )
+                if ownership_index is None:
+                    continue
+                if _b3_region_has_denial(
+                    analysis,
+                    region_start,
+                    ownership_index + 1,
+                ):
+                    continue
+                output.append(
+                    _B3RetractionCorrection(
+                        axis="own",
+                        clause_index=clause.index,
+                        token_start=region_start,
+                        token_end=region_end,
+                        activity_token_span=activity_span,
+                        has_activity_anaphor=has_anaphor,
+                        has_distinguishing_referent=has_distinguishing,
+                        provenance=(
+                            "M7:retraction:own:"
+                            f"{analysis.tokens[boundary].normalized}"
+                        ),
+                    )
+                )
+                break
+
+            for copula_index in range(region_start, region_end):
+                if words[copula_index] not in self_copulas:
+                    continue
+                window_start = max(region_start, copula_index - 2)
+                window_end = min(region_end, copula_index + 3)
+                if not any(
+                    words[index] == self_pronoun
+                    for index in range(window_start, window_end)
+                ):
+                    continue
+                if _b3_region_has_denial(
+                    analysis,
+                    region_start,
+                    window_end,
+                ):
+                    continue
+                output.append(
+                    _B3RetractionCorrection(
+                        axis="perform",
+                        clause_index=clause.index,
+                        token_start=region_start,
+                        token_end=region_end,
+                        activity_token_span=activity_span,
+                        has_activity_anaphor=has_anaphor,
+                        has_distinguishing_referent=has_distinguishing,
+                        provenance=(
+                            "M7:retraction:perform:"
+                            f"{analysis.tokens[boundary].normalized}"
+                        ),
+                    )
+                )
+                break
+
+    unique: dict[
+        tuple[str, int, int, int, tuple[int, int] | None],
+        _B3RetractionCorrection,
+    ] = {}
+    for correction in output:
+        key = (
+            correction.axis,
+            correction.clause_index,
+            correction.token_start,
+            correction.token_end,
+            correction.activity_token_span,
+        )
+        unique[key] = correction
+    return tuple(unique.values())
+
+
+def _b3_txid_key(
+    analysis: FoundationAnalysis,
+    span: tuple[int, int] | None,
+) -> tuple[str | None, str | None] | None:
+    if span is None:
+        return None
+    token = analysis.tokens[span[0]]
+    if not token.is_txid:
+        return None
+    return token.txid_language, token.txid_digits
+
+
+def _b3_retraction_referent_matches(
+    analysis: FoundationAnalysis,
+    proposition: PositiveProposition,
+    correction: _B3RetractionCorrection,
+) -> bool:
+    if correction.has_distinguishing_referent:
+        return False
+
+    prior_span = proposition.activity_token_span
+    correction_span = correction.activity_token_span
+    prior_txid = _b3_txid_key(analysis, prior_span)
+    correction_txid = _b3_txid_key(analysis, correction_span)
+
+    if correction_txid is not None:
+        return prior_txid == correction_txid
+
+    if correction_span is not None:
+        if prior_span is None:
+            return False
+        if prior_txid is not None:
+            return False
+        return (
+            analysis.tokens[prior_span[0]].normalized
+            == analysis.tokens[correction_span[0]].normalized
+        )
+
+    if correction.has_activity_anaphor:
+        return prior_span is not None or proposition.activity_ref == "topic_transaction"
+
+    return False
+
+
+def _b3_apply_retractions(
+    analysis: FoundationAnalysis,
+    propositions: tuple[PositiveProposition, ...],
+    language: str,
+) -> tuple[PositiveProposition, ...]:
+    """Apply M7 only to the latest prior assertive proposition with same identity."""
+
+    resolved = list(propositions)
+    for correction in _b3_retraction_corrections(analysis, language):
+        candidate_indices = [
+            index
+            for index, proposition in enumerate(resolved)
+            if proposition.mode == PropositionMode.ASSERTIVE.value
+            and proposition.token_end <= correction.token_start
+            and 0
+            <= correction.clause_index - proposition.clause_index
+            <= 1
+            and _b3_proposition_axis(proposition) == correction.axis
+        ]
+        if not candidate_indices:
+            continue
+
+        matched_indices = [
+            index
+            for index in candidate_indices
+            if _b3_retraction_referent_matches(
+                analysis,
+                resolved[index],
+                correction,
+            )
+        ]
+
+        if (
+            not matched_indices
+            and correction.activity_token_span is None
+            and not correction.has_activity_anaphor
+            and not correction.has_distinguishing_referent
+            and len(candidate_indices) == 1
+        ):
+            matched_indices = candidate_indices
+
+        if not matched_indices:
+            continue
+
+        selected_index = max(
+            matched_indices,
+            key=lambda index: resolved[index].token_end,
+        )
+        selected = resolved[selected_index]
+        resolved[selected_index] = replace(
+            selected,
+            mode=PropositionMode.RETRACTED.value,
+            retraction_provenance=(correction.provenance,),
+        )
+
+    return tuple(resolved)
+
+
 def _b3_operator_domains_for_clause(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -7449,6 +7897,14 @@ def _b3_operator_domains_for_clause(
                     provenance=f"M3:uncertainty:{analysis.tokens[index].normalized}",
                 )
             )
+
+    domains.extend(
+        _b3_reported_prior_belief_domains(
+            analysis,
+            clause,
+            language,
+        )
+    )
 
     question = _b3_question_domain(analysis, clause)
     if question is not None:
@@ -7624,9 +8080,9 @@ def resolve_positive_propositions(
 
     This audit/debug API currently implements explicit conditional,
     lexical-uncertainty, bounded security/prevention information-request,
-    authorized-third-party, and question domains. M5 remains pre-filtered by
-    B2 target typing; M7 and message-level retraction remain intentionally
-    deferred. Production boolean behavior is not switched by this function.
+    authorized-third-party, question, reported-prior-belief, and message-level
+    same-proposition retraction handling. M5 remains pre-filtered by B2 target
+    typing. Production boolean behavior is not switched by this function.
     """
 
     analysis = analyze_foundation(text, language)
@@ -7691,7 +8147,11 @@ def resolve_positive_propositions(
             )
         )
 
-    return tuple(resolved)
+    return _b3_apply_retractions(
+        analysis,
+        tuple(resolved),
+        language,
+    )
 
 
 def dump_resolved_propositions(

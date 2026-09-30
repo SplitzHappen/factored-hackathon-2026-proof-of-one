@@ -348,3 +348,214 @@ def test_b3_3_recovery_requires_bounded_authorization_or_question_scope() -> Non
         proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
         for proposition in propositions
     )
+
+
+def test_b3_4_spanish_same_activity_performance_correction_retracts() -> None:
+    propositions = resolve_positive_propositions(
+        "No hice esta transferencia, pero sí la hice.",
+        "es",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert item.mode == PropositionMode.RETRACTED.value
+    assert item.retraction_provenance == ("M7:retraction:perform:pero",)
+
+
+def test_b3_4_portuguese_same_activity_authorization_correction_retracts() -> None:
+    propositions = resolve_positive_propositions(
+        "Eu não autorizei esta compra, mas autorizei esta compra sim.",
+        "pt",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.AUTHORIZATION_DENIAL
+    )
+
+    assert item.mode == PropositionMode.RETRACTED.value
+    assert item.retraction_provenance == ("M7:retraction:authorize:mas",)
+
+
+def test_b3_4_portuguese_ownership_correction_retracts() -> None:
+    propositions = resolve_positive_propositions(
+        "Esta transferência não é minha, mas é minha sim.",
+        "pt",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.OWNERSHIP_DENIAL
+    )
+
+    assert item.mode == PropositionMode.RETRACTED.value
+    assert item.retraction_provenance == ("M7:retraction:own:mas",)
+
+
+def test_b3_4_different_activity_referent_is_not_retracted() -> None:
+    propositions = resolve_positive_propositions(
+        "No hice esta transferencia, pero sí hice otra transferencia.",
+        "es",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert item.mode == PropositionMode.ASSERTIVE.value
+    assert item.retraction_provenance == ()
+
+
+def test_b3_4_same_txid_correction_retracts() -> None:
+    propositions = resolve_positive_propositions(
+        "No hice DEMO-ES-0001, pero sí hice DEMO-ES-0001.",
+        "es",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert item.mode == PropositionMode.RETRACTED.value
+
+
+def test_b3_4_different_txid_correction_does_not_retract() -> None:
+    propositions = resolve_positive_propositions(
+        "No hice DEMO-ES-0001, pero sí hice DEMO-ES-0002.",
+        "es",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert item.mode == PropositionMode.ASSERTIVE.value
+    assert item.retraction_provenance == ()
+
+
+def test_b3_4_retracted_first_assertion_does_not_suppress_new_assertion() -> None:
+    propositions = resolve_positive_propositions(
+        "No hice esta transferencia, pero sí la hice, "
+        "y esta otra compra no es mía.",
+        "es",
+    )
+    performance = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+    ownership = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.OWNERSHIP_DENIAL
+    )
+
+    assert performance.mode == PropositionMode.RETRACTED.value
+    assert ownership.mode == PropositionMode.ASSERTIVE.value
+    assert ownership.retraction_provenance == ()
+
+
+def test_b3_4_spanish_reported_prior_belief_is_nonassertive() -> None:
+    propositions = resolve_positive_propositions(
+        "Pensé que no hice esta transferencia.",
+        "es",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert item.mode == PropositionMode.REPORTED_PRIOR_BELIEF.value
+    assert item.exclusion_provenance == (
+        "R7:reported_prior_belief:pense_que",
+    )
+
+
+def test_b3_4_portuguese_reported_prior_belief_is_nonassertive() -> None:
+    propositions = resolve_positive_propositions(
+        "Achei que eu não fiz esta transferência.",
+        "pt",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert item.mode == PropositionMode.REPORTED_PRIOR_BELIEF.value
+    assert item.exclusion_provenance == (
+        "R7:reported_prior_belief:achei_que",
+    )
+
+
+def test_b3_4_reported_prior_belief_does_not_suppress_later_assertion() -> None:
+    propositions = resolve_positive_propositions(
+        "Pensé que no hice esta transferencia, "
+        "pero esta otra compra no es mía.",
+        "es",
+    )
+    performance = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+    ownership = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.OWNERSHIP_DENIAL
+    )
+
+    assert performance.mode == PropositionMode.REPORTED_PRIOR_BELIEF.value
+    assert ownership.mode == PropositionMode.ASSERTIVE.value
+
+
+def test_b3_4_portuguese_ia_dizer_frame_is_reported_prior_belief() -> None:
+    propositions = resolve_positive_propositions(
+        "Ia dizer que eu não fiz esta transferência.",
+        "pt",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert item.mode == PropositionMode.REPORTED_PRIOR_BELIEF.value
+
+
+
+def test_b3_4_retraction_does_not_cross_unrelated_intervening_clause() -> None:
+    propositions = resolve_positive_propositions(
+        "No hice esta transferencia. Hablamos de otra cosa. Pero sí la hice.",
+        "es",
+    )
+    item = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert item.mode == PropositionMode.ASSERTIVE.value
+    assert item.retraction_provenance == ()
+
+
+def test_b3_4_correction_on_different_semantic_axis_does_not_retract() -> None:
+    propositions = resolve_positive_propositions(
+        "No hice esta transferencia, pero sí autoricé esta transferencia.",
+        "es",
+    )
+    performance = next(
+        proposition
+        for proposition in propositions
+        if proposition.family is PropositionFamily.PERFORMANCE_DENIAL
+    )
+
+    assert performance.mode == PropositionMode.ASSERTIVE.value
+    assert performance.retraction_provenance == ()
