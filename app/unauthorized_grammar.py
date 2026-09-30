@@ -8076,13 +8076,14 @@ def resolve_positive_propositions(
     text: str,
     language: str,
 ) -> tuple[PositiveProposition, ...]:
-    """Apply the first bounded RF1H-B3 local-mode scaffold.
+    """Resolve positive propositions for the RF1H structural classifier.
 
-    This audit/debug API currently implements explicit conditional,
-    lexical-uncertainty, bounded security/prevention information-request,
-    authorized-third-party, question, reported-prior-belief, and message-level
-    same-proposition retraction handling. M5 remains pre-filtered by B2 target
-    typing. Production boolean behavior is not switched by this function.
+    Resolution covers explicit conditional, lexical-uncertainty, bounded
+    security/prevention information-request, authorized-third-party, question,
+    reported-prior-belief, and message-level same-proposition retraction
+    handling. M5 remains pre-filtered by B2 target typing. The public boolean
+    compatibility wrapper treats only ASSERTIVE resolved propositions as
+    explicit unauthorized assertions.
     """
 
     analysis = analyze_foundation(text, language)
