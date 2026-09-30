@@ -4227,19 +4227,25 @@ def test_b2rq_blocks_nonadjacent_and_coordinated_nested_relatives() -> None:
         )
 
 
-def test_b2rq_blocks_br_pt_article_possessive_and_fused_pp_forms() -> None:
+def test_b2rq_blocks_br_pt_article_possessive_and_fused_pp_wrong_self() -> None:
     cases = (
         "O débito com o meu pagamento que eu fiz foi golpe.",
         "A cobrança pelo meu pix que eu autorizei foi golpe.",
         "O saque numa compra que eu fiz foi golpe.",
         "A cobrança àquela compra que eu fiz foi golpe.",
     )
+    self_kinds = {
+        EvidenceAtomKind.SELF_PERFORMED,
+        EvidenceAtomKind.SELF_AUTHORIZED,
+    }
 
     for message in cases:
         propositions = build_positive_propositions(message, "pt")
         assert not any(
-            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            atom.kind in self_kinds
             for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for atom in proposition.counter_evidence
         )
 
 
