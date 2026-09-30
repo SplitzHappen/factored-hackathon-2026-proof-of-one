@@ -5521,6 +5521,8 @@ def _p6_self_counter_evidence_is_unsafe(
         activity_span,
         language,
     )
+
+
 def _fraud_copular_propositions(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
