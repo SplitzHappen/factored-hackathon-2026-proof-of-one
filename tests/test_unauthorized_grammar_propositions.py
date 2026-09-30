@@ -2987,18 +2987,13 @@ def test_b2r_g5c_p6_skips_embedded_activity_referent_in_portuguese() -> None:
     assert not item.counter_evidence
 
 
-def test_b2r_g5c_p6_preserves_valid_que_relative_activity_head() -> None:
-    es = _families(
-        "La transferencia que hice fue un fraude.",
-        "es",
+def test_b2rt_scope_reduction_suppresses_valid_que_relative_copular_self() -> None:
+    cases = (
+        ("La transferencia que hice fue un fraude.", "es"),
+        ("O Pix que eu fiz foi golpe.", "pt"),
     )
-    pt = _families(
-        "O Pix que eu fiz foi golpe.",
-        "pt",
-    )
-
-    assert PropositionFamily.FRAUD_CHARACTERIZATION in es
-    assert PropositionFamily.FRAUD_CHARACTERIZATION in pt
+    for message, language in cases:
+        _assert_no_copular_p6(message, language)
 
 def test_b2r_g5d_p6_que_on_fraud_noun_does_not_donate_self_counter_evidence() -> None:
     message = "Esta transferencia fue un fraude que descubrí cuando hice el reclamo."
