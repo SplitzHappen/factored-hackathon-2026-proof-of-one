@@ -6454,6 +6454,58 @@ def _argumentless_self_exculpation(
     ]
 
 
+
+def _p7_wh_question_relative_anchor(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    predicate: PredicateMatch,
+    language: str,
+) -> bool:
+    """Allow only the frozen G2 wh-question relative-clause P7 anchor."""
+
+    boundary_index = clause.token_end
+    has_question_boundary = (
+        boundary_index < len(analysis.tokens)
+        and analysis.tokens[boundary_index].normalized == "?"
+    )
+    opener = next(
+        (
+            index
+            for index in range(clause.token_start, clause.token_end)
+            if LexicalTag.QUESTION_OPEN in analysis.tags[index]
+        ),
+        None,
+    )
+    if opener is None and not has_question_boundary:
+        return False
+
+    first = opener + 1 if opener is not None else clause.token_start
+    if first >= clause.token_end:
+        return False
+
+    words = tuple(token.normalized for token in analysis.tokens)
+    wh_words = (
+        frozenset({"como", "que", "quien", "quienes", "cual", "cuales", "donde", "cuando"})
+        if language == "es"
+        else frozenset({"como", "que", "quem", "qual", "quais", "onde", "quando"})
+    )
+    first_word = words[first]
+    wh_question = first_word in wh_words or (
+        first_word in {"a", "de", "por", "para"}
+        and first + 1 < clause.token_end
+        and words[first + 1] in wh_words
+    )
+    if not wh_question:
+        return False
+
+    activity_end = activity_span[1]
+    if activity_end >= predicate.token_start:
+        return False
+
+    return "que" in words[activity_end:predicate.token_start]
+
+
 def _activity_nonrecognition(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -6509,6 +6561,12 @@ def _activity_nonrecognition(
                 analysis,
                 clause,
                 target_span,
+                language,
+            ) and not _p7_wh_question_relative_anchor(
+                analysis,
+                clause,
+                target_span,
+                predicate,
                 language,
             ):
                 continue

@@ -92,3 +92,23 @@ def test_b5_frozen_english_code_switch_action_atom_is_preserved(
     message: str,
 ) -> None:
     assert unauthorized_signals.is_explicit_unauthorized_assertion(message) is True
+
+
+@pytest.mark.parametrize(
+    ("message", "language"),
+    [
+        ("¿Cómo reporto una compra que no reconozco?", "es"),
+        ("Como reporto uma compra que não reconheço?", "pt"),
+    ],
+)
+def test_b5_wh_help_relative_activity_is_bounded_positive(
+    message: str,
+    language: str,
+) -> None:
+    propositions = resolve_positive_propositions(message, language)
+
+    assert any(
+        proposition.mode == PropositionMode.ASSERTIVE.value
+        for proposition in propositions
+    )
+    assert unauthorized_signals.is_explicit_unauthorized_assertion(message) is True
