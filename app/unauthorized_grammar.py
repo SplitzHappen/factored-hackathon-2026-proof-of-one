@@ -8125,10 +8125,15 @@ def _b3_question_preserves_assertive_relative(
         ),
         None,
     )
-    if opener is None:
+    boundary_index = clause.token_end
+    has_question_boundary = (
+        boundary_index < len(analysis.tokens)
+        and analysis.tokens[boundary_index].normalized == "?"
+    )
+    if opener is None and not has_question_boundary:
         return False
 
-    first = opener + 1
+    first = opener + 1 if opener is not None else clause.token_start
     if first >= clause.token_end:
         return False
     words = tuple(token.normalized for token in analysis.tokens)
