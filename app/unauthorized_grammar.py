@@ -433,6 +433,12 @@ _ES_IRREGULAR: dict[str, dict[str, tuple[str, ...]]] = {
         "imperfect": ("reconocía", "reconocías", "reconocía", "reconocíamos", "reconocíais", "reconocían"),
         "present_subjunctive": ("reconozca", "reconozcas", "reconozca", "reconozcamos", "reconozcáis", "reconozcan"),
     },
+    "desconocer": {
+        "present": ("desconozco", "desconoces", "desconoce", "desconocemos", "desconocéis", "desconocen"),
+        "preterite": ("desconocí", "desconociste", "desconoció", "desconocimos", "desconocisteis", "desconocieron"),
+        "imperfect": ("desconocía", "desconocías", "desconocía", "desconocíamos", "desconocíais", "desconocían"),
+        "present_subjunctive": ("desconozca", "desconozcas", "desconozca", "desconozcamos", "desconozcáis", "desconozcan"),
+    },
 }
 
 _PT_IRREGULAR: dict[str, dict[str, tuple[str, ...]]] = {
@@ -466,6 +472,12 @@ _PT_IRREGULAR: dict[str, dict[str, tuple[str, ...]]] = {
         "imperfect": ("reconhecia", "reconhecias", "reconhecia", "reconhecíamos", "reconhecíeis", "reconheciam"),
         "present_subjunctive": ("reconheça", "reconheças", "reconheça", "reconheçamos", "reconheçais", "reconheçam"),
     },
+    "desconhecer": {
+        "present": ("desconheço", "desconheces", "desconhece", "desconhecemos", "desconheceis", "desconhecem"),
+        "preterite": ("desconheci", "desconheceste", "desconheceu", "desconhecemos", "desconhecestes", "desconheceram"),
+        "imperfect": ("desconhecia", "desconhecias", "desconhecia", "desconhecíamos", "desconhecíeis", "desconheciam"),
+        "present_subjunctive": ("desconheça", "desconheças", "desconheça", "desconheçamos", "desconheçais", "desconheçam"),
+    },
 }
 
 
@@ -485,7 +497,7 @@ _ES_LEMMAS: dict[PredicateFamily, tuple[str, ...]] = {
     PredicateFamily.ORIGINATE: ("salir", "partir", "provenir", "venir"),
     PredicateFamily.AUTHORIZE: ("autorizar", "aprobar", "consentir", "permitir"),
     PredicateFamily.GIVE_PERMISSION: ("dar",),
-    PredicateFamily.RECOGNIZE: ("reconocer", "identificar"),
+    PredicateFamily.RECOGNIZE: ("reconocer", "identificar", "desconocer"),
     PredicateFamily.USE_ACCESS: (
         "usar",
         "utilizar",
@@ -514,7 +526,7 @@ _PT_LEMMAS: dict[PredicateFamily, tuple[str, ...]] = {
     PredicateFamily.ORIGINATE: ("partir", "sair", "vir"),
     PredicateFamily.AUTHORIZE: ("autorizar", "aprovar", "consentir", "permitir"),
     PredicateFamily.GIVE_PERMISSION: ("dar",),
-    PredicateFamily.RECOGNIZE: ("reconhecer", "identificar"),
+    PredicateFamily.RECOGNIZE: ("reconhecer", "identificar", "desconhecer"),
     PredicateFamily.USE_ACCESS: (
         "usar",
         "utilizar",
@@ -1104,6 +1116,14 @@ def _next_predicate_index(
     return None
 
 
+_ES_HYPOTHETICAL_OUTCOME_FRAMES = frozenset(
+    {("resultara", "que"), ("resultase", "que")}
+)
+_PT_HYPOTHETICAL_OUTCOME_FRAMES = frozenset(
+    {("resultar", "que"), ("acontecer", "que")}
+)
+
+
 def _is_conditional_marker(
     index: int,
     tokens: tuple[Token, ...],
@@ -1132,6 +1152,20 @@ def _is_conditional_marker(
         language == "pt"
         and words[index + 1 : index + 3] == ("um", "dia")
     )
+    # RF1I-R1: a closed "if it turned out that ..." frame introduces a bounded
+    # hypothetical whose finite predicate can follow a longer subject NP than
+    # the default conditional window allows.
+    hypothetical_outcome_frame = (
+        language == "es"
+        and words[index + 1 : index + 3] in _ES_HYPOTHETICAL_OUTCOME_FRAMES
+    ) or (
+        language == "pt"
+        and words[index + 1 : index + 3] in _PT_HYPOTHETICAL_OUTCOME_FRAMES
+    )
+    if hypothetical_outcome_frame:
+        # The frame itself is an unambiguous hypothetical opener; it does not
+        # need a following finite predicate (e.g. copular "no es mío").
+        return True
     max_gap = 10 if indefinite_future_frame else 5
 
     for predicate in predicates:
@@ -1194,6 +1228,21 @@ def tag_tokens(
         if word in third_party:
             current.add(LexicalTag.THIRD_PARTY)
         if word in neg_quant:
+            current.add(LexicalTag.NEG_QUANTIFIER)
+        # RF1I-R1: closed temporal negative-quantifier idioms. The tag sits on
+        # the idiom's last token so it stays adjacent to the denied predicate.
+        if (
+            language == "es"
+            and word == "momento"
+            and index >= 1
+            and token_tuple[index - 1].normalized == "ningun"
+        ) or (
+            language == "pt"
+            and word == "algum"
+            and index >= 2
+            and token_tuple[index - 1].normalized == "momento"
+            and token_tuple[index - 2].normalized == "em"
+        ):
             current.add(LexicalTag.NEG_QUANTIFIER)
         if word in auth_noun:
             current.add(LexicalTag.AUTH_NOUN)
@@ -1831,6 +1880,8 @@ _ES_P1_NEG_QUANT_BRIDGES = frozenset(
         "este", "esta", "estos", "estas",
         "ese", "esa", "esos", "esas",
         "aquel", "aquella", "aquellos", "aquellas",
+        # RF1I-R1: "ninguno de estos tres cargos" — closed numeral partitive.
+        *_ES_NOMINAL_NUMERALS,
     }
 )
 _PT_P1_NEG_QUANT_BRIDGES = frozenset(
@@ -1840,6 +1891,7 @@ _PT_P1_NEG_QUANT_BRIDGES = frozenset(
         "deste", "desta", "destes", "destas",
         "desse", "dessa", "desses", "dessas",
         "daquele", "daquela", "daqueles", "daquelas",
+        *_PT_NOMINAL_NUMERALS,
     }
 )
 
@@ -2151,6 +2203,55 @@ def _p1_bounded_elliptical_coordination(
     )
 
 
+def _p1_parenthetical_relative_only(
+    analysis: FoundationAnalysis,
+    start: int,
+    copula_index: int,
+    language: str,
+) -> bool:
+    """Allow exactly one bounded appositive relative between subject and copula.
+
+    ", que passou depois, não é minha": a comma-delimited "que ..." relative of
+    at most four tokens with no activity or negation inside, followed only by
+    closed denial words before the copula (RF1I-R1). Anything else keeps the
+    separator a hard barrier.
+    """
+
+    words = [token.normalized for token in analysis.tokens]
+    cursor = start
+    if cursor < copula_index and words[cursor] == ",":
+        cursor += 1
+    if cursor >= copula_index or words[cursor] != "que":
+        return False
+    closing = next(
+        (
+            index
+            for index in range(cursor + 1, min(copula_index, cursor + 6))
+            if words[index] == ","
+        ),
+        None,
+    )
+    if closing is None:
+        return False
+    if any(
+        LexicalTag.ACTIVITY in analysis.tags[index]
+        or LexicalTag.NEGATOR in analysis.tags[index]
+        or LexicalTag.NEG_QUANTIFIER in analysis.tags[index]
+        or analysis.tokens[index].surface in _STRUCTURAL_PUNCTUATION
+        for index in range(cursor + 1, closing)
+    ):
+        return False
+    denial_words = (
+        {"no", "nunca", "jamas", "tampoco"}
+        if language == "es"
+        else {"nao", "nunca", "jamais", "tampouco"}
+    )
+    return all(
+        words[index] in denial_words
+        for index in range(closing + 1, copula_index)
+    )
+
+
 def _p1_activity_subject(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -2176,6 +2277,11 @@ def _p1_activity_subject(
         if any(
             words[index] in hard_separators
             for index in range(span[1], copula_index)
+        ) and not _p1_parenthetical_relative_only(
+            analysis,
+            span[1],
+            copula_index,
+            language,
         ):
             continue
 
@@ -2986,6 +3092,74 @@ def _permission_denial_backlink(
     return None
 
 
+def _relative_billed_item_anchor(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> tuple[int, int] | None:
+    """Anchor a consent denial inside a relative clause on a billed item.
+
+    "una suscripción mensual a la que nunca di mi consentimiento": the denial is
+    the predicate of a prepositional relative whose antecedent is a closed
+    recurring-billing noun. Bare consent denials (no such antecedent) stay
+    outside P4 by the B2 boundary.
+    """
+
+    words = [token.normalized for token in analysis.tokens]
+    articles = (
+        {"el", "la", "lo", "los", "las"}
+        if language == "es"
+        else {"o", "a", "os", "as"}
+    )
+    prepositions = (
+        {"a", "al", "para"}
+        if language == "es"
+        else {"a", "ao", "aos", "para", "pra"}
+    )
+    relatives = {"que", "cual"} if language == "es" else {"que", "qual"}
+    bridge = (
+        {"yo", "nunca", "jamas", "no", "me", "te", "se"}
+        if language == "es"
+        else {"eu", "nunca", "jamais", "nao", "me", "te", "se"}
+    )
+
+    relative_index = next(
+        (
+            index
+            for index in range(predicate.token_start - 1, clause.token_start - 1, -1)
+            if predicate.token_start - index <= 4 and words[index] in relatives
+        ),
+        None,
+    )
+    if relative_index is None:
+        return None
+    if any(
+        words[index] not in bridge
+        for index in range(relative_index + 1, predicate.token_start)
+    ):
+        return None
+
+    candidates: list[int] = []
+    if relative_index - 1 >= clause.token_start and words[relative_index - 1] in prepositions:
+        candidates.append(relative_index - 1)
+    if (
+        relative_index - 2 >= clause.token_start
+        and words[relative_index - 1] in articles
+        and words[relative_index - 2] in prepositions
+    ):
+        candidates.append(relative_index - 2)
+    for preposition_index in candidates:
+        for index in range(preposition_index - 1, clause.token_start - 1, -1):
+            if preposition_index - index > 4:
+                break
+            if analysis.tokens[index].surface in _STRUCTURAL_PUNCTUATION:
+                break
+            if _is_billed_item(analysis, index, language):
+                return (index, index + 1)
+    return None
+
+
 def _authorization_denials(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -3085,20 +3259,35 @@ def _authorization_denials(
                 predicate,
             )
             if backlink is None:
-                continue
-            _, actor_span, prior_activity, prior_predicate = backlink
-            evidence.extend(
-                [
-                    actor_span,
-                    (prior_predicate.token_start, prior_predicate.token_end),
-                ]
-            )
-            if prior_activity is not None:
-                activity_span = prior_activity
-                activity_ref = "linked_prior_activity"
+                billed_item = _relative_billed_item_anchor(
+                    analysis,
+                    clause,
+                    predicate,
+                    language,
+                )
+                if billed_item is None:
+                    continue
+                activity_span = billed_item
+                activity_ref = "relative_billed_item"
+                evidence.append(billed_item)
+                rule = "P4-R4-relative-consent-denial"
             else:
-                activity_ref = "linked_instrument_use"
-            rule = "P4-R3-permission-backlink"
+                _, actor_span, prior_activity, prior_predicate = backlink
+                evidence.extend(
+                    [
+                        actor_span,
+                        (
+                            prior_predicate.token_start,
+                            prior_predicate.token_end,
+                        ),
+                    ]
+                )
+                if prior_activity is not None:
+                    activity_span = prior_activity
+                    activity_ref = "linked_prior_activity"
+                else:
+                    activity_ref = "linked_instrument_use"
+                rule = "P4-R3-permission-backlink"
 
         output.append(
             _make_proposition(
@@ -3591,12 +3780,55 @@ def _p5_known_actor_embedded_under_prior_unknown(
     return False
 
 
+_ES_DEVICE_TARGETS = frozenset(
+    {"banca", "app", "aplicacion", "celular", "telefono", "movil"}
+)
+_PT_DEVICE_TARGETS = frozenset({"aplicativo", "app", "celular", "telefone"})
+
+
+def _customer_access_target_pairs(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[tuple[int, int], tuple[int, int]], ...]:
+    """Customer-possessed instruments plus a closed device/app lexicon (RF1I-R1).
+
+    Devices and apps are access targets only for the third-party-use rules; they
+    are intentionally not INSTRUMENT-tagged globally so compromise and other
+    instrument-linked rules keep their B2 boundaries.
+    """
+
+    pairs = list(_customer_instrument_spans(analysis, clause))
+    devices = _ES_DEVICE_TARGETS if language == "es" else _PT_DEVICE_TARGETS
+    possessors = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.POSSESSOR}),
+    )
+    for index in range(clause.token_start, clause.token_end):
+        if analysis.tokens[index].normalized not in devices:
+            continue
+        possessor = next(
+            (
+                span
+                for span in possessors
+                if span[1] <= index and index - span[1] <= 1
+            ),
+            None,
+        )
+        if possessor is not None:
+            pairs.append(((index, index + 1), possessor))
+    return tuple(dict.fromkeys(pairs))
+
+
 def _third_party_unauthorized_use(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     language: str,
 ) -> list[PositiveProposition]:
-    customer_instruments = _customer_instrument_spans(analysis, clause)
+    customer_instruments = _customer_access_target_pairs(
+        analysis, clause, language
+    )
     if not customer_instruments:
         return []
 
@@ -3724,6 +3956,328 @@ def _third_party_unauthorized_use(
     return output
 
 
+
+
+_ES_PERMISSION_ABSENCE_VERBS = frozenset(
+    {
+        "supiera", "supiese", "autorizara", "autorizase", "aprobara",
+        "aprobase", "permitiera", "permitiese", "consintiera", "consintiese",
+        "sepa", "autorice", "apruebe", "permita", "consienta",
+    }
+)
+_PT_PERMISSION_ABSENCE_VERBS = frozenset(
+    {
+        "soubesse", "autorizasse", "permitisse", "aprovasse", "consentisse",
+    }
+)
+_PT_PERMISSION_ABSENCE_INFINITIVES = frozenset(
+    {"saber", "permitir", "autorizar", "consentir", "aprovar"}
+)
+_ES_CLITICS = frozenset({"lo", "la", "los", "las", "le", "les", "me"})
+_PT_CLITICS = frozenset({"o", "a", "os", "as", "lhe", "lhes", "me"})
+_ES_CHARGE_ACTIONS = frozenset({"debitaron", "cobraron", "cargaron"})
+_PT_CHARGE_ACTIONS = frozenset({"debitaram", "debitou", "cobraram", "cobrou"})
+
+
+_ES_PASSIVE_AUXILIARIES = frozenset(
+    {"fue", "fueron", "es", "son", "era", "eran", "sido"}
+)
+_PT_PASSIVE_AUXILIARIES = frozenset(
+    {"foi", "foram", "e", "sao", "era", "eram", "sido", "fora"}
+)
+
+
+def _use_access_participle_forms(language: str) -> frozenset[str]:
+    forms: set[str] = set()
+    for surface, entries in PARADIGMS[language].items():
+        if not any(
+            entry.family is PredicateFamily.USE_ACCESS
+            and entry.tense_aspect == "participle"
+            for entry in entries
+        ):
+            continue
+        forms.add(surface)
+        if surface.endswith("o"):
+            stem = surface[:-1]
+            forms.update({stem + "a", stem + "os", stem + "as"})
+    return frozenset(forms)
+
+
+_USE_ACCESS_PARTICIPLES = {
+    "es": _use_access_participle_forms("es"),
+    "pt": _use_access_participle_forms("pt"),
+}
+_USE_ACCESS_INFINITIVES = {
+    "es": frozenset(_ES_LEMMAS[PredicateFamily.USE_ACCESS]),
+    "pt": frozenset(_PT_LEMMAS[PredicateFamily.USE_ACCESS]),
+}
+
+
+def _unattended_absence_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], ...]:
+    """Closed explicit statements that the customer did not know/permit an act."""
+
+    words = [token.normalized for token in analysis.tokens]
+    spans = list(_permission_absence_spans(analysis, clause, language))
+    auth_nouns = _auth_noun_spans(analysis, clause)
+    possessors = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.POSSESSOR}),
+    )
+    if language == "es":
+        introducer, articles = "sin", {"el", "la", "los", "las"}
+        universal_subject, universal_verbs = "nadie", {"tenia", "tiene"}
+        verbs = _ES_PERMISSION_ABSENCE_VERBS
+        clitics = _ES_CLITICS
+    else:
+        introducer, articles = "sem", {"o", "a", "os", "as"}
+        universal_subject, universal_verbs = "ninguem", {"tinha", "tem"}
+        verbs = _PT_PERMISSION_ABSENCE_VERBS
+        clitics = _PT_CLITICS
+
+    # "sin/sem (el/la)? (mi/minha)? <autorizacion>"
+    for auth_span in auth_nouns:
+        cursor = auth_span[0] - 1
+        if cursor > clause.token_start and any(
+            possessor[1] == cursor + 1 for possessor in possessors
+        ):
+            cursor -= 1
+        if cursor > clause.token_start and words[cursor] in articles:
+            cursor -= 1
+        if cursor >= clause.token_start and words[cursor] == introducer:
+            spans.append((cursor, auth_span[1]))
+
+    # "nadie tenia permiso" / "ninguem tinha permissao"
+    for index in range(clause.token_start, clause.token_end - 2):
+        if (
+            words[index] == universal_subject
+            and words[index + 1] in universal_verbs
+            and LexicalTag.AUTH_NOUN in analysis.tags[index + 2]
+        ):
+            spans.append((index, index + 3))
+
+    # "sin que (yo)? (lo)? <subjunctive>" (+ "ni (lo)? <subjunctive>")
+    # "sem que eu <subjunctive>" / "sem eu <infinitive>" (+ "nem <infinitive>")
+    for index in range(clause.token_start, clause.token_end):
+        if words[index] != introducer:
+            continue
+        cursor = index + 1
+        if cursor < clause.token_end and words[cursor] == "que":
+            cursor += 1
+        elif language == "es":
+            continue
+        subject = "yo" if language == "es" else "eu"
+        if cursor < clause.token_end and words[cursor] == subject:
+            cursor += 1
+        while cursor < clause.token_end and words[cursor] in clitics:
+            cursor += 1
+        if cursor >= clause.token_end:
+            continue
+        if language == "es":
+            valid = words[cursor] in verbs
+        else:
+            valid = (
+                words[cursor] in verbs
+                or words[cursor] in _PT_PERMISSION_ABSENCE_INFINITIVES
+            )
+        if not valid:
+            continue
+        end = cursor + 1
+        coordinator = "ni" if language == "es" else "nem"
+        if end < clause.token_end and words[end] == coordinator:
+            follow = end + 1
+            while follow < clause.token_end and words[follow] in clitics:
+                follow += 1
+            if follow < clause.token_end and (
+                words[follow] in verbs
+                or (
+                    language == "pt"
+                    and words[follow] in _PT_PERMISSION_ABSENCE_INFINITIVES
+                )
+            ):
+                end = follow + 1
+        spans.append((index, end))
+
+    negative_indices = set(_negative_indices(analysis, clause, language))
+    return tuple(
+        span
+        for span in dict.fromkeys(spans)
+        if span[0] <= clause.token_start
+        or (span[0] - 1) not in negative_indices
+    )
+
+
+def _unattended_third_party_actions(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> list[PositiveProposition]:
+    """P5b: non-first-person action on a customer target with explicit absence.
+
+    Covers subjectless plural ("Usaron mi tarjeta sin mi permiso"), passive
+    ("Mi tarjeta fue usada sin autorización mía"), and coordinated-action forms
+    where no overt actor is required because the permission absence itself is
+    the explicit unauthorized-use statement (RF1I-R1).
+    """
+
+    absences = _unattended_absence_spans(analysis, clause, language)
+    if not absences:
+        return []
+    targets = _customer_access_target_pairs(analysis, clause, language)
+    dative_spans = _role_spans(
+        analysis,
+        clause,
+        frozenset({SelfRole.DATIVE}),
+    )
+    instrument_indices = tuple(
+        index
+        for index in range(clause.token_start, clause.token_end)
+        if LexicalTag.INSTRUMENT in analysis.tags[index]
+    )
+    if not targets and not (dative_spans and instrument_indices):
+        return []
+
+    words = [token.normalized for token in analysis.tokens]
+    charge_words = (
+        _ES_CHARGE_ACTIONS if language == "es" else _PT_CHARGE_ACTIONS
+    )
+    actions: list[tuple[tuple[int, int], PredicateMatch | None]] = []
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.family not in {
+            PredicateFamily.USE_ACCESS,
+            PredicateFamily.PERFORM,
+        }:
+            continue
+        if not _source_accent_selects_predicate(analysis, predicate):
+            continue
+        if not _third_party_action_allowed(predicate):
+            continue
+        if _predicate_has_denial(analysis, clause, predicate, language):
+            continue
+        actions.append(
+            ((predicate.token_start, predicate.token_end), predicate)
+        )
+    for index in range(clause.token_start, clause.token_end):
+        if words[index] in charge_words:
+            actions.append(((index, index + 1), None))
+
+    # Passive use ("Mi tarjeta fue usada ...") and "permission to use" frames
+    # ("Nadie tenía permiso para usar mi tarjeta") are not finite predicates.
+    passive_auxiliaries = (
+        _ES_PASSIVE_AUXILIARIES if language == "es" else _PT_PASSIVE_AUXILIARIES
+    )
+    for index in range(clause.token_start + 1, clause.token_end):
+        if (
+            words[index] in _USE_ACCESS_PARTICIPLES[language]
+            and words[index - 1] in passive_auxiliaries
+        ):
+            actions.append(((index - 1, index + 1), None))
+        if (
+            words[index] in _USE_ACCESS_INFINITIVES[language]
+            and words[index - 1] == "para"
+            and any(
+                absence[1] <= index - 1
+                and index - 1 - absence[1] <= 1
+                and LexicalTag.AUTH_NOUN in analysis.tags[absence[1] - 1]
+                for absence in absences
+            )
+        ):
+            actions.append(((index, index + 1), None))
+
+    first_person = tuple(
+        (predicate.token_start, predicate.token_end)
+        for predicate in analysis.predicates
+        if _in_clause(predicate.token_start, predicate.token_end, clause)
+        and predicate.form.person == 1
+        and not predicate.accent_ambiguous
+        and _source_accent_selects_predicate(analysis, predicate)
+    )
+    activity_span = _nearest_activity_span(analysis, clause, None)
+    output: list[PositiveProposition] = []
+
+    for action_span, predicate in actions:
+        target: tuple[tuple[int, int], tuple[int, int]] | None = None
+        for target_span, possessor_span in targets:
+            after = target_span[0] - action_span[1]
+            before = action_span[0] - target_span[1]
+            if 0 <= after <= 12 or 0 <= before <= 3:
+                target = (target_span, possessor_span)
+                break
+        if target is None:
+            # "Me debitaron dinero de la cuenta": dative self + bare instrument.
+            dative = next(
+                (
+                    span
+                    for span in dative_spans
+                    if 0 <= action_span[0] - span[1] <= 2
+                ),
+                None,
+            )
+            instrument_index = next(
+                (
+                    index
+                    for index in instrument_indices
+                    if 0 <= index - action_span[1] <= 8
+                ),
+                None,
+            )
+            if dative is not None and instrument_index is not None:
+                target = ((instrument_index, instrument_index + 1), dative)
+        if target is None:
+            continue
+
+        chosen: tuple[int, int] | None = None
+        for absence in sorted(
+            absences,
+            key=lambda span: min(
+                abs(span[0] - action_span[1]),
+                abs(action_span[0] - span[1]),
+            ),
+        ):
+            if absence[0] >= action_span[1]:
+                gap = absence[0] - action_span[1]
+            elif absence[1] <= action_span[0]:
+                gap = action_span[0] - absence[1]
+            else:
+                continue
+            if gap > 12:
+                continue
+            low = min(absence[0], action_span[0])
+            high = max(absence[1], action_span[1])
+            if any(
+                fp[0] >= low and fp[1] <= high for fp in first_person
+            ):
+                continue
+            chosen = absence
+            break
+        if chosen is None:
+            continue
+
+        evidence = [action_span, target[0], target[1], chosen]
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.THIRD_PARTY_UNAUTHORIZED_USE,
+                rule="P5b",
+                language=language,
+                evidence_spans=evidence,
+                activity_span=activity_span,
+                predicate=predicate,
+                activity_ref=(
+                    "explicit_activity"
+                    if activity_span is not None
+                    else "unattended_third_party_action"
+                ),
+            )
+        )
+    return output
 
 
 _ES_FRAUD_NOUNS = frozenset({"fraude", "golpe"})
@@ -5925,8 +6479,19 @@ def _fraud_copular_propositions(
 
         marker_word = words[marker_index]
         if marker_word in fraud_adjectives:
-            activity_word = words[activity_index]
-            if not _fraud_adjective_agrees(activity_word, marker_word, language):
+            activity_word: str | None = words[activity_index]
+            if analysis.tokens[activity_index].is_txid:
+                # RF1I-R1: a transaction ID carries no grammatical gender; agree
+                # against the immediately preceding activity noun when present.
+                activity_word = (
+                    words[activity_index - 1]
+                    if activity_index > clause.token_start
+                    and LexicalTag.ACTIVITY in analysis.tags[activity_index - 1]
+                    else None
+                )
+            if activity_word is not None and not _fraud_adjective_agrees(
+                activity_word, marker_word, language
+            ):
                 continue
 
         counter_evidence = _affirmative_self_fraud_counter_evidence(
@@ -6413,45 +6978,190 @@ def _closed_self_exculpation_span(
     return (start, perform.token_end)
 
 
+_ES_EMBEDDED_SELF_EXCULPATION_FORMS = frozenset(
+    {
+        ("no", "fui", "yo"),
+        ("no", "fuimos", "nosotros"),
+        ("no", "fuimos", "nosotras"),
+    }
+)
+_PT_EMBEDDED_SELF_EXCULPATION_FORMS = frozenset(
+    {
+        ("nao", "fui", "eu"),
+        ("nao", "fomos", "nos"),
+    }
+)
+_ES_CONTRASTIVE_SELF_EXCULPATION_FORMS = frozenset(
+    {("no", "yo"), ("no", "nosotros"), ("no", "nosotras")}
+)
+_PT_CONTRASTIVE_SELF_EXCULPATION_FORMS = frozenset(
+    {("nao", "eu"), ("nao", "nos")}
+)
+_ES_EXCULPATION_TAIL_LEADS = frozenset({",", "y", "pero"})
+_PT_EXCULPATION_TAIL_LEADS = frozenset({",", "e", "mas", "porem"})
+
+
+def _embedded_self_exculpation_spans(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+) -> tuple[tuple[int, int], ...]:
+    """Closed self-exculpation attached inside a clause (RF1I-R1).
+
+    Covers the same closed "not me" forms as the clause-initial rule when they
+    are comma/conjunction-attached tails ("La hizo otra persona, no fui yo"),
+    mid-clause cleft forms ("... não fui eu que fiz"), or a contrastive
+    elliptical tail that follows an explicit third-party actor ("... foi outra
+    pessoa, não eu"). The forms stay closed; no open-ended denial search.
+    """
+
+    words = [token.normalized for token in analysis.tokens]
+    if language == "es":
+        full_forms = _ES_EMBEDDED_SELF_EXCULPATION_FORMS
+        contrastive_forms = _ES_CONTRASTIVE_SELF_EXCULPATION_FORMS
+        cleft_words = {"quien", "que"}
+        tail_leads = _ES_EXCULPATION_TAIL_LEADS
+    else:
+        full_forms = _PT_EMBEDDED_SELF_EXCULPATION_FORMS
+        contrastive_forms = _PT_CONTRASTIVE_SELF_EXCULPATION_FORMS
+        cleft_words = {"quem", "que"}
+        tail_leads = _PT_EXCULPATION_TAIL_LEADS
+
+    spans: list[tuple[int, int]] = []
+
+    def accent_ok(tail_index: int, form: tuple[str, ...]) -> bool:
+        # PT "nos" (us) is only a first-person-plural exculpation as "nós".
+        return not (
+            language == "pt"
+            and form[-1] == "nos"
+            and not analysis.tokens[tail_index].had_acute
+        )
+
+    for start in range(clause.token_start + 1, clause.token_end - 1):
+        lead = words[start - 1]
+        triple = tuple(words[start : start + 3])
+        if triple in full_forms and accent_ok(start + 2, triple):
+            end = start + 3
+            at_tail = lead in tail_leads and end == clause.token_end
+            cleft = (
+                end < clause.token_end
+                and words[end] in cleft_words
+                and any(
+                    predicate.form.family is PredicateFamily.PERFORM
+                    and _in_clause(predicate.token_start, predicate.token_end, clause)
+                    and predicate.token_start >= end + 1
+                    and predicate.token_start - end <= 2
+                    for predicate in analysis.predicates
+                )
+            )
+            if at_tail:
+                spans.append((start, end))
+            elif cleft:
+                perform = next(
+                    predicate
+                    for predicate in analysis.predicates
+                    if predicate.form.family is PredicateFamily.PERFORM
+                    and _in_clause(predicate.token_start, predicate.token_end, clause)
+                    and predicate.token_start >= end + 1
+                    and predicate.token_start - end <= 2
+                )
+                spans.append((start, perform.token_end))
+            continue
+
+        pair = tuple(words[start : start + 2])
+        if (
+            pair in contrastive_forms
+            and lead == ","
+            and start + 2 == clause.token_end
+            and accent_ok(start + 1, pair)
+            and any(
+                LexicalTag.THIRD_PARTY in analysis.tags[index]
+                for index in range(clause.token_start, start)
+            )
+        ):
+            spans.append((start, start + 2))
+
+    return tuple(spans)
+
+
+def _same_clause_preceding_activity(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    before: int,
+) -> tuple[int, int] | None:
+    for index in range(before - 1, clause.token_start - 1, -1):
+        if LexicalTag.ACTIVITY in analysis.tags[index]:
+            return (index, index + 1)
+    return None
+
+
 def _argumentless_self_exculpation(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     language: str,
 ) -> list[PositiveProposition]:
+    candidates: list[tuple[tuple[int, int], str]] = []
     exculpation_span = _closed_self_exculpation_span(
         analysis,
         clause,
         language,
     )
-    if exculpation_span is None:
+    if exculpation_span is not None:
+        candidates.append((exculpation_span, "P2-R3-self-exculpation"))
+    else:
+        candidates.extend(
+            (span, "P2-R4-embedded-self-exculpation")
+            for span in _embedded_self_exculpation_spans(
+                analysis,
+                clause,
+                language,
+            )
+        )
+    if not candidates:
         return []
 
-    prior = _nearest_preceding_activity_or_txid_for_self_exculpation(
-        analysis,
-        clause,
-        language,
-    )
-    activity_span: tuple[int, int] | None = None
-    activity_ref = "topic_transaction"
-    evidence: list[tuple[int, int]] = [exculpation_span]
+    output: list[PositiveProposition] = []
+    for exculpation_span, rule in candidates:
+        activity_span: tuple[int, int] | None = None
+        activity_ref = "topic_transaction"
+        evidence: list[tuple[int, int]] = [exculpation_span]
 
-    if prior is not None:
-        activity_span, activity_ref = prior
-        evidence.append(activity_span)
-
-    return [
-        _make_proposition(
-            analysis,
-            clause,
-            family=PropositionFamily.PERFORMANCE_DENIAL,
-            rule="P2-R3-self-exculpation",
-            language=language,
-            evidence_spans=evidence,
-            activity_span=activity_span,
-            predicate=None,
-            activity_ref=activity_ref,
+        local = (
+            _same_clause_preceding_activity(
+                analysis,
+                clause,
+                exculpation_span[0],
+            )
+            if rule == "P2-R4-embedded-self-exculpation"
+            else None
         )
-    ]
+        if local is not None:
+            activity_span, activity_ref = local, "explicit_activity"
+            evidence.append(activity_span)
+        else:
+            prior = _nearest_preceding_activity_or_txid_for_self_exculpation(
+                analysis,
+                clause,
+                language,
+            )
+            if prior is not None:
+                activity_span, activity_ref = prior
+                evidence.append(activity_span)
+
+        output.append(
+            _make_proposition(
+                analysis,
+                clause,
+                family=PropositionFamily.PERFORMANCE_DENIAL,
+                rule=rule,
+                language=language,
+                evidence_spans=evidence,
+                activity_span=activity_span,
+                predicate=None,
+                activity_ref=activity_ref,
+            )
+        )
+    return output
 
 
 
@@ -6506,6 +7216,118 @@ def _p7_wh_question_relative_anchor(
     return "que" in words[activity_end:predicate.token_start]
 
 
+_INHERENT_NONRECOGNITION_LEMMAS = frozenset({"desconocer", "desconhecer"})
+
+# RF1I-R1: closed recurring-billing nouns that can be the disowned item of a
+# first-person relative non-recognition or consent denial. They are deliberately
+# NOT part of the global ACTIVITY lexicon.
+_ES_BILLED_ITEMS = frozenset(
+    {
+        "suscripcion", "suscripciones", "membresia", "membresias",
+        "mensualidad", "mensualidades", "cuota", "cuotas",
+        "comision", "comisiones",
+    }
+)
+_PT_BILLED_ITEMS = frozenset(
+    {
+        "assinatura", "assinaturas", "mensalidade", "mensalidades",
+        "anuidade", "anuidades", "parcela", "parcelas",
+        "tarifa", "tarifas", "comissao", "comissoes",
+    }
+)
+_ES_PARTITIVE_QUANTIFIERS = frozenset(
+    {"ninguno", "ninguna", "ningunos", "ningunas"}
+)
+_PT_PARTITIVE_QUANTIFIERS = frozenset(
+    {"nenhum", "nenhuma", "nenhuns", "nenhumas"}
+)
+_ES_PARTITIVE_PRONOUNS = frozenset({"ellos", "ellas"})
+_PT_PARTITIVE_PRONOUNS = frozenset({"deles", "delas"})
+
+
+def _is_billed_item(analysis: FoundationAnalysis, index: int, language: str) -> bool:
+    items = _ES_BILLED_ITEMS if language == "es" else _PT_BILLED_ITEMS
+    return analysis.tokens[index].normalized in items
+
+
+def _p7_partitive_quantifier_object(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    predicate: PredicateMatch,
+    language: str,
+) -> bool:
+    """Detect a bare/partitive pronominal object: "no reconozco ninguno (de ellos)"."""
+
+    index = predicate.token_end
+    if index >= clause.token_end:
+        return False
+    words = [token.normalized for token in analysis.tokens]
+    quantifiers = (
+        _ES_PARTITIVE_QUANTIFIERS
+        if language == "es"
+        else _PT_PARTITIVE_QUANTIFIERS
+    )
+    if words[index] not in quantifiers:
+        return False
+    if index + 1 >= clause.token_end:
+        return True
+    if language == "es":
+        return words[index + 1] == "de" and (
+            index + 2 < clause.token_end
+            and words[index + 2] in _ES_PARTITIVE_PRONOUNS
+        )
+    return words[index + 1] in _PT_PARTITIVE_PRONOUNS
+
+
+def _p7_first_person_relative_anchor(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    predicate: PredicateMatch,
+    language: str,
+) -> bool:
+    """Anchor an activity NP to a first-person relative non-recognition.
+
+    "una compra que no reconozco" / "uma compra que eu não reconheço": the
+    relative clause is itself headed by a first-person subject, so the activity
+    is the customer's own without needing an article or possessive anchor. The
+    relative pronoun must follow the NP within a short window, with no finite
+    predicate or punctuation in between and only subject/clitic/negation
+    material before the recognition predicate.
+    """
+
+    if predicate.form.person != 1:
+        return False
+    end = activity_span[1]
+    if end >= predicate.token_start:
+        return False
+    words = [token.normalized for token in analysis.tokens]
+    relative_index: int | None = None
+    for index in range(end, min(predicate.token_start, end + 5)):
+        if analysis.tokens[index].surface in _STRUCTURAL_PUNCTUATION:
+            return False
+        if any(
+            other.token_start == index
+            for other in analysis.predicates
+            if _in_clause(other.token_start, other.token_end, clause)
+        ):
+            return False
+        if words[index] == "que":
+            relative_index = index
+            break
+    if relative_index is None:
+        return False
+    bridge = (
+        _ES_DENIAL_BRIDGE_WORDS | {"no"}
+        if language == "es"
+        else _PT_DENIAL_BRIDGE_WORDS | {"nao"}
+    )
+    return all(
+        words[index] in bridge
+        for index in range(relative_index + 1, predicate.token_start)
+    )
+
+
 def _activity_nonrecognition(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -6517,7 +7339,15 @@ def _activity_nonrecognition(
             continue
         if predicate.form.family is not PredicateFamily.RECOGNIZE:
             continue
-        if not _predicate_has_denial(analysis, clause, predicate, language):
+        inherent_denial = (
+            predicate.form.lemma in _INHERENT_NONRECOGNITION_LEMMAS
+        )
+        has_bound_denial = _predicate_has_denial(
+            analysis, clause, predicate, language
+        )
+        # "desconozco" is lexically negative; "no desconozco" re-affirms
+        # recognition and is not a disowning assertion.
+        if inherent_denial == has_bound_denial:
             continue
 
         self_evidence = _bound_self_evidence(
@@ -6529,24 +7359,38 @@ def _activity_nonrecognition(
         if self_evidence is None:
             continue
 
-        target_kind, target_span = _p7_nominal_target(
-            analysis,
-            clause,
-            predicate,
-            language,
-        )
+        if _p7_partitive_quantifier_object(
+            analysis, clause, predicate, language
+        ):
+            target_kind, target_span = "none", None
+        else:
+            target_kind, target_span = _p7_nominal_target(
+                analysis,
+                clause,
+                predicate,
+                language,
+            )
+        if (
+            target_kind == "non_activity"
+            and target_span is not None
+            and _is_billed_item(analysis, target_span[0], language)
+        ):
+            target_kind = "activity"
         if target_kind in {"descriptor", "non_activity"}:
             continue
 
-        denial_index = _bound_denial_index(
-            analysis,
-            clause,
-            predicate,
-            language,
-        )
-        if denial_index is None:
-            continue
-        denial_span = (denial_index, denial_index + 1)
+        if inherent_denial:
+            denial_span = (predicate.token_start, predicate.token_end)
+        else:
+            denial_index = _bound_denial_index(
+                analysis,
+                clause,
+                predicate,
+                language,
+            )
+            if denial_index is None:
+                continue
+            denial_span = (denial_index, denial_index + 1)
         nearest_self = (
             self_evidence.token_start,
             self_evidence.token_end,
@@ -6563,6 +7407,12 @@ def _activity_nonrecognition(
                 target_span,
                 language,
             ) and not _p7_wh_question_relative_anchor(
+                analysis,
+                clause,
+                target_span,
+                predicate,
+                language,
+            ) and not _p7_first_person_relative_anchor(
                 analysis,
                 clause,
                 target_span,
@@ -6592,7 +7442,9 @@ def _activity_nonrecognition(
                 activity_span, activity_ref = prior
                 evidence.append(activity_span)
                 rule = "P7-R3-activity-anaphora"
-            elif anaphor_span is not None or predicate.form.person == 1:
+            elif anaphor_span is not None or (
+                predicate.form.person == 1 and not inherent_denial
+            ):
                 activity_ref = "topic_transaction"
                 rule = "P7-R3-topic-default"
             else:
@@ -7303,6 +8155,9 @@ def build_positive_propositions(
         )
         propositions.extend(
             _third_party_unauthorized_use(analysis, clause, language)
+        )
+        propositions.extend(
+            _unattended_third_party_actions(analysis, clause, language)
         )
         propositions.extend(
             _exceeded_authorization_propositions(
