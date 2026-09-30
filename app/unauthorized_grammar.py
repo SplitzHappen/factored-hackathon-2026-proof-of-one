@@ -7183,10 +7183,11 @@ def build_positive_propositions(
 
 
 _B3_MODE_PRECEDENCE = {
-    PropositionMode.HYPOTHETICAL: 0,
-    PropositionMode.UNCERTAIN: 1,
-    PropositionMode.INFORMATION_REQUEST: 2,
-    PropositionMode.QUESTIONED: 3,
+    PropositionMode.AUTHORIZED_THIRD_PARTY: 0,
+    PropositionMode.HYPOTHETICAL: 1,
+    PropositionMode.UNCERTAIN: 2,
+    PropositionMode.INFORMATION_REQUEST: 3,
+    PropositionMode.QUESTIONED: 4,
     PropositionMode.ASSERTIVE: 99,
 }
 
@@ -7272,9 +7273,159 @@ def _b3_information_request_domain(
     )
 
 
+def _b3_domain_contains_index(
+    domain: ScopeDomain,
+    index: int,
+) -> bool:
+    return domain.token_start <= index < domain.token_end
+
+
+def _b3_authorization_domain_end(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    grant_end: int,
+    language: str,
+) -> int:
+    """Bound M6 to the local grant/purpose surface, never a later activity."""
+
+    coordinator = "y" if language == "es" else "e"
+    for index in range(grant_end, clause.token_end):
+        if _b3_scope_barrier(analysis, index):
+            return index
+        if analysis.tokens[index].normalized == coordinator:
+            return index
+    return clause.token_end
+
+
+def _b3_authorized_third_party_domains(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    language: str,
+    prior_domains: tuple[ScopeDomain, ...],
+) -> tuple[ScopeDomain, ...]:
+    """Recognize bounded affirmative M6 grants to a known third party.
+
+    This is deliberately narrower than general authorization semantics. A grant
+    must be first-person, affirmative, non-irrealis, and locally linked to a
+    known actor. The domain stops before a comma/contrast/coordinator so it
+    cannot suppress a subsequent exceeded-authorization proposition.
+    """
+
+    actor_spans = _known_actor_spans(analysis, clause, language)
+    if not actor_spans:
+        return ()
+
+    candidates: list[tuple[int, int, str]] = []
+
+    for predicate in analysis.predicates:
+        if not _in_clause(predicate.token_start, predicate.token_end, clause):
+            continue
+        if predicate.form.family not in {
+            PredicateFamily.AUTHORIZE,
+            PredicateFamily.GIVE_PERMISSION,
+        }:
+            continue
+        if predicate.form.person != 1:
+            continue
+        if predicate.form.mood != "indicative":
+            continue
+        if predicate.form.tense_aspect in {"future", "conditional"}:
+            continue
+        if not _source_accent_selects_predicate(analysis, predicate):
+            continue
+        if _predicate_has_denial(analysis, clause, predicate, language):
+            continue
+        if any(
+            domain.mode in {
+                PropositionMode.HYPOTHETICAL,
+                PropositionMode.UNCERTAIN,
+                PropositionMode.INFORMATION_REQUEST,
+                PropositionMode.QUESTIONED,
+            }
+            and _b3_domain_contains_index(domain, predicate.token_start)
+            for domain in prior_domains
+        ):
+            continue
+
+        end = _b3_authorization_domain_end(
+            analysis,
+            clause,
+            predicate.token_end,
+            language,
+        )
+        if predicate.form.family is PredicateFamily.GIVE_PERMISSION:
+            has_auth_noun = any(
+                LexicalTag.AUTH_NOUN in analysis.tags[index]
+                for index in range(predicate.token_end, end)
+            )
+            if not has_auth_noun:
+                continue
+
+        candidates.append(
+            (
+                predicate.token_start,
+                end,
+                "authorize"
+                if predicate.form.family is PredicateFamily.AUTHORIZE
+                else "give_permission",
+            )
+        )
+
+    for start, end in _limited_grant_surface_spans(
+        analysis,
+        clause,
+        language,
+    ):
+        if any(
+            domain.mode in {
+                PropositionMode.HYPOTHETICAL,
+                PropositionMode.UNCERTAIN,
+                PropositionMode.INFORMATION_REQUEST,
+                PropositionMode.QUESTIONED,
+            }
+            and _b3_domain_contains_index(domain, start)
+            for domain in prior_domains
+        ):
+            continue
+        candidates.append(
+            (
+                start,
+                _b3_authorization_domain_end(
+                    analysis,
+                    clause,
+                    end,
+                    language,
+                ),
+                "limited_grant",
+            )
+        )
+
+    domains: list[ScopeDomain] = []
+    for start, end, source in candidates:
+        if end <= start:
+            continue
+        has_local_actor = any(
+            start <= actor_start < end
+            for actor_start, _ in actor_spans
+        )
+        if not has_local_actor:
+            continue
+        domains.append(
+            ScopeDomain(
+                mode=PropositionMode.AUTHORIZED_THIRD_PARTY,
+                token_start=start,
+                token_end=end,
+                provenance=f"M6:authorized_third_party:{source}",
+            )
+        )
+
+    return tuple(domains)
+
+
 def _b3_operator_domains_for_clause(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
+    language: str,
 ) -> tuple[ScopeDomain, ...]:
     domains: list[ScopeDomain] = []
 
@@ -7311,6 +7462,15 @@ def _b3_operator_domains_for_clause(
     if information_request is not None:
         domains.append(information_request)
 
+    domains.extend(
+        _b3_authorized_third_party_domains(
+            analysis,
+            clause,
+            language,
+            tuple(domains),
+        )
+    )
+
     return tuple(domains)
 
 
@@ -7331,17 +7491,21 @@ def resolve_positive_propositions(
     """Apply the first bounded RF1H-B3 local-mode scaffold.
 
     This audit/debug API currently implements explicit conditional,
-    lexical-uncertainty, bounded security/prevention information-request, and
-    question domains. M5 remains pre-filtered by B2 target typing; M6-M7 and
-    message-level retraction remain intentionally deferred. Production boolean
-    behavior is not switched by this function.
+    lexical-uncertainty, bounded security/prevention information-request,
+    authorized-third-party, and question domains. M5 remains pre-filtered by
+    B2 target typing; M7 and message-level retraction remain intentionally
+    deferred. Production boolean behavior is not switched by this function.
     """
 
     analysis = analyze_foundation(text, language)
     unresolved = build_positive_propositions(text, language)
     clause_by_index = {clause.index: clause for clause in analysis.clauses}
     domains_by_clause = {
-        clause.index: _b3_operator_domains_for_clause(analysis, clause)
+        clause.index: _b3_operator_domains_for_clause(
+            analysis,
+            clause,
+            language,
+        )
         for clause in analysis.clauses
     }
 
