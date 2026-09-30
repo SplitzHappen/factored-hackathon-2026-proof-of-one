@@ -7185,7 +7185,8 @@ def build_positive_propositions(
 _B3_MODE_PRECEDENCE = {
     PropositionMode.HYPOTHETICAL: 0,
     PropositionMode.UNCERTAIN: 1,
-    PropositionMode.QUESTIONED: 2,
+    PropositionMode.INFORMATION_REQUEST: 2,
+    PropositionMode.QUESTIONED: 3,
     PropositionMode.ASSERTIVE: 99,
 }
 
@@ -7246,6 +7247,31 @@ def _b3_question_domain(
     return None
 
 
+def _b3_information_request_domain(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    question: ScopeDomain | None,
+) -> ScopeDomain | None:
+    """Recognize the bounded M4 security/prevention question subset."""
+
+    if question is None:
+        return None
+
+    has_security_term = any(
+        LexicalTag.SECURITY_INFO in analysis.tags[index]
+        for index in range(question.token_start, question.token_end)
+    )
+    if not has_security_term:
+        return None
+
+    return ScopeDomain(
+        mode=PropositionMode.INFORMATION_REQUEST,
+        token_start=question.token_start,
+        token_end=question.token_end,
+        provenance="M4:security_information_request",
+    )
+
+
 def _b3_operator_domains_for_clause(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
@@ -7277,6 +7303,14 @@ def _b3_operator_domains_for_clause(
     if question is not None:
         domains.append(question)
 
+    information_request = _b3_information_request_domain(
+        analysis,
+        clause,
+        question,
+    )
+    if information_request is not None:
+        domains.append(information_request)
+
     return tuple(domains)
 
 
@@ -7296,10 +7330,11 @@ def resolve_positive_propositions(
 ) -> tuple[PositiveProposition, ...]:
     """Apply the first bounded RF1H-B3 local-mode scaffold.
 
-    This audit/debug API currently implements only explicit conditional,
-    lexical-uncertainty and question domains. M4-M7 and message-level
-    retraction remain intentionally deferred. Production boolean behavior is
-    not switched by this function.
+    This audit/debug API currently implements explicit conditional,
+    lexical-uncertainty, bounded security/prevention information-request, and
+    question domains. M5 remains pre-filtered by B2 target typing; M6-M7 and
+    message-level retraction remain intentionally deferred. Production boolean
+    behavior is not switched by this function.
     """
 
     analysis = analyze_foundation(text, language)
