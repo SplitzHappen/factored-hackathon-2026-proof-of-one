@@ -5501,7 +5501,7 @@ def _p6_self_activity_is_licensed_nominal_conjunct(
     activity_span: tuple[int, int],
     language: str,
 ) -> bool:
-    """License only bounded clause-level nominal conjunctions."""
+    """License a bounded same-level nominal conjunction, never a nested modifier."""
 
     words = [token.normalized for token in analysis.tokens]
     nominal_start = _p6_activity_nominal_start(
@@ -5527,7 +5527,40 @@ def _p6_self_activity_is_licensed_nominal_conjunct(
         if language == "es"
         else _PT_P6_NESTED_PP_PREPOSITIONS
     )
-    if any(
+    earlier_activities = tuple(
+        span
+        for span in _activity_spans(analysis, clause)
+        if span[1] <= coordinator_index
+    )
+    if earlier_activities:
+        nearest = max(earlier_activities, key=lambda span: span[1])
+        return not any(
+            words[index] in prepositions
+            or (
+                language == "pt"
+                and _p6_pt_token_is_fused_preposition_determiner(
+                    analysis,
+                    index,
+                )
+            )
+            for index in range(nearest[1], coordinator_index)
+        )
+
+    non_activity_heads = (
+        _ES_NON_ACTIVITY_FRAUD_HEADS
+        if language == "es"
+        else _PT_NON_ACTIVITY_FRAUD_HEADS
+    )
+    head_indices = tuple(
+        index
+        for index in range(clause.token_start, coordinator_index)
+        if words[index] in non_activity_heads
+    )
+    if not head_indices:
+        return False
+    head_index = max(head_indices)
+
+    return not any(
         words[index] in prepositions
         or (
             language == "pt"
@@ -5536,69 +5569,15 @@ def _p6_self_activity_is_licensed_nominal_conjunct(
                 index,
             )
         )
-        for index in range(clause.token_start, coordinator_index)
-    ):
-        return False
-
-    predicates_before = tuple(
-        predicate
-        for predicate in analysis.predicates
-        if _in_clause(predicate.token_start, predicate.token_end, clause)
-        and predicate.token_start < coordinator_index
+        for index in range(head_index + 1, coordinator_index)
     )
-    activity_before = tuple(
-        span
-        for span in _activity_spans(analysis, clause)
-        if span[1] <= coordinator_index
-    )
-
-    # Simple top-level NP conjunction: "la alerta y el pago...".
-    if not predicates_before:
-        return any(
-            words[index].isalpha()
-            for index in range(clause.token_start, coordinator_index)
-        )
-
-    # A prior transaction at the same clause level licenses the later
-    # activity conjunct once prepositional nesting has already been excluded.
-    if activity_before:
-        return True
-
-    # First-person verb-led frame with no tagged earlier activity.
-    if any(
-        predicate.token_start == clause.token_start
-        and predicate.form.person == 1
-        for predicate in predicates_before
-    ):
-        return True
-
-    # Earlier head with a relative that contains no transaction noun before
-    # the coordinator: "el cargo que llegó ayer y el pago...".
-    relative_markers = tuple(
-        index
-        for index in range(clause.token_start, coordinator_index)
-        if words[index] == "que"
-        or words[index]
-        in (
-            _ES_P6_RELATIVE_QUAL
-            if language == "es"
-            else _PT_P6_RELATIVE_QUAL
-        )
-    )
-    for marker_index in reversed(relative_markers):
-        if not any(
-            span[0] >= marker_index + 1 and span[1] <= coordinator_index
-            for span in activity_before
-        ):
-            return True
-
-    return False
 
 
 def _p6_self_atom_is_positively_licensed(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     activity_span: tuple[int, int],
+    copula_index: int,
     language: str,
     atom: EvidenceAtom,
 ) -> bool:
@@ -5612,22 +5591,33 @@ def _p6_self_atom_is_positively_licensed(
         language,
     )
 
+    # The SELF-bearing activity must remain the nearest transaction candidate
+    # before the fraud copula. A later transaction makes this referent unsafe.
+    if any(
+        span[0] >= activity_span[1] and span[0] < copula_index
+        for span in _activity_spans(analysis, clause)
+    ):
+        return False
+
     # Activity NP is the clause-level subject.
     if nominal_start == clause.token_start:
         return True
 
-    # Bounded topic frames.
-    prefix = tuple(words[clause.token_start:nominal_start])
+    # Explicit bounded clause-initial topic frames.
     topicalizers = (
-        {("respecto", "a"), ("en", "cuanto", "a")}
+        (("respecto", "a"), ("en", "cuanto", "a"))
         if language == "es"
-        else {("quanto", "a"),}
+        else (("quanto", "a"),)
     )
-    if prefix in topicalizers:
-        return True
+    for phrase in topicalizers:
+        width = len(phrase)
+        if (
+            tuple(words[clause.token_start:clause.token_start + width]) == phrase
+            and clause.token_start + width <= nominal_start
+        ):
+            return True
 
     # A complementizer-led activity subject with no earlier transaction.
-    # The reporting predicate need not belong to RF1H's narrow predicate lexicon.
     if (
         nominal_start > clause.token_start
         and words[nominal_start - 1] == "que"
@@ -5687,6 +5677,7 @@ def _p6_self_counter_evidence_is_positively_licensed(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     activity_span: tuple[int, int],
+    copula_index: int,
     language: str,
     counter_evidence: tuple[EvidenceAtom, ...],
 ) -> bool:
@@ -5697,6 +5688,7 @@ def _p6_self_counter_evidence_is_positively_licensed(
             analysis,
             clause,
             activity_span,
+            copula_index,
             language,
             atom,
         )
@@ -5714,7 +5706,6 @@ def _p6_self_counter_evidence_is_unsafe(
 ) -> bool:
     """Fail closed unless every SELF atom occupies an explicitly licensed P6 shape."""
 
-    del copula_index
     if not counter_evidence:
         return False
 
@@ -5722,6 +5713,7 @@ def _p6_self_counter_evidence_is_unsafe(
         analysis,
         clause,
         activity_span,
+        copula_index,
         language,
         counter_evidence,
     )
