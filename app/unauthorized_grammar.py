@@ -4686,6 +4686,8 @@ _ES_P6_ATTACHED_ADVERBIAL_PHRASES = (
     ("si",),
     ("apenas",),
     ("donde",),
+    ("en", "cuanto"),
+    ("tan", "pronto", "como"),
     ("despues", "de", "que"),
     ("antes", "de", "que"),
     ("desde", "que"),
@@ -4706,10 +4708,40 @@ _PT_P6_ATTACHED_ADVERBIAL_PHRASES = (
     ("ja", "que"),
     ("logo", "que"),
 )
-_ES_P6_ARTICLES = frozenset({"el", "la", "los", "las", "un", "una", "unos", "unas"})
-_PT_P6_ARTICLES = frozenset({"o", "a", "os", "as", "um", "uma", "uns", "umas"})
-_ES_P6_ARTICLE_PP_PREPOSITIONS = _ES_PREPOSITIONAL_ACTIVITY | frozenset({"tras"})
-_PT_P6_ARTICLE_PP_PREPOSITIONS = _PT_PREPOSITIONAL_ACTIVITY | frozenset({"apos"})
+_ES_P6_NESTED_PP_PREPOSITIONS = _ES_PREPOSITIONAL_ACTIVITY | frozenset(
+    {
+        "a",
+        "ante",
+        "bajo",
+        "contra",
+        "desde",
+        "durante",
+        "entre",
+        "hacia",
+        "hasta",
+        "mediante",
+        "segun",
+        "sin",
+        "tras",
+    }
+)
+_PT_P6_NESTED_PP_PREPOSITIONS = _PT_PREPOSITIONAL_ACTIVITY | frozenset(
+    {
+        "a",
+        "ante",
+        "ate",
+        "contra",
+        "desde",
+        "durante",
+        "entre",
+        "mediante",
+        "perante",
+        "segundo",
+        "sem",
+        "sob",
+        "apos",
+    }
+)
 
 
 def _p6_activity_heads_que_relative(
@@ -5008,20 +5040,24 @@ def _p6_has_left_attachment_material(
     )
 
 
-def _p6_self_activity_is_article_pp_nested(
+def _p6_self_activity_is_nested_pp(
     analysis: FoundationAnalysis,
     clause: ClauseSegment,
     activity_span: tuple[int, int],
     language: str,
 ) -> bool:
-    """Reject SELF-bearing activity selected from a bounded article PP."""
+    """Reject SELF-bearing activity nested in an earlier activity's bounded PP."""
 
     words = [token.normalized for token in analysis.tokens]
-    articles = _ES_P6_ARTICLES if language == "es" else _PT_P6_ARTICLES
-    prepositions = (
-        _ES_P6_ARTICLE_PP_PREPOSITIONS
+    determiners = (
+        _ES_NOMINAL_DETERMINERS
         if language == "es"
-        else _PT_P6_ARTICLE_PP_PREPOSITIONS
+        else _PT_NOMINAL_DETERMINERS
+    )
+    prepositions = (
+        _ES_P6_NESTED_PP_PREPOSITIONS
+        if language == "es"
+        else _PT_P6_NESTED_PP_PREPOSITIONS
     )
 
     nominal_start = activity_span[0]
@@ -5034,15 +5070,76 @@ def _p6_self_activity_is_article_pp_nested(
     ):
         nominal_start -= 1
 
-    article_index = nominal_start - 1
-    preposition_index = article_index - 1
+    determiner_index = nominal_start - 1
+    preposition_index = determiner_index - 1
     if preposition_index <= clause.token_start:
         return False
-    return (
-        words[article_index] in articles
-        and words[preposition_index] in prepositions
+    if (
+        words[determiner_index] not in determiners
+        or words[preposition_index] not in prepositions
+    ):
+        return False
+
+    return any(
+        span[1] <= preposition_index
+        for span in _activity_spans(analysis, clause)
     )
 
+
+def _p6_self_activity_is_nested_in_activity_relative(
+    analysis: FoundationAnalysis,
+    clause: ClauseSegment,
+    activity_span: tuple[int, int],
+    copula_index: int,
+    language: str,
+) -> bool:
+    """Reject SELF-bearing activity nested inside an earlier activity que-relative."""
+
+    words = [token.normalized for token in analysis.tokens]
+    coordinators = (
+        {"y", "e", "pero"}
+        if language == "es"
+        else {"e", "mas", "porem"}
+    )
+
+    for head_span in _activity_spans(analysis, clause):
+        if head_span[1] > activity_span[0]:
+            continue
+        if not _p6_activity_heads_que_relative(
+            analysis,
+            head_span,
+            copula_index,
+            language,
+        ):
+            continue
+
+        marker_index = next(
+            (
+                index
+                for index in range(
+                    head_span[1],
+                    min(activity_span[0], head_span[1] + 3),
+                )
+                if words[index] == "que"
+            ),
+            None,
+        )
+        if marker_index is None or marker_index >= activity_span[0]:
+            continue
+
+        if any(
+            words[index] in coordinators
+            and not (
+                words[index] == "e"
+                and analysis.tokens[index].had_acute
+            )
+            for index in range(marker_index + 1, activity_span[0])
+        ):
+            continue
+
+        return True
+
+    return False
 
 def _p6_self_activity_is_inside_attached_adverbial(
     analysis: FoundationAnalysis,
@@ -5097,10 +5194,19 @@ def _p6_self_counter_evidence_is_unsafe(
     ):
         return True
 
-    if _p6_self_activity_is_article_pp_nested(
+    if _p6_self_activity_is_nested_pp(
         analysis,
         clause,
         activity_span,
+        language,
+    ):
+        return True
+
+    if _p6_self_activity_is_nested_in_activity_relative(
+        analysis,
+        clause,
+        activity_span,
+        copula_index,
         language,
     ):
         return True

@@ -4107,3 +4107,135 @@ def test_b2r_g7f_a_preserves_complementizer_que_legitimate_self() -> None:
         )
         assert expected_atom in {atom.kind for atom in item.counter_evidence}
 
+def test_b2_final_closure_blocks_nested_relative_wrong_self() -> None:
+    cases = (
+        (
+            "El débito que reemplazó el retiro que yo realicé fue un fraude.",
+            "es",
+        ),
+        (
+            "La operación que duplicó la transferencia que autoricé fue fraudulenta.",
+            "es",
+        ),
+        (
+            "O lançamento que substituiu o gasto que eu realizei foi golpe.",
+            "pt",
+        ),
+        (
+            "A operação que duplicou a transferência que autorizei foi uma fraude.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2_final_closure_blocks_nested_pp_determiner_and_preposition_variation() -> None:
+    cases = (
+        (
+            "El cargo de ese retiro que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "El débito con mi retiro que realicé fue un fraude.",
+            "es",
+        ),
+        (
+            "La operación desde la transferencia que autoricé fue fraudulenta.",
+            "es",
+        ),
+        (
+            "O lançamento com este gasto que realizei foi golpe.",
+            "pt",
+        ),
+        (
+            "A operação desde a transferência que autorizei foi uma fraude.",
+            "pt",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2_final_closure_blocks_unambiguous_temporal_subordinator_parity() -> None:
+    cases = (
+        (
+            "El débito en cuanto yo realicé el retiro fue un fraude.",
+            "es",
+        ),
+        (
+            "La operación tan pronto como hice la transferencia fue fraudulenta.",
+            "es",
+        ),
+    )
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for proposition in propositions
+        )
+
+
+def test_b2_final_closure_preserves_topicalized_legitimate_self() -> None:
+    cases = (
+        (
+            "Respecto a la compra que hice ayer, fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "En cuanto a mi retiro que hice, fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Quanto a esse saque que eu fiz, foi golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+    )
+
+    for message, language, expected_atom in cases:
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert expected_atom in {atom.kind for atom in item.counter_evidence}
+
+
+def test_b2_final_closure_preserves_true_later_self_with_earlier_activity() -> None:
+    cases = (
+        (
+            "Revisé la compra y el pago que hice fue un fraude.",
+            "es",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+        (
+            "Revisei a compra e o pagamento que fiz foi golpe.",
+            "pt",
+            EvidenceAtomKind.SELF_PERFORMED,
+        ),
+    )
+
+    for message, language, expected_atom in cases:
+        propositions = build_positive_propositions(message, language)
+        item = next(
+            proposition
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+        )
+        assert expected_atom in {atom.kind for atom in item.counter_evidence}
+
