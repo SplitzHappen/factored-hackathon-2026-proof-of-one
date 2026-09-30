@@ -16,7 +16,7 @@ from app.unauthorized_grammar import (
 )
 
 
-# RF1H-G7E-P structural property gate.
+# RF1H-B2 final structural property gate.
 #
 # Every message, template, slot value, generated row and serialized baseline
 # entry in this file is DEVELOPMENT-KNOWN. None may be reused, paraphrased,
@@ -424,6 +424,62 @@ def _b2ro_residual_cases() -> Iterable[tuple[str, str, int | None]]:
         yield message, language, start
 
 
+def _b2rp_structural_cases() -> Iterable[tuple[str, str, int]]:
+    direct_relative = (
+        (
+            "El [[débito]] que reemplazó el retiro que yo realicé fue un fraude.",
+            "es",
+        ),
+        (
+            "El [[retiro]] que duplicó el retiro que yo realicé fue un fraude.",
+            "es",
+        ),
+        (
+            "O [[lançamento]] que substituiu o gasto que eu realizei foi golpe.",
+            "pt",
+        ),
+        (
+            "O [[gasto]] que duplicou o gasto que eu realizei foi golpe.",
+            "pt",
+        ),
+    )
+    for template, language in direct_relative:
+        message, start = _render_marked(template)
+        yield message, language, start
+
+    for preposition, determiner in product(
+        ("de", "con", "desde", "durante", "sin"),
+        ("ese", "mi", "aquel"),
+    ):
+        message, start = _render_marked(
+            f"El [[cargo]] {preposition} {determiner} retiro que hice ayer fue un fraude."
+        )
+        yield message, "es", start
+
+    for preposition, determiner in product(
+        ("de", "com", "desde", "durante", "sem"),
+        ("este", "meu", "aquele"),
+    ):
+        message, start = _render_marked(
+            f"O [[lançamento]] {preposition} {determiner} gasto que realizei ontem foi golpe."
+        )
+        yield message, "pt", start
+
+    temporal = (
+        (
+            "El [[débito]] en cuanto yo realicé el retiro fue un fraude.",
+            "es",
+        ),
+        (
+            "La [[operación]] tan pronto como hice la transferencia fue fraudulenta.",
+            "es",
+        ),
+    )
+    for template, language in temporal:
+        message, start = _render_marked(template)
+        yield message, language, start
+
+
 def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
     cases = (
         (
@@ -466,11 +522,30 @@ def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
             "pt",
             "complementizer_que",
         ),
+        (
+            "Respecto a la [[compra]] que hice ayer, fue un fraude.",
+            "es",
+            "topicalized_pp",
+        ),
+        (
+            "Quanto a esse [[saque]] que eu fiz, foi golpe.",
+            "pt",
+            "topicalized_pp",
+        ),
+        (
+            "Revisé la compra y el [[pago]] que hice fue un fraude.",
+            "es",
+            "two_activity_true_later",
+        ),
+        (
+            "Revisei a compra e o [[pagamento]] que fiz foi golpe.",
+            "pt",
+            "two_activity_true_later",
+        ),
     )
     for template, language, class_id in cases:
         message, start = _render_marked(template)
         yield message, language, start, class_id
-
 
 def _structural_cases() -> tuple[tuple[str, str, int | None], ...]:
     cases = (
@@ -479,6 +554,7 @@ def _structural_cases() -> tuple[tuple[str, str, int | None], ...]:
         + list(_true_later_self_cases())
         + list(_ordinary_and_same_noun_cases())
         + list(_b2ro_residual_cases())
+        + list(_b2rp_structural_cases())
     )
     return tuple(dict.fromkeys(cases))
 
@@ -516,6 +592,8 @@ def test_g7f_property_legitimate_self_retention_has_per_class_minimums() -> None
     assert retained["ordinary_relative"] >= 4
     assert retained["clause_initial_subjectless"] >= 2
     assert retained["complementizer_que"] >= 2
+    assert retained["topicalized_pp"] >= 2
+    assert retained["two_activity_true_later"] >= 2
 
 
 def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal() -> None:
@@ -590,20 +668,52 @@ def test_g7f_property_lineage_rejects_new_moved_kind_changed_and_oversuppressed_
         )
 
 
-def test_g7f_property_b2ro06_recall_control_not_worsened() -> None:
+def test_b2_final_property_b2ro06_recall_control_has_no_wrong_referent() -> None:
     cases = (
         (
-            "La transferencia que hice para el pago del alquiler fue un fraude.",
+            "La [[transferencia]] que hice para el pago del alquiler fue un fraude.",
             "es",
         ),
         (
-            "A transferência que eu fiz para o pagamento do aluguel foi golpe.",
+            "A [[transferência]] que eu fiz para o pagamento do aluguel foi golpe.",
             "pt",
         ),
     )
-    for message, language in cases:
-        assert not _self_atom_signatures(message, language)
+    for template, language in cases:
+        message, true_source_start = _render_marked(template)
+        _assert_self_atoms_only_on_true_referent(
+            message,
+            language,
+            true_source_start,
+        )
 
+
+def test_b2_final_property_structural_gap_classes_use_source_position_identity() -> None:
+    cases = tuple(_b2rp_structural_cases())
+    assert len(cases) >= 36
+
+    for message, language, true_source_start in cases:
+        _assert_self_atoms_only_on_true_referent(
+            message,
+            language,
+            true_source_start,
+        )
+
+
+def test_b2_final_property_two_activity_retention_pins_referent_position() -> None:
+    cases = tuple(
+        case
+        for case in _retention_cases()
+        if case[3] == "two_activity_true_later"
+    )
+    assert len(cases) == 2
+
+    for message, language, true_source_start, _ in cases:
+        signatures = _self_atom_signatures(message, language)
+        assert signatures
+        assert {source_start for source_start, _ in signatures} == {
+            true_source_start
+        }
 
 def test_g7f_property_surface_covers_required_structural_classes() -> None:
     cases = _structural_cases()
@@ -623,6 +733,13 @@ def test_g7f_property_surface_covers_required_structural_classes() -> None:
     assert any("después de que hice la compra" in message for message in messages)
     assert any("de la compra que hice" in message for message in messages)
     assert any("para a compra que eu fiz" in message for message in messages)
+    assert any("de ese retiro que hice" in message for message in messages)
+    assert any("com meu gasto que realizei" in message for message in messages)
+    assert any("desde mi retiro que hice" in message for message in messages)
+    assert any("que reemplazó el retiro que yo realicé" in message for message in messages)
+    assert any("que substituiu o gasto que eu realizei" in message for message in messages)
+    assert any("en cuanto yo realicé el retiro" in message for message in messages)
+    assert any("tan pronto como hice la transferencia" in message for message in messages)
     assert any(
         message.count("transferencia") >= 2
         for message, language, _ in cases
