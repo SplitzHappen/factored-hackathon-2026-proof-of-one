@@ -4249,6 +4249,40 @@ def test_b2rq_blocks_br_pt_article_possessive_and_fused_pp_wrong_self() -> None:
         )
 
 
+def test_b2rr_blocks_prior_nominal_head_wrong_self_across_verb_mediation() -> None:
+    cases = (
+        (
+            "El aviso preparado para validar el retiro que hice fue un fraude.",
+            "es",
+        ),
+        (
+            "La solicitud creada para revisar el pago que autoricé fue fraude.",
+            "es",
+        ),
+        (
+            "O comunicado criado para validar a compra que eu fiz foi golpe.",
+            "pt",
+        ),
+        (
+            "A cobrança enviada pedindo revisar o Pix que eu autorizei foi uma fraude.",
+            "pt",
+        ),
+    )
+    self_kinds = {
+        EvidenceAtomKind.SELF_PERFORMED,
+        EvidenceAtomKind.SELF_AUTHORIZED,
+    }
+
+    for message, language in cases:
+        propositions = build_positive_propositions(message, language)
+        assert not any(
+            atom.kind in self_kinds
+            for proposition in propositions
+            if proposition.family is PropositionFamily.FRAUD_CHARACTERIZATION
+            for atom in proposition.counter_evidence
+        )
+
+
 def test_b2rq_preserves_nominal_conjunct_true_later_self() -> None:
     cases = (
         (

@@ -559,6 +559,38 @@ def _b2rq_structural_cases() -> Iterable[tuple[str, str, int]]:
         yield message, "pt", start
 
 
+def _b2rr_structural_cases() -> Iterable[tuple[str, str, int]]:
+    cases = (
+        (
+            "El [[formulario]] solicitando validar el retiro que realicé ayer fue un fraude.",
+            "es",
+        ),
+        (
+            "El [[recargo]] destinado a revisar el pago que autoricé ayer fue fraudulento.",
+            "es",
+        ),
+        (
+            "La [[alerta]] usada para verificar la transferencia que hice fue fraude.",
+            "es",
+        ),
+        (
+            "A [[tarifa]] exigida para processar a transferência que eu autorizei ontem foi golpe.",
+            "pt",
+        ),
+        (
+            "O [[comunicado]] pedindo verificar o pagamento que eu fiz ontem foi uma fraude.",
+            "pt",
+        ),
+        (
+            "A [[taxa]] criada para revisar o Pix que eu fiz foi golpe.",
+            "pt",
+        ),
+    )
+    for template, language in cases:
+        message, start = _render_marked(template)
+        yield message, language, start
+
+
 def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
     cases = (
         (
@@ -631,10 +663,21 @@ def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
             "pt",
             "relative_nominal_conjunct",
         ),
+        (
+            "La alerta y el [[pago]] que autoricé fue un fraude.",
+            "es",
+            "prior_nominal_conjunct",
+        ),
+        (
+            "O aviso e a [[transferência]] que eu fiz foi golpe.",
+            "pt",
+            "prior_nominal_conjunct",
+        ),
     )
     for template, language, class_id in cases:
         message, start = _render_marked(template)
         yield message, language, start, class_id
+
 
 def _structural_cases() -> tuple[tuple[str, str, int | None], ...]:
     cases = (
@@ -645,6 +688,7 @@ def _structural_cases() -> tuple[tuple[str, str, int | None], ...]:
         + list(_b2ro_residual_cases())
         + list(_b2rp_structural_cases())
         + list(_b2rq_structural_cases())
+        + list(_b2rr_structural_cases())
     )
     return tuple(dict.fromkeys(cases))
 
@@ -685,6 +729,7 @@ def test_g7f_property_legitimate_self_retention_has_per_class_minimums() -> None
     assert retained["topicalized_pp"] >= 2
     assert retained["two_activity_true_later"] >= 2
     assert retained["relative_nominal_conjunct"] >= 2
+    assert retained["prior_nominal_conjunct"] >= 2
 
 
 def test_g7f_property_frozen_pre_g7f_lineage_distinguishes_retention_and_removal() -> None:
@@ -824,6 +869,18 @@ def test_b2_final_property_structural_gap_classes_use_source_position_identity()
         )
 
 
+def test_b2rr_property_prior_nominal_guard_uses_source_position_identity() -> None:
+    cases = tuple(_b2rr_structural_cases())
+    assert len(cases) >= 6
+
+    for message, language, true_source_start in cases:
+        _assert_self_atoms_only_on_true_referent(
+            message,
+            language,
+            true_source_start,
+        )
+
+
 def test_b2_final_property_two_activity_retention_pins_referent_position() -> None:
     cases = tuple(
         case
@@ -869,6 +926,10 @@ def test_g7f_property_surface_covers_required_structural_classes() -> None:
     assert any("pelo meu pix" in message for message in messages)
     assert any("o qual acompanhou" in message for message in messages)
     assert any("que apareció hoy y acompañó" in message for message in messages)
+    assert any("solicitando validar el retiro" in message for message in messages)
+    assert any("destinado a revisar el pago" in message for message in messages)
+    assert any("exigida para processar a transferência" in message for message in messages)
+    assert any("pedindo verificar o pagamento" in message for message in messages)
     assert any(
         message.count("transferencia") >= 2
         for message, language, _ in cases
