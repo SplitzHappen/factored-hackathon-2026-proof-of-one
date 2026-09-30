@@ -83,7 +83,23 @@ The RF1H audit surfaces are deliberately adversarial. They establish whether a s
 
 Clarification, abstention, and verified support escalation are intended outcomes when evidence is insufficient or ambiguous. The system is designed around **Understand → Decide → Act → Verify → Escalate**, with evidence controlling what the system is allowed to believe and do.
 
-## 12. Remaining validation before final submission
+## 12. Denial-safety layer covers structural silence only
+
+Fresh independent probes found natural, explicit first-person denials ("se hizo un retiro que yo no solicité", "não é verdade que eu tenha feito…") that the structural grammar resolves to no proposition at all, so the turn could be answered as an ordinary transaction request. `app/denial_safety.py` is a bounded safety net for that silence:
+
+- the structural resolver stays authoritative; the layer runs only when it produced no assertive proposition, and any resolved non-assertive mode other than a question vetoes it;
+- a cue must be a first-person denial of performing, authorizing, soliciting, recognizing, or owning account activity, anchored to an activity noun, charge/debit verb, or use of the customer's card/account;
+- interrogative scope, conditional protasis, prior belief/retraction, reported speech, double negation, uncertainty hedges, "not yet"/causal non-performance, and descriptor clarification ("no reconozco el nombre del comercio") block the cue;
+- it never consults the retired whole-message regex inventory.
+
+Consequences:
+
+- a licensed denial routes to verified escalation (`unauthorized_activity_reported`), attaching only an owned transaction and never disclosing a foreign one;
+- recall is still bounded: inferential denials ("no puede ser mía"), induced-scam payments, never-contracted subscriptions, and reports made on behalf of someone else are not covered;
+- where the structural resolver resolves a hypothetical or other non-assertive reading, the layer defers even if a denial is present;
+- the structural resolver itself escalates some hedged, "not yet", or retracted statements conservatively; the layer does not change that.
+
+## 13. Remaining validation before final submission
 
 Judge-facing evidence still depends on later gates including final RF1H-B2 closure under the narrowed contract, B3 resolution/integration, RF1J fresh/generalization evaluation, live/provider evaluation where applicable, final deployment/judge-facing UX, and final limitations/evaluation reconciliation.
 

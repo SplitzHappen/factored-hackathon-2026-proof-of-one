@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
+from app.denial_safety import denial_safety_assertion
 from app.unauthorized_grammar import PropositionMode, resolve_positive_propositions
 
 
@@ -385,10 +386,19 @@ def _is_declarative_fraud_assertion(normalized: str) -> bool:
 
 
 def is_explicit_unauthorized_assertion(text: str) -> bool:
-    """Return True when either supported grammar resolves an assertive positive."""
+    """Return True for an explicit unauthorized-activity assertion.
 
-    return any(
-        proposition.mode == PropositionMode.ASSERTIVE.value
+    The RF1H structural resolver is authoritative: any assertive positive in
+    either supported grammar returns True. Only when it resolves no assertive
+    positive is the bounded RF1K denial-safety layer consulted, and that layer
+    defers to every resolved non-assertive mode except QUESTIONED.
+    """
+
+    modes = frozenset(
+        proposition.mode
         for language in ("es", "pt")
         for proposition in resolve_positive_propositions(text, language)
     )
+    if PropositionMode.ASSERTIVE.value in modes:
+        return True
+    return denial_safety_assertion(text, modes)
