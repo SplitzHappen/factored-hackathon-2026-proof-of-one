@@ -678,6 +678,7 @@ def _retention_cases() -> Iterable[tuple[str, str, int, str]]:
         message, start = _render_marked(template)
         yield message, language, start, class_id
 
+
 def _structural_cases() -> tuple[tuple[str, str, int | None], ...]:
     cases = (
         list(_attached_frame_cases())
