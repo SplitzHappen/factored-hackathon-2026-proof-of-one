@@ -93,14 +93,22 @@ Fresh independent probes found natural, explicit first-person denials ("se hizo 
 - RF1M adds four bounded families: clause-initial "no fui yo"/"não fui eu" measured by its own clause, first-person money-movement denials that point back at an existing movement ("yo no la envié", "eu não mexi nesse dinheiro"), elliptical ownership denial over listed items ("ninguno es mío", "nenhuma é minha"), and emphatic/elliptical agency denial ("yo seguro que no", "eu é que não fui"), plus a closed set of misspellings of "reconozco";
 - RF1M also blocks a cue when the message grants permission to the actor ("con mi permiso", "eu autorizei") or explains a movement that did not happen (forgetting, app failure);
 - a short follow-up may borrow the activity anchor of the immediately preceding sentence, or of the sentence before it only when that intervening sentence asks who did it ("no sé quién lo hizo"); a reported balance drop counts as an anchor unless the same sentence explains it;
+- RF1O adds six report families, each bound to an existing referent rather than to topical wording:
+  - set-up / initiation / enrollment denial over an item that already exists: a relative clause on a payee, debit, or transfer ("... un destinatario que yo nunca agregué", "... um Pix que eu nunca iniciei"), a demonstrative object ("nunca me suscribí a eso"), or an object clitic with an explicit "yo" ("yo no lo programé"); "no programé el pago" and "nunca me suscribí a nada" stay unlicensed;
+  - observed activity located where the customer has never been ("vi retiros en una ciudad donde nunca he estado"); planned travel, self-performed activity, and activity attributed to a named relative are blocked, and card possession alone is not a report;
+  - household-wide denial of an existing item ("un cobro que nadie en mi familia reconoce", "nem eu nem meu marido fizemos"), never of a new indefinite activity ("nadie hizo compras este mes");
+  - intrusion into the customer's own account or app by an unnamed party ("creo que se metieron a mi cuenta", "acessaram minha conta"); a named or negated subject, an uncertainty hedge, a permission grant, or a non-bank account ("mi cuenta de Netflix") blocks it;
+  - account-provenance denial of an alert or item ("pero no es de mi cuenta"); a corrective re-attribution ("..., es de la tarjeta de mi esposo") blocks it;
+  - a named relative's denial relayed by the customer ("mi mamá no reconoce un cargo", "ele não sacou"); this is the product-contract decision for third-party reports: mandatory escalation with a ticket bound to the reporting session only, with no third-party account lookup or disclosure;
+- RF1O families read conditional scope over the whole sentence, and Portuguese "se um dia / se por acaso / se aparecer / se houver ..." now counts as a protasis for the whole layer, so hypothetical advice questions built on any family are not licensed;
 - it never consults the retired whole-message regex inventory.
 
 Consequences:
 
 - a licensed denial routes to verified escalation (`unauthorized_activity_reported`), attaching only an owned transaction and never disclosing a foreign one;
-- recall is still bounded: inferential denials ("no puede ser mía"), induced-scam payments, never-contracted subscriptions, and reports made on behalf of someone else are not covered; money-movement denials without an explicit "yo"/"eu" subject, or with a new indefinite object ("no envié el pago"), are deliberately not licensed because they usually describe a failure to pay;
+- recall is still bounded: inferential denials ("no puede ser mía") and induced-scam payments are not covered; third-party reports are covered only when a named relative ("mi papá", "minha mãe") denies the activity; money-movement and set-up denials without a back-reference to an existing item ("no envié el pago", "no programé el pago") are deliberately not licensed because they usually describe a failure to act;
 - where the structural resolver resolves a hypothetical or other non-assertive reading, the layer defers even if a denial is present;
-- the structural resolver itself escalates some hedged, "not yet", or retracted statements conservatively; the layer does not change that.
+- the structural resolver itself escalates some hedged, "not yet", or retracted statements conservatively, and asserts some embedded advice-question hypotheticals ("¿Qué debo hacer si algún día veo un cargo que no reconozco?"); the layer does not change that.
 
 ## 13. Remaining validation before final submission
 
