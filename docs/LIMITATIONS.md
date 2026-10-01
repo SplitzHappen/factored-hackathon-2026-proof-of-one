@@ -161,6 +161,15 @@ Consequences:
   - impersonal activity performed using the customer's own account ("fizeram uma transferência usando minha conta", "hicieron compras usando mi cuenta"). Money arriving through the account ("para mim", salary, refund) and a negated activity are not reports;
   - the customer's account drained by an impersonal or unnamed party ("alguien me vació la cuenta sin mi permiso", "me vaciaron la cuenta", "zeraram minha conta", "me dejaron la cuenta en cero"). The account must be the customer's through a dative "me/nos" or a possessive, and not "la cuenta de correo" or "a conta de luz".
   - An impersonal plural verb in these families must stand without an overt subject in its clause, as for intrusions, so "los cobros me vaciaron la cuenta" or "meus pais fizeram uma compra usando minha conta" are not reports, while "creo que me vaciaron la cuenta" is.
+- RF1Y adds six bounded families for further fresh-confirmation misses of the same account-drain and account-use reports, and one over-escalation guard:
+  - a passive drain or use of the customer's account, card, or data ("mi cuenta fue vaciada por alguien", "minha conta foi esvaziada ..., não fui eu"). The passive needs an unnamed agent right after it or a disowning in the message; a named agent ("por mi hermano", "pelo banco") is not a report;
+  - a Spanish double clitic ("me la vaciaron"), only when the message names a banking context (an own account, card, balance, or the app) and no non-financial referent ("la casa");
+  - progressive or habitual use of the customer's account ("alguém andou usando a minha conta para transferir ..."). A singular auxiliary needs an unnamed subject, and the use needs a financial purpose or an explicit lack of permission;
+  - a fronted lack of permission with an article-only object ("Sem minha autorização, alguém esvaziou a conta");
+  - a drain of a quantified plural of the customer's accounts ("me vaciaron las dos cuentas");
+  - the customer left without money ("me dejaron sin un centavo en la cuenta"), licensed by an account or card in the message, an unnamed actor, or a disowning. A fee, interest, or expense named after the verb is a cause ("me dejaron sin un peso los intereses").
+  - These families take the RF1W scope checks. Inside an RF1Y cue only, "sin" is masked for the shared conditional check, because that check also reads "si" inside "sin"; the shared conditional pattern itself is unchanged, so the same misreading can still block other families.
+  - Non-recognition of the app, its version, or its interface ("no reconozco la nueva versión de la app, ¿dónde quedó el botón de transferencias?") is not a report when the recognized object names no activity, money, account, card, or data; an interface label such as "el botón de transferencias" does not count as an activity.
 
 ## 13. Remaining validation before final submission
 

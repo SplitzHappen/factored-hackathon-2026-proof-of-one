@@ -1001,6 +1001,158 @@ _ACCOUNT_DRAIN = (
 )
 _UNNAMED_ACTOR_START = _rx(r"^" + _UNNAMED_ACTOR + r"\b")
 
+# ---------------------------------------------------------------- RF1Y families
+# RF1X miss shapes of the RF1W account-drain / account-use reports, plus a guard for
+# the one RF1X over-escalation. Each family is licensed only for the customer's own
+# account, card, or data and an unnamed or impersonal actor.
+_RF1Y_ACCOUNT = (
+    r"(?:cuenta|cuentas|conta|contas|tarjeta|tarjetas|cartao|cartoes)\b"
+    r"(?!\s+(?:de|da|do|del)\s+(?!" + _OWN_ACCOUNT_TYPE + r"\b))"
+)
+_RF1Y_POSSESSED = (
+    r"(?:(?:la|las|a|as|os)\s+)?(?:mi|mis|minha|minhas|meu|meus)\s+(?:" + _RF1Y_ACCOUNT
+    + r"|(?:datos|dados)\b)"
+)
+# 1. Passive voice: the customer's account, card, or data drained or used ("mi cuenta
+# fue vaciada por alguien", "fue vaciada mi cuenta por ...", "minha conta foi
+# esvaziada ..."). The passive is licensed by an unnamed agent right after it or by
+# a disowning in the message, so the bank or a named person draining it stays out.
+_PASSIVE_AUX = r"(?:fue|fueron|ha sido|han sido|foi|foram|tem sido)"
+_PASSIVE_PARTICIPLE = (
+    r"(?:vaciad|limpiad|usad|utilizad|clonad|hackead|esvaziad|zerad|limpad|raspad)[oa]s?"
+)
+_PASSIVE_ACCOUNT_MISUSE = (
+    r"\b" + _RF1Y_POSSESSED + r"(?:\s+[^\s,]+){0,2}?\s+" + _PASSIVE_AUX + r"\s+"
+    + _PASSIVE_PARTICIPLE + r"\b"
+    + r"|\b" + _PASSIVE_AUX + r"\s+" + _PASSIVE_PARTICIPLE + r"\s+" + _RF1Y_POSSESSED
+)
+_RF1Y_UNNAMED_AGENT = _rx(r"^\s*(?:,\s*)?(?:por|pelo|pela)\s+" + _UNNAMED_ACTOR + r"\b")
+_RF1Y_NAMED_AGENT = _rx(
+    r"^\s*(?:,\s*)?(?:por|pelo|pela)\s+(?:(?:mi|mis|meu|minha|meus|minhas)\s+" + _KIN
+    + r"|(?:el|la|o|a)\s+(?:banco|empresa|tienda|loja)|banco)\b"
+)
+_RF1Y_DISOWNED = _rx(
+    r"\b(?:no fui yo|yo no fui|nao fui eu|eu nao fui)\b|" + _WITHOUT_MY_AUTHORIZATION
+    + r"|\b(?:yo|eu)\s+(?:no|nunca|nao)\s+(?:(?:lo|la|los|las|o|a|os|as)\s+)?"
+    r"(?:hice|autorice|saque|retire|fiz|autorizei|tirei|saquei|retirei)\b"
+    r"|\b(?:no|nunca|nao)\s+(?:(?:lo|la|los|las|o|a|os|as)\s+)?(?:autorice|autorizei)\b"
+)
+# 2. Spanish double clitic ("me la vaciaron"): the feminine clitic stands for the
+# account or balance, so the message must name a banking context for it.
+_DOUBLE_CLITIC_DRAIN = (
+    _NOT_NEGATED + r"\b(?:me|nos)\s+(?:la|las)\s+(?:vaciaron|han vaciado|limpiaron|han limpiado|"
+    r"dejaron\s+(?:vacia|vacias|en\s+cero))\b"
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+(?:me|nos)\s+(?:la|las)\s+(?:vacio|ha vaciado|limpio|"
+    r"ha limpiado|dejo\s+(?:vacia|vacias|en\s+cero))\b"
+)
+_RF1Y_BANKING_CONTEXT = _rx(
+    r"\b(?:" + _ACCOUNT_NOUN + r"|(?:tarjeta|tarjetas|saldo|app|aplicacion|banca\s+(?:en\s+linea|"
+    r"movil|virtual)|billetera)\b)"
+)
+# A physical container named before the clitic is its referent, not the account.
+_RF1Y_NONFINANCIAL_REFERENT = _rx(
+    r"\b(?:casa|nevera|heladera|alcancia|despensa|bodega|habitacion|maleta|mochila)\b"
+)
+# 3. Progressive or habitual use of the customer's account ("andou usando a minha
+# conta para transferir ..."). A singular auxiliary needs an unnamed subject; the
+# use needs a financial purpose or an explicit lack of permission.
+_PROGRESSIVE_PLURAL = (
+    r"(?:andam|andaram|andavam|vem|vinham|estao|estavam|ficaram|continuam|seguem|andan|"
+    r"anduvieron|han estado|estuvieron|siguen|estan)"
+)
+_PROGRESSIVE_SINGULAR = (
+    r"(?:anda|andou|andava|vem|vinha|veio|esta|estava|ficou|fica|continua|continuou|segue|"
+    r"seguiu|anduvo|ha estado|estuvo|sigue)"
+)
+_PROGRESSIVE_TARGET = (
+    r"\s+(?:usando|utilizando)\s+(?:(?:la|las|a|as)\s+)?(?:mi|mis|minha|minhas)\s+"
+    + _ACCOUNT_NOUN + r"(?:" + _FINANCIAL_PURPOSE + r"|\s+" + _WITHOUT_MY_AUTHORIZATION + r")"
+)
+_PROGRESSIVE_ACCOUNT_USE = (
+    _NOT_NEGATED + r"\b" + _PROGRESSIVE_PLURAL + _PROGRESSIVE_TARGET
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+" + _PROGRESSIVE_SINGULAR + _PROGRESSIVE_TARGET
+)
+# 4. A fronted lack of permission with an article-only object ("Sem minha autorização,
+# alguém esvaziou a conta"): the fronted clause makes the object the customer's.
+_RF1Y_WITHOUT_PERMISSION_FRONT = (
+    r"(?:sin|sem)\s+(?:(?:a\s+)?(?:mi|minha)\s+)?(?:permiso|autorizacion|consentimiento|"
+    r"permissao|autorizacao|consentimento)"
+)
+_FRONTED_PERMISSION_DRAIN = (
+    r"(?:^|(?<=, ))" + _RF1Y_WITHOUT_PERMISSION_FRONT + r"\s*,?\s+(?:"
+    + _UNNAMED_ACTOR + r"\s+(?:(?:me|nos)\s+)?(?:" + _DRAIN_SINGULAR + r"|" + _SINGULAR_USE + r")"
+    + r"|(?:(?:me|nos)\s+)?(?:" + _DRAIN_PLURAL + r"|" + _PLURAL_USE + r"))"
+    + r"\s+(?:la|las|a|as|el|o)\s+(?:" + _RF1Y_ACCOUNT + r"|saldo\b)"
+)
+# 5. A quantified plural account object ("me vaciaron las dos cuentas").
+_RF1Y_QUANT = r"(?:dos|tres|ambas|todas|duas)"
+_RF1Y_PLURAL_ACCOUNT = (
+    r"(?:cuentas|contas|tarjetas|cartoes)\b(?!\s+(?:de|da|do|del)\s+(?!" + _OWN_ACCOUNT_TYPE
+    + r"\b))"
+)
+_RF1Y_QUANTIFIED_OBJECT = (
+    r"(?:(?:las|as)\s+)?" + _RF1Y_QUANT + r"\s+(?:(?:las|as)\s+)?(?:(?:mis|minhas)\s+)?"
+    + _RF1Y_PLURAL_ACCOUNT
+)
+_RF1Y_POSSESSED_QUANTIFIED = (
+    r"(?:mis|minhas)\s+" + _RF1Y_QUANT + r"\s+" + _RF1Y_PLURAL_ACCOUNT
+)
+_QUANTIFIED_PLURAL_DRAIN = (
+    _NOT_NEGATED + r"\b(?:me|nos)\s+" + _DRAIN_PLURAL + r"\s+(?:" + _RF1Y_QUANTIFIED_OBJECT
+    + r"|" + _RF1Y_POSSESSED_QUANTIFIED + r")"
+    + r"|" + _NOT_NEGATED + r"\b" + _DRAIN_PLURAL + r"\s+" + _RF1Y_POSSESSED_QUANTIFIED
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+(?:(?:me|nos)\s+)?" + _DRAIN_SINGULAR + r"\s+(?:"
+    + _RF1Y_QUANTIFIED_OBJECT + r"|" + _RF1Y_POSSESSED_QUANTIFIED + r")"
+)
+# 6. Leaving the customer without money ("me dejaron sin un centavo"); licensed by
+# the customer's account or card, an unnamed actor, or a disowning in the message.
+_RF1Y_NO_MONEY = (
+    r"(?:sin|sem)\s+(?:(?:un\s+solo|um\s+so|ni\s+un|nem\s+um|un|um)\s+)?(?:centavo|peso|euro|"
+    r"dolar|real|tostao|quinto)\b"
+    r"|(?:sin|sem)\s+(?:plata|dinero|dinheiro|saldo|fondos|fundos)\b"
+    r"|(?:sin|sem)\s+nada\s+(?:en|na|no)\s+(?:la\s+|a\s+)?(?:mi\s+|minha\s+)?(?:cuenta|conta)\b"
+)
+_NO_MONEY_DRAIN = (
+    _NOT_NEGATED + r"\b(?:me|nos)\s+(?:dejaron|han dejado|deixaram)\s+(?:" + _RF1Y_NO_MONEY + r")"
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+(?:me|nos)\s+(?:dejo|ha dejado|deixou)\s+(?:"
+    + _RF1Y_NO_MONEY + r")"
+)
+_RF1Y_CUE_SIN = _rx(r"\bsin\b")
+_RF1Y_ACCOUNT_CONTEXT = _rx(r"\b(?:cuenta|cuentas|conta|contas|tarjeta|tarjetas|cartao|cartoes)\b")
+# A fee, interest, or expense named after the verb is the cause, not an actor
+# ("me dejaron sin un peso los intereses").
+_RF1Y_POST_VERBAL_CAUSE = _rx(
+    r"^(?:\s+[^\s,]+){0,4}?\s+(?:las|los|os|as|tantas|tantos|essas|esses|esas|esos)\s+"
+    r"(?:comisiones|intereses|cargos|cobros|gastos|deudas|impuestos|cuotas|juros|tarifas|taxas|"
+    r"despesas|dividas|parcelas|compras|facturas|faturas|cuentas|contas)\b"
+)
+# 7. RF1X over-escalation: non-recognition of the app, its version, or its interface
+# ("no reconozco la nueva versión de la app, ¿dónde quedó el botón de transferencias?")
+# is not a disowned transaction when the recognized object names no activity, money,
+# account, card, or data.
+_INTERFACE_OBJECT = _rx(
+    r"^\s*(?:(?:el|la|los|las|o|a|os|as|este|esta|esse|essa|ese|esa)\s+)?"
+    r"(?:(?:nuevo|nueva|nuevos|nuevas|novo|nova|novos|novas|ultimo|ultima|actual|atual)\s+)?"
+    r"(?:version|versao|versiones|versoes|actualizacion|atualizacao|diseno|design|layout|"
+    r"interfaz|interface|pantalla|tela|menu|icono|icone|boton|botao|aplicacion|aplicativo|app)\b"
+)
+_INTERFACE_NOUN = (
+    r"(?:version|versao|actualizacion|atualizacao|diseno|design|layout|interfaz|interface|"
+    r"pantalla|tela|menu|icono|icone|boton|botao|aplicacion|aplicativo|app|seccion|secao|"
+    r"opcion|opcao|pestana|aba)"
+)
+# An interface element named after a section ("el botón de transferencias", "a tela de
+# pagamentos") labels the interface; it is not an activity.
+_INTERFACE_LABEL = _rx(
+    r"\b" + _INTERFACE_NOUN + r"(?:\s+(?:de|del|da|do|das|dos)\s+(?:(?:la|el|los|las|o|a|os|as)\s+)?"
+    r"[^\s,]+)+"
+)
+_INTERFACE_FINANCIAL = _rx(
+    r"\b(?:" + _ITEM + r"|cuenta|cuentas|conta|contas|tarjeta|tarjetas|cartao|cartoes|datos|dados|"
+    r"dinero|dinheiro|plata|saldo|fondos|fundos|cargo|cargos|prestamo|emprestimo|credito|"
+    r"extracto|extrato|estado de cuenta|fatura|factura|resumen)\b"
+)
+
 _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "non_recognition",
@@ -1348,6 +1500,18 @@ _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("account_use", _rx(_ACCOUNT_USE)),
     # RF1W: the customer's account drained by an impersonal or unnamed party.
     ("account_drain", _rx(_ACCOUNT_DRAIN)),
+    # RF1Y: passive drain or use of the customer's account, card, or data.
+    ("passive_account_misuse", _rx(_PASSIVE_ACCOUNT_MISUSE)),
+    # RF1Y: Spanish double-clitic account drain ("me la vaciaron").
+    ("double_clitic_drain", _rx(_DOUBLE_CLITIC_DRAIN)),
+    # RF1Y: progressive or habitual use of the customer's account.
+    ("progressive_account_use", _rx(_PROGRESSIVE_ACCOUNT_USE)),
+    # RF1Y: fronted lack of permission with an article-only object.
+    ("fronted_permission_drain", _rx(_FRONTED_PERMISSION_DRAIN)),
+    # RF1Y: drain of a quantified plural of the customer's accounts.
+    ("quantified_plural_drain", _rx(_QUANTIFIED_PLURAL_DRAIN)),
+    # RF1Y: the customer left without money by an impersonal or unnamed party.
+    ("no_money_drain", _rx(_NO_MONEY_DRAIN)),
 )
 
 _RF1O_FAMILIES = frozenset(
@@ -1378,6 +1542,16 @@ _RF1U_FAMILIES = frozenset(
     }
 )
 _RF1W_FAMILIES = frozenset({"data_misuse_backref", "account_use", "account_drain"})
+_RF1Y_FAMILIES = frozenset(
+    {
+        "passive_account_misuse",
+        "double_clitic_drain",
+        "progressive_account_use",
+        "fronted_permission_drain",
+        "quantified_plural_drain",
+        "no_money_drain",
+    }
+)
 _CHARACTERIZATION_FAMILIES = frozenset({"fraud_characterization", "unknown_characterization"})
 # Families whose cue may borrow an anchor from the preceding sentence when the cue
 # carries its own back-reference (demonstrative or clitic object) or opens a short
@@ -1794,8 +1968,12 @@ def _blocker(
     prefix = _clause_prefix(text, start)
     presupposed_relative = bool(_RELATIVIZER_TAIL.search(prefix))
 
+    if family in _RF1Y_FAMILIES:
+        return _rf1y_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1W_FAMILIES:
         return _rf1w_blocker(sentence, start, end, family, message_tail, message_head)
+    if family == "non_recognition" and _interface_nonrecognition(text, end):
+        return "interface_nonrecognition"
     if family in _RF1U_FAMILIES:
         return _rf1u_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1S_FAMILIES:
@@ -2404,6 +2582,88 @@ def _rf1w_blocker(
     return None
 
 
+def _interface_nonrecognition(text: str, end: int) -> bool:
+    """True when a non-recognition cue's object is the app or its interface only."""
+
+    after = text[end:]
+    if not _INTERFACE_OBJECT.match(after):
+        return False
+    stop = re.search(r"[,¿?]", after)
+    obj = after[: stop.start()] if stop else after
+    return not _INTERFACE_FINANCIAL.search(_INTERFACE_LABEL.sub(" ", obj))
+
+
+def _rf1y_licensed_anchor(
+    sentences: list[_Sentence], index: int, start: int, end: int, family: str
+) -> str | None:
+    """Anchor for an RF1Y cue, or None when its licence is missing."""
+
+    text = sentences[index].text
+    cue = text[start:end]
+    message = " ".join(s.text for s in sentences)
+    if family == "passive_account_misuse":
+        after = text[end:]
+        if _RF1Y_UNNAMED_AGENT.match(after) or _RF1Y_DISOWNED.search(message):
+            return cue
+        return None
+    if family == "double_clitic_drain":
+        head = " ".join([s.text for s in sentences[:index]] + [text[:start]])
+        if _RF1Y_BANKING_CONTEXT.search(message) and not _RF1Y_NONFINANCIAL_REFERENT.search(head):
+            return cue
+        return None
+    if family == "no_money_drain":
+        if (
+            _UNNAMED_ACTOR_START.match(cue)
+            or _RF1Y_ACCOUNT_CONTEXT.search(message)
+            or _RF1Y_DISOWNED.search(message)
+        ):
+            return cue
+        return None
+    return cue
+
+
+def _rf1y_blocker(
+    sentence: _Sentence,
+    start: int,
+    end: int,
+    family: str,
+    message_tail: str,
+    message_head: str,
+) -> str | None:
+    """Scope checks for the RF1Y families.
+
+    Active families take the RF1W checks (every shared RF1U check, a named actor, a
+    not-yet frame, an impersonal verb without an overt subject, and incoming money
+    for account use). The passive family has no subject slot to check; it takes the
+    shared RF1U checks and blocks a named agent. A fee or expense named after the
+    verb is a cause, not an actor.
+    """
+
+    after = sentence.text[end:]
+    # Inside an RF1Y cue, "sin" is the cue's own no-money or no-permission preposition,
+    # never a conditional; the shared protasis pattern also reads "si" inside "sin", so
+    # that token is masked (same length) for these families' checks only.
+    sentence = _Sentence(
+        text=sentence.text[:start] + _RF1Y_CUE_SIN.sub("s_n", sentence.text[start:end])
+        + sentence.text[end:],
+        question_start=sentence.question_start,
+    )
+    if family == "passive_account_misuse":
+        blocked = _rf1u_blocker(sentence, start, end, "data_misuse", message_tail, message_head)
+        if blocked is not None:
+            return blocked
+        if _RF1Y_NAMED_AGENT.match(after):
+            return "named_actor"
+        return None
+    rf1w_family = "account_use" if family == "progressive_account_use" else "account_drain"
+    blocked = _rf1w_blocker(sentence, start, end, rf1w_family, message_tail, message_head)
+    if blocked is not None:
+        return blocked
+    if _RF1Y_POST_VERBAL_CAUSE.match(after):
+        return "post_verbal_cause"
+    return None
+
+
 # ------------------------------------------------- RF1Q structural-scope demotion
 # The structural resolver asserts a few non-report shapes: an advice question with
 # an indefinite-future protasis embedded after its question word ("¿Qué debo hacer
@@ -2522,7 +2782,9 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 # matching the same span (and blocked for lack of an activity
                 # anchor) cannot hide a product-anchored RF1Q cue.
                 span = (
-                    4
+                    5
+                    if family in _RF1Y_FAMILIES
+                    else 4
                     if family in _RF1W_FAMILIES
                     else 3
                     if family in _RF1U_FAMILIES
@@ -2535,7 +2797,11 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 if span in seen:
                     continue
                 seen.add(span)
-                if family in _RF1W_FAMILIES:
+                if family in _RF1Y_FAMILIES:
+                    anchor = _rf1y_licensed_anchor(
+                        sentences, index, match.start(), match.end(), family
+                    )
+                elif family in _RF1W_FAMILIES:
                     anchor = _rf1w_licensed_anchor(
                         sentence.text, match.start(), match.end(), family
                     )
