@@ -29,7 +29,11 @@ This layer is a bounded safety net for that structural silence only. Its contrac
    impersonation in a banking context, a disowned credential change) and widens
    existing ones structurally: observed items heading a relative clause across a
    modifier chain, items located in the customer's financial records, more product
-   heads, and relays by someone acting for the account holder.
+   heads, and relays by someone acting for the account holder. RF1U adds an activity
+   item characterized as fraudulent or unknown (presented as the customer's own),
+   third-party authorship with an explicit negated self, personal/card-data misuse
+   for financial activity, and a scam followed by a transaction in the customer's
+   name; it also makes the Brazilian "movimento" an activity noun.
 3. Activity anchor. The cue's sentence must name account activity (activity noun,
    charge/debit verb, or use of the customer's card/account). A short follow-up
    sentence may borrow the anchor of the immediately preceding sentence (a
@@ -184,7 +188,7 @@ _RELATIVE_HEAD = _rx(
     r"operacion|operaciones|transaccion|transacciones|transferencia|transferencias|"
     r"debito|debitos|retiro|retiros|giro|giros|consumo|consumos|cobranca|cobrancas|"
     r"pagamento|pagamentos|lancamento|lancamentos|operacao|operacoes|transacao|transacoes|"
-    r"pix|saque|saques|gasto|gastos|boleto|boletos|destinatario|destinatarios|"
+    r"pix|saque|saques|gasto|gastos|boleto|boletos|movimento|movimentos|destinatario|destinatarios|"
     r"beneficiario|beneficiarios|favorecido|favorecidos|contacto|contactos|contato|"
     r"contatos|suscripcion|suscripciones|assinatura|assinaturas|domiciliacion|"
     r"recorrencia)\b(?:\s+[^\s,]+){0,4}\s+$"
@@ -197,8 +201,8 @@ _OBSERVED_RELATIVE_HEAD = _rx(
     r"operacion|operaciones|transaccion|transacciones|transferencia|transferencias|"
     r"debito|debitos|retiro|retiros|giro|giros|consumo|consumos|avance|avances|cobranca|"
     r"cobrancas|pagamento|pagamentos|lancamento|lancamentos|operacao|operacoes|transacao|"
-    r"transacoes|pix|saque|saques|gasto|gastos|boleto|boletos|suscripcion|suscripciones|"
-    r"assinatura|assinaturas|domiciliacion|recorrencia)\b(?:\s+[^\s,]+){0,8}\s+$"
+    r"transacoes|pix|saque|saques|gasto|gastos|boleto|boletos|movimento|movimentos|suscripcion|"
+    r"suscripciones|assinatura|assinaturas|domiciliacion|recorrencia)\b(?:\s+[^\s,]+){0,8}\s+$"
 )
 # Enrolled payees and recurring set-ups are account activity for set-up denials.
 _ITEM_ANCHOR = _rx(
@@ -368,7 +372,8 @@ _REFERENCE_AFTER = _rx(
     r"isso|isto|aquele|aquela)\b"
     r"|\s+(?:el|la|los|las|o|a|os|as)\s+(?:cargo|cargos|cobro|cobros|compra|compras|"
     r"retiro|retiros|consumo|consumos|debito|debitos|saque|saques|gasto|gastos|cobranca|"
-    r"cobrancas|lancamento|lancamentos|movimiento|movimientos|movimentacao|transaccion|"
+    r"cobrancas|lancamento|lancamentos|movimiento|movimientos|movimento|movimentos|movimentacao|"
+    r"transaccion|"
     r"transacciones|transacao|transacoes|operacion|operaciones|operacao|operacoes)\b"
 )
 # Not recognizing or not authorizing presupposes that the activity exists.
@@ -652,6 +657,259 @@ _CUSTOMER_REQUESTED = _rx(
     r"\b(?:como|que)\s+(?:yo\s+|eu\s+)?(?:lo\s+|la\s+|o\s+|a\s+)?(?:pedi|solicite|habia pedido|"
     r"habia solicitado|solicitei|tinha pedido)\b|\b(?:a peticion mia|a mi pedido|a pedido meu)\b"
 )
+
+# ---------------------------------------------------------------- RF1U families
+# Activity items a customer can characterize as fraudulent or unknown.
+_ES_ITEM = (
+    r"(?:cargo|cargos|cobro|cobros|compra|compras|pago|pagos|movimiento|movimientos|operacion|"
+    r"operaciones|transaccion|transacciones|transferencia|transferencias|debito|debitos|retiro|"
+    r"retiros|consumo|consumos|giro|giros|avance|avances)"
+)
+_PT_ITEM = (
+    r"(?:cobranca|cobrancas|compra|compras|pagamento|pagamentos|lancamento|lancamentos|operacao|"
+    r"operacoes|transacao|transacoes|transferencia|transferencias|pix|debito|debitos|saque|saques|"
+    r"gasto|gastos|ted|boleto|boletos|movimento|movimentos|movimentacao|movimentacoes)"
+)
+_ITEM = r"(?:" + _ES_ITEM + r"|" + _PT_ITEM + r")"
+# At most two bare modifiers sit between the item and its characterization ("un
+# cobro mensual desconocido"). A preposition, determiner, or relativizer ends the
+# item phrase, so "una transferencia de un remitente desconocido" characterizes
+# the sender, not the transfer.
+_ITEM_MODIFIERS = (
+    r"(?:\s+(?!(?:de|del|da|do|das|dos|que|a|al|ao|en|em|no|na|nos|nas|por|para|pra|con|com|y|e|"
+    r"un|una|um|uma|el|la|o|os|as|los|las|mi|mis|meu|minha|se|me)\b)[a-z0-9]+){0,2}"
+)
+_FRAUD_ADJECTIVE = r"fraudulent[oa]s?"
+_UNKNOWN_ADJECTIVE = (
+    r"(?:desconocid[oa]s?|desconhecid[oa]s?|(?:no|nao)\s+(?:reconocid|reconhecid)[oa]s?|"
+    r"de\s+(?:origen|origem|procedencia)\s+(?:desconocid|desconhecid)[oa])"
+)
+# The characterized item must be presented as the customer's actual item: a copula
+# ("es un cargo fraudulento"), its presence or observation ("tengo / hay / me
+# salió / apareceu / estou com"), a charge to the customer ("me hicieron un ..."),
+# a report verb ("quiero reportar un ..."), a demonstrative, or the customer's own
+# account as its location. A bare mention ("cómo identificar una compra
+# fraudulenta") is not a report.
+# Articles, numerals, and quantifiers before the item ("me cargaron dos pagos ...").
+_QUANTIFIER = (
+    r"(?:(?:un|una|unos|unas|um|uma|uns|umas|dos|tres|cuatro|varios|varias|algunos|algunas|"
+    r"otro|otra|otros|otras|dois|duas|alguns|algumas|outro|outra|outros|outras)\s+){0,2}"
+)
+# The copula's subject is null, a demonstrative, or a belief complementizer ("creo
+# que es ..."), which the structural grammar also asserts.
+_CHARACTERIZATION_COPULA = _rx(
+    r"(?:^|\b(?:esto|eso|este|ese|esta|esa|aquello|isso|isto|esse|essa|aquilo|ele|ela)\s+"
+    r"|\b(?:creo|pienso|sospecho|estoy seguro|estoy segura|acho|penso|suspeito|tenho certeza|"
+    r"estou certo|estou certa)\s+que\s+)"
+    r"(?:es|fue|era|son|fueron|eran|e|foi|sao|foram|eram)\s+" + _QUANTIFIER + r"$"
+)
+_PRESENCE_VERB = (
+    r"(?:tengo|tenia|tenemos|hay|habia|hubo|aparece|aparecen|aparecio|aparecieron|veo|vi|vimos|"
+    r"sale|salen|salio|salieron|figura|figuran|registra|registran|llego|llegaron|tenho|tinha|"
+    r"temos|tem|ha|houve|aparecem|apareceu|apareceram|vejo|consta|constam|caiu|cairam|chegou|"
+    r"chegaram|saiu|sairam|veio|vieram|estou com|estoy con|encontre|encontrei|identifique|"
+    r"identifiquei|detecte|detectei|note|notei)"
+)
+# The presence verb's object must be the item itself: the window may not cross a
+# topic noun or a non-locative preposition ("tengo una duda sobre compras
+# fraudulentas", "tenemos un protocolo para pagos fraudulentos").
+_TOPIC_WORD = (
+    r"(?:sobre|acerca|respecto|relacion|contra|para|pra|de|del|da|do|das|con|com|sin|sem|"
+    r"como|duda|dudas|duvida|duvidas|pregunta|preguntas|pergunta|perguntas|consulta|consultas|"
+    r"informacion|informacao|questao|interes|interesse|miedo|medo|video|noticia|noticias|"
+    r"articulo|artigo|protocolo|politica|seguro)"
+)
+_CHARACTERIZATION_PRESENCE = _rx(
+    r"\b" + _PRESENCE_VERB + r"\b(?:\s+(?!" + _TOPIC_WORD + r"\b)[^\s,]+){0,6}?\s+$"
+)
+# The characterization is about the topic in general, not an item of the customer's.
+_GENERAL_TOPIC = _rx(
+    r"\b(?:en general|em geral|en las noticias|nas noticias|nos jornais|en la tele|na tv|"
+    r"reportaje|reportagem)\b"
+)
+_CHARGE_TO_ME = (
+    r"(?:hicieron|cobraron|cargaron|aplicaron|debitaron|pasaron|realizaron|efectuaron|fizeram|"
+    r"cobraram|debitaram|lancaram|passaram|realizaram|efetuaram)"
+)
+_CHARACTERIZATION_CHARGE = _rx(
+    r"\b(?:(?:me|nos)\s+)?" + _CHARGE_TO_ME + r"\s+" + _QUANTIFIER + r"$"
+)
+_CHARACTERIZATION_REPORT = _rx(
+    r"\b(?:reportar|reporto|reporte|denunciar|denuncio|reclamar|reclamo|disputar|disputo|"
+    r"impugnar|impugno|contestar|contesto|desconocer|informar|informo|avisar|aviso)\s+"
+    r"(?:(?:sobre|de|por)\s+)?(?:(?:un|una|unos|unas|um|uma|uns|umas|el|la|los|las|o|a|os|as)\s+)?$"
+)
+_CHARACTERIZATION_DEMONSTRATIVE = _rx(
+    r"\b(?:este|esta|estos|estas|ese|esa|esos|esas|aquel|aquella|esse|essa|esses|essas|aquele|"
+    r"aquela)\s+$"
+)
+_CHARACTERIZATION_BARE_START = _rx(r"^" + _QUANTIFIER + r"$")
+_OWN_ACCOUNT_LOCATION = _rx(
+    r"^(?:\s+[^\s,]+){0,4}?\s+(?:en|de|desde|na|no|da|do|em)\s+(?:mi|mis|minha|meu|minhas|meus)\s+"
+    r"(?:cuenta|cuentas|tarjeta|tarjetas|extracto|estado de cuenta|resumen|app|conta|contas|"
+    r"cartao|cartoes|extrato|fatura|aplicativo)\b"
+)
+# "No tengo ningún cargo desconocido": the item's presence is denied.
+_NEGATED_PRESENCE = _rx(
+    r"\b(?:no|nao|nunca|jamas|jamais|tampoco|tampouco)\s+(?:(?:me|te|se|lo|la|le|nos)\s+)?"
+    + _PRESENCE_VERB + r"\b"
+    r"|\b(?:ningun|ninguna|ningunos|ningunas|nenhum|nenhuma|sin|sem|nada de)\s+"
+    r"(?:(?:otro|otra|outro|outra)\s+)?$"
+)
+# Money arriving at the customer ("me llegó una transferencia desconocida") is
+# incoming, not unauthorized activity on the customer's account.
+_INCOMING_RECEIPT = _rx(
+    r"\b(?:recibi|recibimos|me llego|me llegaron|nos llego|me depositaron|me consignaron|"
+    r"me transfirieron|me enviaron|me mandaron|me hicieron|me hizo|me giraron|recebi|recebemos|"
+    r"me mandaram|me enviaram|me transferiram|me depositaram|me fizeram|me fez|entrou|entraram|"
+    r"me caiu|"
+    # Arrival verbs on a transfer-type item mean money arriving.
+    r"llego|llegaron|entro|entraron|ingreso|ingresaron|cayo|cayeron|chegou|chegaram|caiu|cairam)\b"
+)
+_INCOMING_ITEM = _rx(
+    r"^(?:transferencia|transferencias|pix|ted|giro|giros|deposito|depositos|abono|abonos)\b"
+)
+# A recognition already made earlier in the sentence ("ya reconocí el movimiento
+# desconocido, ...") resolves the characterization.
+_RECOGNIZED_BEFORE = _rx(
+    r"\b(?:ya|ja)\s+(?:(?:lo|la|los|las|o|a|os|as)\s+)?(?:reconoci|reconheci|identifique|"
+    r"identifiquei|aclare|esclareci)\b"
+)
+# Advice or information about the topic, not a report of an item.
+_INFORMATIONAL_FRAME = _rx(
+    r"\bcomo\s+(?:\S+\s+){0,3}?(?:identificar|reconocer|reconhecer|evitar|reportar|denunciar|"
+    r"contestar|reclamar|detectar|prevenir|proceder|actuar|agir|lidar|bloquear)\b"
+    r"|\b(?:informacion|informacao|consejos|dicas|recomendaciones|recomendacoes)\s+"
+    r"(?:sobre|para|de)\b"
+    r"|\b(?:que|o que)\s+(?:hacer|hago|debo hacer|se hace|fazer|faco|devo fazer)\b"
+)
+# A message quoting what a text or caller claims ("un SMS diciendo que tengo ...")
+# relays an unverified claim, not the customer's report.
+_RELAYED_CLAIM = _rx(
+    r"\b(?:diciendo|dizendo|avisando|informando|afirmando|alegando)\s+que\b"
+    r"|\b(?:que|onde)\s+(?:dice|decia|diz|dizia|afirma|alega)\s+que\b"
+)
+_CHARACTERIZATION_HEDGE = _rx(
+    r"\b(?:podria|puede|podra|seria|pode|poderia|sera|parece|tal vez|quizas|quiza|talvez)\s+"
+    r"(?:ser\s+)?(?:(?:un|una|um|uma)\s+)?$"
+)
+
+# Third-party authorship with the customer explicitly disowning it: an unnamed
+# party did it, "not me" ("fue hecha por otra persona, no por mí", "lo hizo un
+# tercero, no yo", "foi outra pessoa, não eu"). The contrast is part of the cue.
+_NEGATED_SELF = r"\s*,?\s*(?:(?:y|e|pero|mas)\s+)?(?:no|nao)\s+(?:por\s+(?:mi|mim)|yo|eu)\b"
+_AGENT_PARTICIPLE = (
+    r"(?:hech|realizad|efectuad|enviad|mandad|transferid|pagad|retirad|sacad|cobrad|solicitad|"
+    r"autorizad|comprad|feit|efetuad|pag|gast)[oa]s?"
+)
+_ES_AUTHOR_VERBS = (
+    r"(?:hizo|realizo|efectuo|envio|mando|transfirio|pago|retiro|saco|compro|pidio|solicito)"
+)
+_PT_AUTHOR_VERBS = (
+    r"(?:fez|realizou|efetuou|enviou|mandou|transferiu|pagou|retirou|sacou|comprou|pediu|"
+    r"solicitou)"
+)
+_THIRD_PARTY_AUTHORSHIP = (
+    r"\b(?:fue|fueron|ha sido|han sido|foi|foram)\s+" + _AGENT_PARTICIPLE
+    + r"\s+(?:[^\s,]+\s+){0,3}?por\s+" + _UNNAMED_ACTOR + r"\b(?:\s+[^\s,]+){0,3}?" + _NEGATED_SELF
+    + r"|\b(?:fue|fueron|foi|foram)\s+" + _UNNAMED_ACTOR + r"\b" + _NEGATED_SELF
+    + r"|\b(?:(?:lo|la|los|las|o|a|os|as)\s+)?(?:" + _ES_AUTHOR_VERBS + r"|" + _PT_AUTHOR_VERBS
+    + r")\s+" + _UNNAMED_ACTOR + r"\b" + _NEGATED_SELF
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+(?:(?:me|le|lhe|lo|la|los|las|o|a|os|as)\s+)?(?:"
+    + _ES_ACTOR_VERBS + r"|" + _PT_ACTOR_VERBS + r")\b(?:\s+[^\s,]+){0,4}?" + _NEGATED_SELF
+)
+
+# Personal-data misuse to perform financial activity: the customer's personal,
+# card, or account data used to buy, pay, transfer, or take out a product.
+_DATA_NP = (
+    r"(?:mis\s+datos(?:\s+(?:personales|bancarios|financieros))?|(?:los\s+)?datos\s+"
+    r"(?:(?:personales|bancarios)\s+)?de\s+mi\s+(?:tarjeta|cuenta|cedula)|"
+    r"mi\s+(?:cedula|identidad)|"
+    r"(?:os\s+)?meus\s+dados(?:\s+(?:pessoais|bancarios))?|(?:os\s+)?dados\s+"
+    r"(?:(?:pessoais|bancarios)\s+)?d(?:o|a)\s+(?:meu|minha)\s+(?:cartao|conta)|(?:o\s+)?meu\s+cpf|"
+    r"(?:a\s+)?minha\s+identidade)"
+)
+_PLURAL_USE = (
+    r"(?:usaron|han usado|estan usando|utilizaron|han utilizado|usaram|utilizaram|estao usando|"
+    r"tem usado)"
+)
+_SINGULAR_USE = r"(?:uso|ha usado|utilizo|usou|utilizou)"
+_FINANCIAL_PURPOSE = (
+    r"(?:\s+[^\s,]+){0,3}?\s+(?:para|pra|a fin de|con el fin de|com o fim de)\s+(?:poder\s+)?"
+    r"(?:(?:hacer|realizar|efectuar|fazer|efetuar|sacar|pedir|solicitar|tirar|abrir|contratar)\s+"
+    r"(?:[^\s,]+\s+){0,3}?(?:" + _ITEM + r"|" + _PRODUCT_HEAD + r")"
+    r"|comprar|pagar|transferir|retirar|girar|enviar dinero|mandar dinero|enviar dinheiro|"
+    r"mandar dinheiro)\b"
+)
+_IMPERSONAL_ACTIVITY = (
+    r"(?:hicieron|realizaron|efectuaron|sacaron|pidieron|solicitaron|compraron|pagaron|"
+    r"transfirieron|fizeram|realizaram|efetuaram|sacaram|pediram|solicitaram|compraram|pagaram|"
+    r"transferiram|tiraram|abrieron|abriram|contrataron|contrataram)"
+)
+_DATA_MISUSE = (
+    r"\b" + _PLURAL_USE + r"\s+" + _DATA_NP + _FINANCIAL_PURPOSE
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+" + _SINGULAR_USE + r"\s+" + _DATA_NP + _FINANCIAL_PURPOSE
+    + r"|\b" + _IMPERSONAL_ACTIVITY + r"\s+(?:[^\s,]+\s+){0,1}?" + _ITEM
+    + r"\b(?:\s+[^\s,]+){0,3}?\s+(?:con|usando|utilizando|com)\s+" + _DATA_NP
+)
+_DATA_MISUSE_ITEM = _rx(
+    r"\b(?:" + _ITEM + r"|" + _PRODUCT_HEAD + r"|comprar|pagar|transferir|retirar|girar|dinero|"
+    r"dinheiro)\b"
+)
+_NAMED_SUBJECT_BEFORE = _rx(
+    r"\b(?:mi|mis|meu|minha|meus|minhas)\s+" + _KIN + r"\b(?:\s+[^\s,]+){0,2}?\s*$"
+    r"|\b(?:ellos|ellas|eles|elas|el|ella|ele|ela)\s+$"
+)
+
+# Scam victimization plus activity in the customer's name: the scam alone is not
+# an unauthorized-activity report; the licence is an impersonal or unnamed party's
+# transaction in the customer's name, with their data, or from their account.
+_SCAM_NOUN = (
+    r"(?:estafa|estafas|fraude|fraudes|golpe|golpes|timo|engano|phishing|trampa|vishing|"
+    r"smishing)"
+)
+_SCAM_VICTIM = (
+    r"\b(?:cai|caimos|he caido|hemos caido)\s+(?:(?:en|em|num|numa|no|na|de|del)\s+)?"
+    r"(?:(?:un|una|um|uma|el|la|o|a)\s+)?" + _SCAM_NOUN + r"\b"
+    r"|\b(?:fui|fuimos|he sido|hemos sido|fomos)\s+(?:victima|victimas|vitima|vitimas)\s+"
+    r"(?:de|del|da|do)\s+(?:(?:un|una|um|uma|el|la|o|a)\s+)?" + _SCAM_NOUN + r"\b"
+    r"|\b(?:me|nos)\s+(?:estafaron|timaron|han estafado|enganaron|han enganado|enganaram)\b"
+    r"|\b(?:me|nos)\s+(?:aplicaron|aplicaram|hicieron|deram|deu|dieron)\s+"
+    r"(?:(?:un|una|um|uma|el|o)\s+)?"
+    + _SCAM_NOUN + r"\b"
+    r"|\b(?:fui|fuimos|fomos)\s+(?:estafad|enganad|timad)[oa]s?\b"
+    r"|\b(?:sofri|sufri)\s+(?:(?:un|una|um|uma)\s+)?" + _SCAM_NOUN + r"\b"
+)
+# Purchase, payment, and transfer verbs carry the activity themselves, whatever
+# their object ("compraram passagens no meu nome").
+_TRANSACTING_PLURAL = (
+    r"(?:compraron|pagaron|transfirieron|retiraron|sacaron|compraram|pagaram|transferiram|"
+    r"sacaram|retiraram)"
+)
+_ACTIVITY_IN_MY_NAME = _rx(
+    r"(?<!no )(?<!nao )(?<!nunca )(?<!jamas )(?<!jamais )"
+    r"\b(?:(?:" + _IMPERSONAL_ACTIVITY + r"|" + _UNNAMED_ACTOR + r"\s+(?:" + _ES_ACTOR_VERBS
+    + r"|" + _PT_ACTOR_VERBS + r"))\s+(?:[^\s,]+\s+){0,4}?(?:" + _ITEM + r"|" + _PRODUCT_HEAD
+    + r"|dinero|plata|dinheiro)\b|" + _TRANSACTING_PLURAL + r"\b)(?:\s+[^\s,]+){0,4}?\s+(?:"
+    + _IN_MY_NAME
+    + r"|(?:de|desde|con|del)\s+(?:mi|mis)\s+(?:cuenta|cuentas|tarjeta|tarjetas|datos)"
+    r"|(?:da|de|com|do|na|no)\s+(?:minha|meu|minhas|meus)\s+"
+    r"(?:conta|contas|cartao|cartoes|dados))\b"
+)
+# The customer asked the actor to do it ("pero yo se lo pedí", "eu pedi para ela
+# fazer"): a delegation, not a disowning.
+_RF1U_DELEGATION = _rx(
+    r"\b(?:yo|eu)\s+(?:se\s+(?:lo|la|los|las)|le|les|lhe|lhes)\s+(?:pedi|encargue|solicite|"
+    r"solicitei|mande|mandei|encomendei)\b"
+    r"|\b(?:yo|eu)\s+(?:(?:lo|la|o|a)\s+)?(?:autorice|autorizei)\b"
+    r"|\bpedi\s+(?:para|pra|a)\s+(?:el|ella|ele|ela|ellos|eles|elas|(?:o|a|mi|meu|minha)\s+\S+)\s+"
+    r"(?:que\s+)?(?:hacer|hiciera|pagar|pagara|transferir|transfiriera|enviar|mandar|fazer|"
+    r"fizesse|pagasse|transferisse|enviasse|mandasse)\b"
+)
+# "si/se/caso" right before the licensing verb makes it conditional; the shared
+# protasis check leaves bare Portuguese "se" alone because it is also a clitic.
+_CONDITIONAL_RIGHT_BEFORE = _rx(r"\b(?:si|se|caso)\s+$")
+_NEAR_MISS_BEFORE = _rx(r"\b(?:casi|quase|por poco|por pouco|quase que)\s+(?:[^\s,]+\s+)?$")
 
 _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
@@ -979,6 +1237,21 @@ _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("impersonation", _rx(r"\b(?:" + _ES_IMPERSONATION + r"|" + _PT_IMPERSONATION + r")")),
     # RF1S: the customer's credentials or contact data were changed, and disowned.
     ("credential_takeover", _rx(_CREDENTIAL_CHANGE)),
+    # RF1U: an activity item characterized as fraudulent or unknown by the customer.
+    (
+        "fraud_characterization",
+        _rx(r"\b" + _ITEM + _ITEM_MODIFIERS + r"\s+" + _FRAUD_ADJECTIVE + r"\b"),
+    ),
+    (
+        "unknown_characterization",
+        _rx(r"\b" + _ITEM + _ITEM_MODIFIERS + r"\s+" + _UNKNOWN_ADJECTIVE + r"\b"),
+    ),
+    # RF1U: an unnamed party did it, and the customer says it was not them.
+    ("third_party_authorship", _rx(_THIRD_PARTY_AUTHORSHIP)),
+    # RF1U: the customer's personal or card data used for financial activity.
+    ("data_misuse", _rx(_DATA_MISUSE)),
+    # RF1U: a scam the customer fell for, followed by activity in their name.
+    ("scam_activity", _rx(_SCAM_VICTIM)),
 )
 
 _RF1O_FAMILIES = frozenset(
@@ -999,6 +1272,16 @@ _RF1Q_FAMILIES = frozenset(
     }
 )
 _RF1S_FAMILIES = frozenset({"unnamed_actor_activity", "impersonation", "credential_takeover"})
+_RF1U_FAMILIES = frozenset(
+    {
+        "fraud_characterization",
+        "unknown_characterization",
+        "third_party_authorship",
+        "data_misuse",
+        "scam_activity",
+    }
+)
+_CHARACTERIZATION_FAMILIES = frozenset({"fraud_characterization", "unknown_characterization"})
 # Families whose cue may borrow an anchor from the preceding sentence when the cue
 # carries its own back-reference (demonstrative or clitic object) or opens a short
 # coordinated clause.
@@ -1019,7 +1302,9 @@ _ANCHORS: tuple[re.Pattern[str], ...] = (
     _rx(
         r"\b(?:cobranca|cobrancas|pagamento|pagamentos|lancamento|lancamentos|operacao|"
         r"operacoes|transacao|transacoes|pix|saque|saques|gasto|gastos|ted|boleto|boletos|"
-        r"movimentacao|movimentacoes)\b"
+        r"movimentacao|movimentacoes|"
+        # RF1U: "movimento" is the Brazilian account-movement noun.
+        r"movimento|movimentos)\b"
     ),
     _rx(
         r"\b(?:cobraron|cobraban|han cobrado|cargaron|han cargado|debitaron|han debitado|"
@@ -1412,6 +1697,8 @@ def _blocker(
     prefix = _clause_prefix(text, start)
     presupposed_relative = bool(_RELATIVIZER_TAIL.search(prefix))
 
+    if family in _RF1U_FAMILIES:
+        return _rf1u_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1S_FAMILIES:
         return _rf1s_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1Q_FAMILIES:
@@ -1824,6 +2111,148 @@ def _rf1s_blocker(
     return None
 
 
+def _rf1u_licensed_anchor(
+    sentences: list[_Sentence], index: int, start: int, end: int, family: str
+) -> str | None:
+    """Anchor for an RF1U cue, or None when the cue is not tied to account activity."""
+
+    text = sentences[index].text
+    cue = text[start:end]
+    if family in _CHARACTERIZATION_FAMILIES:
+        # The characterized item is the anchor.
+        return cue.split()[0]
+    if family == "data_misuse":
+        # The transaction or product the data was used for.
+        item = _DATA_MISUSE_ITEM.search(cue)
+        return item.group(0) if item else None
+    if family == "scam_activity":
+        # The licence is a transaction in the customer's name after the scam, in
+        # the same sentence or the next one, itself outside question or
+        # conditional scope ("caí en una estafa. ¿Si hicieron un pago ...?").
+        candidates = [(end, sentences[index])] + [(0, s) for s in sentences[index + 1 : index + 2]]
+        for position, candidate in candidates:
+            for activity in _ACTIVITY_IN_MY_NAME.finditer(candidate.text, position):
+                in_question = (
+                    candidate.question_start is not None
+                    and activity.start() >= candidate.question_start
+                )
+                before_activity = candidate.text[: activity.start()]
+                if not (
+                    in_question
+                    or _sentence_protasis(before_activity)
+                    or _CONDITIONAL_RIGHT_BEFORE.search(before_activity)
+                ):
+                    return activity.group(0)
+        return None
+    # third_party_authorship: the activity named in the sentence, or, for a short or
+    # back-referring sentence, in the one before it.
+    anchor = _anchor(text)
+    if anchor is not None or index == 0:
+        return anchor
+    if len(text.split()) <= _ANAPHORIC_MAX_TOKENS or _BACK_REFERENCE.search(cue):
+        return _anchor(sentences[index - 1].text)
+    return None
+
+
+def _characterization_frame(text: str, start: int, end: int) -> bool:
+    """True when the characterized item is presented as the customer's actual item."""
+
+    prefix = _clause_prefix(text, start)
+    return bool(
+        _CHARACTERIZATION_COPULA.search(prefix)
+        or _CHARACTERIZATION_PRESENCE.search(prefix)
+        or _CHARACTERIZATION_CHARGE.search(prefix)
+        or _CHARACTERIZATION_REPORT.search(prefix)
+        or _CHARACTERIZATION_DEMONSTRATIVE.search(prefix)
+        or (_CHARACTERIZATION_BARE_START.search(prefix) and _OWN_ACCOUNT_LOCATION.match(text[end:]))
+    )
+
+
+def _rf1u_blocker(
+    sentence: _Sentence,
+    start: int,
+    end: int,
+    family: str,
+    message_tail: str,
+    message_head: str,
+) -> str | None:
+    """Scope checks for the RF1U families.
+
+    They take the RF1S scope checks (retraction, reported speech except a
+    notification to the customer, hedges, resolution, permission, a protasis read
+    through the cue, interrogative scope). Each family then adds the checks that
+    keep it a report rather than advice, a plan, a delegation, or incoming money.
+    """
+
+    text = sentence.text
+    before = text[:start]
+    after = text[end:]
+    cue = text[start:end]
+    prefix = _clause_prefix(text, start)
+    whole = message_head + " " + cue + " " + message_tail
+
+    if _DOUBLE_NEGATION.search(before):
+        return "double_negation"
+    if _PRIOR_BELIEF.search(before):
+        return "prior_belief"
+    if _REPORTED_SPEECH.search(before) and not _DATIVE_REPORT.search(before):
+        return "reported_speech"
+    if _INTRUSION_HEDGE_TAIL.search(prefix):
+        return "uncertainty_hedge"
+    if _LATER_RECOGNITION.search(message_tail):
+        return "later_recognition"
+    resolution = _resolution_blocker(text, message_tail, start)
+    if resolution is not None:
+        return resolution
+    if _PERMISSION_GRANTED.search(_NEGATED_GRANT.sub(" ", message_tail)):
+        return "authorized_third_party"
+    if _sentence_protasis(text[:end]):
+        return "conditional_protasis"
+    if sentence.question_start is not None and start >= sentence.question_start:
+        return "interrogative_scope"
+    if _DELEGATED_REQUEST.search(whole) or _RF1U_DELEGATION.search(whole):
+        return "delegated_by_customer"
+
+    if family in _CHARACTERIZATION_FAMILIES:
+        if _CHARACTERIZATION_HEDGE.search(prefix):
+            return "uncertainty_hedge"
+        if _INFORMATIONAL_FRAME.search(before):
+            return "informational_request"
+        if _NEGATED_PRESENCE.search(prefix):
+            return "negated_presence"
+        if _GENERAL_TOPIC.search(text):
+            return "general_topic"
+        if _RELAYED_CLAIM.search(before):
+            return "relayed_claim"
+        if _RECOGNIZED_BEFORE.search(before):
+            return "resolved_or_recognized"
+        if _RECOGNIZED_ATTRIBUTION.search(message_tail) and not _UNAUTHORIZED_USE.search(whole):
+            return "resolved_or_recognized"
+        if (
+            _INCOMING_ITEM.match(cue)
+            and _INCOMING_RECEIPT.search(text)
+            and not _FROM_MY_ACCOUNT.search(text)
+        ):
+            return "incoming_transfer"
+        if not _characterization_frame(text, start, end):
+            return "no_report_frame"
+        return None
+    if family == "data_misuse":
+        if _NAMED_SUBJECT_BEFORE.search(prefix):
+            return "named_actor"
+        if _NOT_YET_BEFORE.search(before) or _NOT_YET_AFTER.search(after):
+            return "not_yet_or_causal"
+        return None
+    if family == "scam_activity":
+        if _NEAR_MISS_BEFORE.search(before):
+            return "near_miss"
+        return None
+    # third_party_authorship
+    if _NOT_YET_BEFORE.search(before):
+        return "not_yet_or_causal"
+    return None
+
+
 # ------------------------------------------------- RF1Q structural-scope demotion
 # The structural resolver asserts a few non-report shapes: an advice question with
 # an indefinite-future protasis embedded after its question word ("¿Qué debo hacer
@@ -1942,14 +2371,22 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 # matching the same span (and blocked for lack of an activity
                 # anchor) cannot hide a product-anchored RF1Q cue.
                 span = (
-                    2 if family in _RF1S_FAMILIES else int(family in _RF1Q_FAMILIES),
+                    3
+                    if family in _RF1U_FAMILIES
+                    else 2
+                    if family in _RF1S_FAMILIES
+                    else int(family in _RF1Q_FAMILIES),
                     match.start(),
                     match.end(),
                 )
                 if span in seen:
                     continue
                 seen.add(span)
-                if family in _RF1S_FAMILIES:
+                if family in _RF1U_FAMILIES:
+                    anchor = _rf1u_licensed_anchor(
+                        sentences, index, match.start(), match.end(), family
+                    )
+                elif family in _RF1S_FAMILIES:
                     anchor = _rf1s_licensed_anchor(
                         sentences, index, match.start(), match.end(), family
                     )
