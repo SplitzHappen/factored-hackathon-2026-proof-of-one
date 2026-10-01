@@ -90,12 +90,15 @@ Fresh independent probes found natural, explicit first-person denials ("se hizo 
 - the structural resolver stays authoritative; the layer runs only when it produced no assertive proposition, and any resolved non-assertive mode other than a question vetoes it;
 - a cue must be a first-person denial of performing, authorizing, soliciting, recognizing, or owning account activity, anchored to an activity noun, charge/debit verb, or use of the customer's card/account;
 - interrogative scope, conditional protasis, prior belief/retraction, reported speech, double negation, uncertainty hedges, "not yet"/causal non-performance, and descriptor clarification ("no reconozco el nombre del comercio") block the cue;
+- RF1M adds four bounded families: clause-initial "no fui yo"/"não fui eu" measured by its own clause, first-person money-movement denials that point back at an existing movement ("yo no la envié", "eu não mexi nesse dinheiro"), elliptical ownership denial over listed items ("ninguno es mío", "nenhuma é minha"), and emphatic/elliptical agency denial ("yo seguro que no", "eu é que não fui"), plus a closed set of misspellings of "reconozco";
+- RF1M also blocks a cue when the message grants permission to the actor ("con mi permiso", "eu autorizei") or explains a movement that did not happen (forgetting, app failure);
+- a short follow-up may borrow the activity anchor of the immediately preceding sentence, or of the sentence before it only when that intervening sentence asks who did it ("no sé quién lo hizo"); a reported balance drop counts as an anchor unless the same sentence explains it;
 - it never consults the retired whole-message regex inventory.
 
 Consequences:
 
 - a licensed denial routes to verified escalation (`unauthorized_activity_reported`), attaching only an owned transaction and never disclosing a foreign one;
-- recall is still bounded: inferential denials ("no puede ser mía"), induced-scam payments, never-contracted subscriptions, and reports made on behalf of someone else are not covered;
+- recall is still bounded: inferential denials ("no puede ser mía"), induced-scam payments, never-contracted subscriptions, and reports made on behalf of someone else are not covered; money-movement denials without an explicit "yo"/"eu" subject, or with a new indefinite object ("no envié el pago"), are deliberately not licensed because they usually describe a failure to pay;
 - where the structural resolver resolves a hypothetical or other non-assertive reading, the layer defers even if a denial is present;
 - the structural resolver itself escalates some hedged, "not yet", or retracted statements conservatively; the layer does not change that.
 
