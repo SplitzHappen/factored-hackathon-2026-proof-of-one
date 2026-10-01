@@ -918,6 +918,89 @@ _RF1U_DELEGATION = _rx(
 _CONDITIONAL_RIGHT_BEFORE = _rx(r"\b(?:si|se|caso)\s+$")
 _NEAR_MISS_BEFORE = _rx(r"\b(?:casi|quase|por poco|por pouco|quase que)\s+(?:[^\s,]+\s+)?$")
 
+# ---------------------------------------------------------------- RF1W families
+# The customer's data taken by an impersonal or unnamed party and then used through
+# a back-reference ("robaron mis datos y los usaron para ...", "pegaram meus dados e
+# fizeram uma compra com eles"). The taking verb licenses the back-reference, so the
+# customer's own or a merchant's use ("le di mis datos a la tienda y con ellos ...")
+# stays outside.
+# "Tomar datos" also means taking a customer's details down, so it is not a taking verb.
+_TAKE_PLURAL = (
+    r"(?:robaron|han robado|sacaron|consiguieron|obtuvieron|hackearon|clonaron|"
+    r"copiaron|filtraron|roubaram|pegaram|clonaram|conseguiram|obtiveram|hackearam|copiaram|"
+    r"vazaram|furtaram|capturaram)"
+)
+_TAKE_SINGULAR = (
+    r"(?:robo|ha robado|saco|consiguio|obtuvo|hackeo|clono|copio|roubou|pegou|clonou|"
+    r"conseguiu|obteve|hackeou|copiou|furtou)"
+)
+_DATA_PRONOUN = r"(?:ellos|ellas|eles|elas|esos datos|esses dados)"
+_COORDINATED = r"(?:\s+[^\s,]+){0,3}?\s*,?\s+(?:y|e)\s+"
+_PLURAL_ACTIVITY_WITH_DATA = (
+    r"(?:(?:los|las|os|as)\s+)?" + _PLURAL_USE + r"(?:\s+(?:eles|elas))?" + _FINANCIAL_PURPOSE
+    + r"|(?:con|com)\s+" + _DATA_PRONOUN + r"\s+" + _IMPERSONAL_ACTIVITY
+    + r"\s+(?:[^\s,]+\s+){0,1}?" + _ITEM + r"\b"
+    + r"|" + _IMPERSONAL_ACTIVITY + r"\s+(?:[^\s,]+\s+){0,1}?" + _ITEM
+    + r"\b(?:\s+[^\s,]+){0,3}?\s+(?:con|com)\s+" + _DATA_PRONOUN + r"\b"
+)
+_SINGULAR_ACTIVITY_WITH_DATA = (
+    r"(?:(?:los|las|os|as)\s+)?" + _SINGULAR_USE + r"(?:\s+(?:eles|elas))?" + _FINANCIAL_PURPOSE
+    + r"|(?:hizo|realizo|fez|realizou)\s+(?:[^\s,]+\s+){0,1}?" + _ITEM
+    + r"\b(?:\s+[^\s,]+){0,3}?\s+(?:con|com)\s+" + _DATA_PRONOUN + r"\b"
+)
+_DATA_MISUSE_BACKREF = (
+    r"\b(?:(?:me|nos|le|lhe)\s+)?" + _TAKE_PLURAL + r"\s+" + _DATA_NP + _COORDINATED
+    + r"(?:" + _PLURAL_ACTIVITY_WITH_DATA + r")"
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+(?:(?:me|le|lhe)\s+)?" + _TAKE_SINGULAR + r"\s+" + _DATA_NP
+    + _COORDINATED + r"(?:" + _SINGULAR_ACTIVITY_WITH_DATA + r")"
+)
+# The customer's own bank account: an account noun not followed by "de/da/do" plus
+# something other than an account type ("la cuenta de correo", "a conta de luz" and
+# "la cuenta de mi empresa" are not it).
+_OWN_ACCOUNT_TYPE = r"(?:ahorros?|poupanca|corriente|cheques|nomina|sueldo|salario)"
+_ACCOUNT_NOUN = (
+    r"(?:cuenta|cuentas|conta|contas)\b"
+    r"(?!\s+(?:de|da|do|del)\s+(?!" + _OWN_ACCOUNT_TYPE + r"\b))"
+)
+_POSSESSED_ACCOUNT = r"(?:(?:la|las|a|as)\s+)?(?:mi|mis|minha|minhas)\s+" + _ACCOUNT_NOUN
+_ANY_ACCOUNT = r"(?:(?:la|las|a|as)\s+)?(?:(?:mi|mis|minha|minhas)\s+)?" + _ACCOUNT_NOUN
+# Impersonal activity performed using the customer's own account ("fizeram uma
+# transferência usando minha conta", "hicieron compras usando mi cuenta"). A negated
+# activity ("não fizeram nenhuma ...") is not a report.
+_ACCOUNT_USE = (
+    r"(?<!no )(?<!nao )(?<!nunca )(?<!jamas )(?<!jamais )"
+    r"\b" + _IMPERSONAL_ACTIVITY + r"\s+(?:[^\s,]+\s+){0,2}?" + _ITEM
+    + r"\b(?:\s+[^\s,]+){0,3}?\s+(?:usando|utilizando)\s+" + _POSSESSED_ACCOUNT
+)
+# Money arriving to the customer through their account is not a report.
+_RF1W_INCOMING = _rx(
+    r"\b(?:pra|para)\s+(?:mi|mim)\b|\ba\s+mi\s+favor\b|\b(?:de|como)\s+destino\b"
+    r"|\b(?:sueldo|salario|nomina|aguinaldo|reembolso|estorno|devolucion|devolucao|deposito)\b"
+)
+# The customer's account emptied or drained by an impersonal or unnamed party ("me
+# vaciaron la cuenta", "alguien me vació la cuenta sin mi permiso", "zeraram minha
+# conta"). The account is the customer's through a dative "me/nos" or a possessive;
+# the customer's own or a named party's drain stays outside.
+_DRAIN_PLURAL = (
+    r"(?:vaciaron|han vaciado|limpiaron|han limpiado|esvaziaram|zeraram|limparam|rasparam)"
+)
+_DRAIN_SINGULAR = r"(?:vacio|ha vaciado|limpio|ha limpiado|esvaziou|zerou|limpou|raspou)"
+_LEFT_EMPTY = r"(?:en\s+cero|vacia|zerada|vazia|sem\s+(?:saldo|dinheiro|nada))"
+_NOT_NEGATED = r"(?<!no )(?<!nao )(?<!nunca )(?<!jamas )(?<!jamais )"
+_ACCOUNT_DRAIN = (
+    _NOT_NEGATED + r"\b(?:me|nos)\s+" + _DRAIN_PLURAL + r"\s+" + _ANY_ACCOUNT
+    + r"|" + _NOT_NEGATED + r"\b" + _DRAIN_PLURAL + r"\s+" + _POSSESSED_ACCOUNT
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+(?:me|nos)\s+" + _DRAIN_SINGULAR + r"\s+" + _ANY_ACCOUNT
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+" + _DRAIN_SINGULAR + r"\s+" + _POSSESSED_ACCOUNT
+    + r"|" + _NOT_NEGATED + r"\b(?:me|nos)\s+(?:dejaron|deixaram)\s+" + _ANY_ACCOUNT
+    + r"\s+" + _LEFT_EMPTY + r"\b"
+    + r"|" + _NOT_NEGATED + r"\b(?:dejaron|deixaram)\s+" + _POSSESSED_ACCOUNT
+    + r"\s+" + _LEFT_EMPTY + r"\b"
+    + r"|\b" + _UNNAMED_ACTOR + r"\s+(?:me\s+|nos\s+)?(?:dejo|deixou)\s+" + _ANY_ACCOUNT
+    + r"\s+" + _LEFT_EMPTY + r"\b"
+)
+_UNNAMED_ACTOR_START = _rx(r"^" + _UNNAMED_ACTOR + r"\b")
+
 _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "non_recognition",
@@ -1259,6 +1342,12 @@ _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("data_misuse", _rx(_DATA_MISUSE)),
     # RF1U: a scam the customer fell for, followed by activity in their name.
     ("scam_activity", _rx(_SCAM_VICTIM)),
+    # RF1W: taken data used through a back-reference (U-P29 class).
+    ("data_misuse_backref", _rx(_DATA_MISUSE_BACKREF)),
+    # RF1W: impersonal activity using the customer's own account.
+    ("account_use", _rx(_ACCOUNT_USE)),
+    # RF1W: the customer's account drained by an impersonal or unnamed party.
+    ("account_drain", _rx(_ACCOUNT_DRAIN)),
 )
 
 _RF1O_FAMILIES = frozenset(
@@ -1288,6 +1377,7 @@ _RF1U_FAMILIES = frozenset(
         "scam_activity",
     }
 )
+_RF1W_FAMILIES = frozenset({"data_misuse_backref", "account_use", "account_drain"})
 _CHARACTERIZATION_FAMILIES = frozenset({"fraud_characterization", "unknown_characterization"})
 # Families whose cue may borrow an anchor from the preceding sentence when the cue
 # carries its own back-reference (demonstrative or clitic object) or opens a short
@@ -1704,6 +1794,8 @@ def _blocker(
     prefix = _clause_prefix(text, start)
     presupposed_relative = bool(_RELATIVIZER_TAIL.search(prefix))
 
+    if family in _RF1W_FAMILIES:
+        return _rf1w_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1U_FAMILIES:
         return _rf1u_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1S_FAMILIES:
@@ -2265,6 +2357,53 @@ def _rf1u_blocker(
     return None
 
 
+def _rf1w_licensed_anchor(text: str, start: int, end: int, family: str) -> str | None:
+    """Anchor for an RF1W cue, or None when the cue is not tied to account activity."""
+
+    cue = text[start:end]
+    if family == "account_drain":
+        # The customer's own drained account is the anchor.
+        return cue
+    # data_misuse_backref, account_use: the transaction the data or account was used for.
+    item = _DATA_MISUSE_ITEM.search(cue)
+    return item.group(0) if item else None
+
+
+def _rf1w_blocker(
+    sentence: _Sentence,
+    start: int,
+    end: int,
+    family: str,
+    message_tail: str,
+    message_head: str,
+) -> str | None:
+    """Scope checks for the RF1W families.
+
+    They take the RF1U data-misuse checks: every shared RF1U check (retraction,
+    reported speech, hedges, resolution, permission, protasis, interrogative scope,
+    delegation), a named actor right before the cue, and a not-yet frame. An
+    impersonal plural verb must also stand without an overt subject in its clause
+    ("los cobros del banco me vaciaron ...", "meus pais fizeram ..."), as for RF1O
+    intrusions; and money arriving through the account is not account misuse.
+    """
+
+    blocked = _rf1u_blocker(sentence, start, end, "data_misuse", message_tail, message_head)
+    if blocked is not None:
+        return blocked
+    text = sentence.text
+    cue = text[start:end]
+    if not _UNNAMED_ACTOR_START.match(cue):
+        before = text[:start]
+        clause_start = 0
+        for brk in _CLAUSE_BREAK.finditer(before):
+            clause_start = brk.end()
+        if not _INTRUSION_PLURAL_SLOT.search(before[clause_start:]):
+            return "overt_subject"
+    if family == "account_use" and _RF1W_INCOMING.search(text):
+        return "incoming_transfer"
+    return None
+
+
 # ------------------------------------------------- RF1Q structural-scope demotion
 # The structural resolver asserts a few non-report shapes: an advice question with
 # an indefinite-future protasis embedded after its question word ("¿Qué debo hacer
@@ -2383,7 +2522,9 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 # matching the same span (and blocked for lack of an activity
                 # anchor) cannot hide a product-anchored RF1Q cue.
                 span = (
-                    3
+                    4
+                    if family in _RF1W_FAMILIES
+                    else 3
                     if family in _RF1U_FAMILIES
                     else 2
                     if family in _RF1S_FAMILIES
@@ -2394,7 +2535,11 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 if span in seen:
                     continue
                 seen.add(span)
-                if family in _RF1U_FAMILIES:
+                if family in _RF1W_FAMILIES:
+                    anchor = _rf1w_licensed_anchor(
+                        sentence.text, match.start(), match.end(), family
+                    )
+                elif family in _RF1U_FAMILIES:
                     anchor = _rf1u_licensed_anchor(
                         sentences, index, match.start(), match.end(), family
                     )
