@@ -136,6 +136,40 @@ def test_rf1u_boundaries_stay_reports(message: str) -> None:
     assert is_explicit_unauthorized_assertion(message) is True
 
 
+# U-P01 follow-up: a vocative, greeting, or interjection before the copula (or before
+# a bare item at the start of its clause) must not defeat the report; a lead clause
+# that is only a hedge or a prior belief still keeps it unasserted.
+_LEADING_VOCATIVE_REPORTS = [
+    ("fraud_characterization", "Buenas noches, es un consumo fraudulento."),
+    ("fraud_characterization", "Disculpe, fue un retiro fraudulento del cajero."),
+    ("fraud_characterization", "Pessoal, é um saque fraudulento."),
+    ("unknown_characterization", "Hola, es un débito no reconocido de anoche."),
+    ("unknown_characterization", "Boa tarde, foi uma transação desconhecida."),
+    ("unknown_characterization", "Oye, un giro desconocido en mi cuenta."),
+]
+_LEADING_HEDGE_CLAUSES = [
+    "Quizá, es un consumo fraudulento.",
+    "A lo mejor, es un retiro desconocido.",
+    "Talvez, é um saque fraudulento.",
+    "Não tenho certeza, é uma transação desconhecida.",
+    "Pensaba, es un débito fraudulento, pero no.",
+]
+
+
+@pytest.mark.parametrize(("family", "message"), _LEADING_VOCATIVE_REPORTS)
+def test_rf1u_leading_vocative_does_not_defeat_the_report(family: str, message: str) -> None:
+    assert is_explicit_unauthorized_assertion(message) is True
+    assert family in _families(message)
+
+
+@pytest.mark.parametrize("message", _LEADING_HEDGE_CLAUSES)
+def test_rf1u_leading_hedge_clause_keeps_the_copula_unasserted(message: str) -> None:
+    assert is_explicit_unauthorized_assertion(message) is False
+    assert "uncertainty_hedge" in {
+        finding.blocked_by for finding in denial_safety_findings(message)
+    }
+
+
 def test_rf1u_characterization_needs_the_item_itself() -> None:
     # The adjective must characterize the activity item, not a party next to it.
     for message in (
@@ -287,6 +321,23 @@ def test_rf1u_reports_escalate_bound_to_session_without_disclosure(
     assert UUID(body["escalation_ticket_id"]) not in (
         context.store.list_verified_escalation_ticket_ids_for_tenant(other["tenant_id"])
     )
+
+
+@pytest.mark.parametrize(
+    ("persona", "message"),
+    [
+        ("lucia", "Buenas noches, es un consumo fraudulento. Es la transacción {ref}."),
+        ("rafael", "Boa tarde, é uma transação desconhecida. É a transação {ref}."),
+    ],
+)
+def test_rf1u_leading_vocative_with_owned_id_escalates_not_answers(
+    tmp_path, persona, message
+) -> None:
+    client, context = _client(tmp_path)
+    session, body = _turn(client, persona, message.format(ref=_OWNED[persona]))
+    _escalation_context(context, session, body)
+    lowered = body["response_text"].casefold()
+    assert not any(status in lowered for status in _STATUS_WORDS)
 
 
 @pytest.mark.parametrize(

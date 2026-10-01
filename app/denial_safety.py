@@ -789,6 +789,13 @@ _RELAYED_CLAIM = _rx(
     r"\b(?:diciendo|dizendo|avisando|informando|afirmando|alegando)\s+que\b"
     r"|\b(?:que|onde)\s+(?:dice|decia|diz|dizia|afirma|alega)\s+que\b"
 )
+# U-P01: a lead clause that is only a hedge or a prior belief ("Tal vez, es un
+# cargo fraudulento", "Pensé, es ...") keeps the following copula unasserted.
+_LEAD_CLAUSE_HEDGE = _rx(
+    r"^\s*(?:tal vez|talvez|quizas|quiza|puede ser|pode ser|podria ser|poderia ser|no se|nao sei|"
+    r"a lo mejor|capaz|sera|no estoy seguro|no estoy segura|nao tenho certeza|supongo|suponho|"
+    r"pense|pensaba|crei|creia|pensei|achei|achava)\s*$"
+)
 _CHARACTERIZATION_HEDGE = _rx(
     r"\b(?:podria|puede|podra|seria|pode|poderia|sera|parece|tal vez|quizas|quiza|talvez)\s+"
     r"(?:ser\s+)?(?:(?:un|una|um|uma)\s+)?$"
@@ -2157,7 +2164,9 @@ def _rf1u_licensed_anchor(
 def _characterization_frame(text: str, start: int, end: int) -> bool:
     """True when the characterized item is presented as the customer's actual item."""
 
-    prefix = _clause_prefix(text, start)
+    # U-P01: after a comma the clause prefix keeps its leading space, which the
+    # start-anchored frames must not see ("Señores, es una compra fraudulenta").
+    prefix = _clause_prefix(text, start).lstrip()
     return bool(
         _CHARACTERIZATION_COPULA.search(prefix)
         or _CHARACTERIZATION_PRESENCE.search(prefix)
@@ -2215,6 +2224,9 @@ def _rf1u_blocker(
 
     if family in _CHARACTERIZATION_FAMILIES:
         if _CHARACTERIZATION_HEDGE.search(prefix):
+            return "uncertainty_hedge"
+        lead = text[: start - len(prefix)].rstrip(" ,(")
+        if _LEAD_CLAUSE_HEDGE.match(lead[max(lead.rfind(","), lead.rfind("(")) + 1 :]):
             return "uncertainty_hedge"
         if _INFORMATIONAL_FRAME.search(before):
             return "informational_request"
