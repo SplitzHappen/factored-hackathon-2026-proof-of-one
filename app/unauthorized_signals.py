@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from app.denial_safety import denial_safety_assertion
+from app.denial_safety import denial_safety_assertion, structural_assertion_demotion
 from app.unauthorized_grammar import PropositionMode, resolve_positive_propositions
 
 
@@ -392,13 +392,27 @@ def is_explicit_unauthorized_assertion(text: str) -> bool:
     either supported grammar returns True. Only when it resolves no assertive
     positive is the bounded RF1K denial-safety layer consulted, and that layer
     defers to every resolved non-assertive mode except QUESTIONED.
+
+    RF1Q narrows that authority for exactly two shapes the resolver asserts but
+    which are not active reports: an embedded indefinite-future protasis in an
+    advice question, and a non-recognition resolved later in the same message.
+    Such an assertive positive is demoted, and the denial-safety layer decides.
     """
 
-    modes = frozenset(
-        proposition.mode
+    propositions = tuple(
+        proposition
         for language in ("es", "pt")
         for proposition in resolve_positive_propositions(text, language)
     )
-    if PropositionMode.ASSERTIVE.value in modes:
+    if any(
+        proposition.mode == PropositionMode.ASSERTIVE.value
+        and structural_assertion_demotion(
+            text, proposition.source_start, proposition.source_end
+        )
+        is None
+        for proposition in propositions
+    ):
         return True
-    return denial_safety_assertion(text, modes)
+    return denial_safety_assertion(
+        text, frozenset(proposition.mode for proposition in propositions)
+    )

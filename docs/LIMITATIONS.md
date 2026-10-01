@@ -14,6 +14,16 @@ The public demo uses synthetic/demo identity and banking data. It does not conne
 
 The interpretation and safety work is focused on Spanish and Brazilian Portuguese. The deterministic grammar is not a general natural-language parser. Unsupported constructions may be clarified, suppressed, abstained from, or escalated rather than guessed.
 
+**English is formally out of scope.** Unauthorized-activity recognition is built for Spanish and Portuguese only, so an explicit English report of unauthorized activity is usually not recognized. RF1Q therefore adds a safe fallback (`app/language_scope.py`): a turn written predominantly in English never receives account data. The interpretation post-check maps it to an unsupported request, which abstains with a human-review offer instead of answering a transaction, balance, or product question. A recognized unauthorized-activity report still escalates first; this includes the two frozen English code-switch atoms.
+
+The check counts closed sets of function words. Words that English shares with Spanish or Portuguese count for neither language. Identifiers such as `DEMO-ES-1001` are ignored, so the route never depends on the shape of a reference. A Spanish or Portuguese message with an English fragment stays in scope.
+
+Consequences:
+
+- English customers receive no automated answers;
+- English unauthorized-activity reports are not escalated automatically. They receive the abstention and the human-review offer, never an ordinary status answer;
+- very short English messages with fewer than two English function words fall through to the ordinary Spanish/Portuguese path.
+
 ## 3. Copular fraud statements do not retain SELF evidence
 
 `self_performed` and `self_authorized` indicate that the customer says they themselves performed or authorized a transaction. Incorrectly attaching this evidence can make a disputed transaction look customer-authorized and can contribute to a missed fraud escalation.
@@ -101,6 +111,18 @@ Fresh independent probes found natural, explicit first-person denials ("se hizo 
   - account-provenance denial of an alert or item ("pero no es de mi cuenta"); a corrective re-attribution ("..., es de la tarjeta de mi esposo") blocks it;
   - a named relative's denial relayed by the customer ("mi mamá no reconoce un cargo", "ele não sacou"); this is the product-contract decision for third-party reports: mandatory escalation with a ticket bound to the reporting session only, with no third-party account lookup or disclosure;
 - RF1O families read conditional scope over the whole sentence, and Portuguese "se um dia / se por acaso / se aparecer / se houver ..." now counts as a protasis for the whole layer, so hypothetical advice questions built on any family are not licensed;
+- RF1Q adds four families for reports the resolver is silent on:
+  - a product opened in the customer's name ("alguien abrió una tarjeta a mi nombre", "golpistas contrataram um empréstimo com meus dados"). The opener must be unnamed, or the message must say it happened without the customer's authorization. "Me abrieron una cuenta a mi nombre en la sucursal" describes a legitimate opening and is not a report;
+  - denial of having opened or requested an existing product ("una tarjeta que yo nunca pedí", "nunca la abrí", "..., nunca abri"). It is blocked when the item does not exist yet, when the message says "not yet", and when the opening is attributed to a named relative ("la pidió mi esposa");
+  - a product shown in the customer's records that they say is not theirs ("la cuenta que aparece en mi perfil no es mía"). A bare "esse cartão não é meu" about a physical card is still not a report, and a corrective re-attribution ("..., es la de mi hija") blocks it;
+  - a relative's denial relayed through their own words ("mi esposo dice que no reconoce los cargos"). It follows the same third-party contract as above, and the relative list now includes partners and grandchildren;
+- RF1Q blocks every family when the message says the item was already resolved, refunded, or no longer suspicious ("ya me lo devolvieron", "já foi estornado"). A later recall ("ya me acordé", "depois lembrei") blocks only a non-recognition told in the past or framed as initial ("no reconocí ... al principio"). It never blocks "no reconozco este cargo, pero ya me acordé de bloquear la tarjeta";
+- Portuguese "caso apareça / caso haja ..." now counts as a protasis for the whole layer;
+- RF1Q narrows structural authority for exactly two shapes the resolver asserts but which are not active reports:
+  - an advice question with an indefinite-future protasis before the denial ("¿Qué debo hacer si algún día veo un cargo que no reconozco?");
+  - a non-recognition resolved later in the same message.
+
+  Such an assertion is demoted (`structural_assertion_demotion`), and the layer decides with all of its blockers. Every other structural assertion stays authoritative, including present-tense help questions ("¿Qué hago si tengo un cargo que no reconozco?");
 - it never consults the retired whole-message regex inventory.
 
 Consequences:
@@ -108,7 +130,12 @@ Consequences:
 - a licensed denial routes to verified escalation (`unauthorized_activity_reported`), attaching only an owned transaction and never disclosing a foreign one;
 - recall is still bounded: inferential denials ("no puede ser mía") and induced-scam payments are not covered; third-party reports are covered only when a named relative ("mi papá", "minha mãe") denies the activity; money-movement and set-up denials without a back-reference to an existing item ("no envié el pago", "no programé el pago") are deliberately not licensed because they usually describe a failure to act;
 - where the structural resolver resolves a hypothetical or other non-assertive reading, the layer defers even if a denial is present;
-- the structural resolver itself escalates some hedged, "not yet", or retracted statements conservatively, and asserts some embedded advice-question hypotheticals ("¿Qué debo hacer si algún día veo un cargo que no reconozco?"); the layer does not change that.
+- the structural resolver itself still escalates some hedged or "not yet" statements conservatively. Embedded advice-question hypotheticals and same-message resolutions are demoted only in the two RF1Q shapes above;
+- product and identity-misuse recall is bounded:
+  - a stand-alone identity-theft statement without a product ("me robaron la identidad") is not covered;
+  - an opening by a named relative is covered only with an explicit lack of authorization;
+  - "suspicious" or "strange" charges relayed for a relative are not a denial, so they are not covered;
+- a resolution marker about a different item in the same message ("..., el anterior ya me lo devolvieron") can block a fresh report. RF1Q accepts this conservatively and records it as a residual.
 
 ## 13. Remaining validation before final submission
 

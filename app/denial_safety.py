@@ -21,7 +21,10 @@ This layer is a bounded safety net for that structural silence only. Its contrac
    initiation / enrollment denial over an existing item, observed activity located
    where the customer has never been, household-wide denial, intrusion into the
    customer's own account by an unnamed party, account-provenance denial ("no es
-   de mi cuenta"), and a named relative's denial relayed by the customer.
+   de mi cuenta"), and a named relative's denial relayed by the customer. RF1Q
+   adds product-anchored families (a product opened in the customer's name, a
+   denied product origination, a product in the customer's records disowned) and
+   a relative's denial relayed through reported speech.
 3. Activity anchor. The cue's sentence must name account activity (activity noun,
    charge/debit verb, or use of the customer's card/account). A short follow-up
    sentence may borrow the anchor of the immediately preceding sentence (a
@@ -35,7 +38,12 @@ This layer is a bounded safety net for that structural silence only. Its contrac
    and a factual preterite protasis inside a why-question ("por qué ... si yo no
    compré ..."). RF1O families read conditional scope over the whole sentence and
    never use the why-question exception, so hypothetical advice questions built on
-   them stay unlicensed.
+   them stay unlicensed. RF1Q blocks every family when the message says the item
+   was resolved, refunded, or (after an initial non-recognition) recalled.
+5. RF1Q structural demotion. ``structural_assertion_demotion`` names the two
+   shapes the resolver asserts that are not active reports: an embedded
+   indefinite-future protasis in an advice question, and a same-message
+   resolution. The caller then lets this layer decide instead.
 
 It never consults the retired legacy whole-message regex inventory in
 ``app.unauthorized_signals``.
@@ -192,7 +200,10 @@ _MONEY_FLOW_ANCHOR = _rx(
 _KIN = (
     r"(?:papa|mama|padre|madre|abuelo|abuela|abuelito|abuelita|hijo|hija|esposo|esposa|"
     r"marido|mujer|hermano|hermana|tio|tia|suegro|suegra|pai|mae|avo|filho|filha|"
-    r"mulher|irmao|irma|sogro|sogra)"
+    r"mulher|irmao|irma|sogro|sogra|"
+    # RF1Q: partners and the wider household relay reports too.
+    r"pareja|novio|novia|companero|companera|nieto|nieta|padres|papas|hijos|"
+    r"companheiro|companheira|namorado|namorada|neto|neta|filhos)"
 )
 _KIN_POSSESSED = _rx(r"\b(?:mi|mis|meu|minha|meus|minhas)\s+" + _KIN + r"\b")
 _ES_THIRD_VERBS = (
@@ -315,6 +326,97 @@ _PROVENANCE_CUE = _rx(r"^(?:no|nao)\s+\S+\s+d(?:e|a|o|as|os)\s")
 _NON_BANK_ACCOUNT_AFTER = _rx(
     r"^\s+(?:de|del|do|da)\s+(?!(?:ahorro|ahorros|banco|cheques|corriente|nomina|"
     r"poupanca|salario|pix|la|el|mi)\b)[a-z]+"
+)
+
+# ---------------------------------------------------------------- RF1Q families
+# Banking products that can be opened, requested, or held in the customer's name.
+_PRODUCT_HEAD = (
+    r"(?:tarjeta|tarjetas|cuenta|cuentas|credito|creditos|prestamo|prestamos|chequera|"
+    r"cartao|cartoes|conta|contas|emprestimo|emprestimos|financiamento|cheque especial)"
+)
+_PRODUCT_ANCHOR = _rx(r"\b" + _PRODUCT_HEAD + r"\b")
+# Identity misuse: a product opened in the customer's name. The opener must be an
+# unnamed party ("alguien abrió una tarjeta a mi nombre"); an impersonal plural
+# alone is also how a branch describes a legitimate opening ("me abrieron una
+# cuenta a mi nombre"), so it counts only with an explicit lack of authorization.
+_ES_OPEN_SINGULAR = (
+    r"(?:abrio|ha abierto|saco|ha sacado|solicito|ha solicitado|pidio|ha pedido|tramito|"
+    r"ha tramitado|contrato|ha contratado|emitio|ha emitido|creo|ha creado|dio de alta)"
+)
+_ES_OPEN_PLURAL = (
+    r"(?:abrieron|han abierto|sacaron|han sacado|solicitaron|han solicitado|pidieron|"
+    r"han pedido|tramitaron|han tramitado|contrataron|han contratado|emitieron|han emitido|"
+    r"crearon|han creado|dieron de alta)"
+)
+_ES_OPEN_IMPERSONAL = (
+    r"(?:se (?:abrio|abrieron|ha abierto|han abierto|emitio|emitieron|solicito|solicitaron|"
+    r"creo|crearon|contrato|contrataron|tramito|tramitaron)|(?:fue|fueron|ha sido|han sido)\s+"
+    r"(?:abiert|emitid|solicitad|cread|contratad|tramitad)[oa]s?)"
+)
+_PT_OPEN_SINGULAR = (
+    r"(?:abriu|fez|tirou|solicitou|pediu|contratou|emitiu|criou|cadastrou)"
+)
+_PT_OPEN_PLURAL = (
+    r"(?:abriram|fizeram|tiraram|solicitaram|pediram|contrataram|emitiram|criaram|cadastraram)"
+)
+_PT_OPEN_IMPERSONAL = (
+    r"(?:(?:foi|foram)\s+(?:abert|feit|emitid|solicitad|criad|contratad|cadastrad)[oa]s?)"
+)
+_IN_MY_NAME = (
+    r"(?:(?:a|en)\s+mi\s+nombre|a\s+nombre\s+mio|con\s+mis\s+datos|usando\s+mis\s+datos|"
+    r"(?:no|em)\s+(?:meu\s+)?nome(?:\s+meu)?|com\s+(?:os\s+)?meus\s+dados|"
+    r"usando\s+(?:os\s+)?meus\s+dados|com\s+(?:o\s+)?meu\s+cpf)"
+)
+_WITHOUT_MY_AUTHORIZATION = (
+    r"(?:sin\s+(?:mi\s+)?(?:autorizacion|permiso|consentimiento|conocimiento)|"
+    r"sin\s+que\s+yo\s+(?:lo\s+|la\s+)?(?:supiera|pidiera|autorizara|solicitara)|"
+    r"sem\s+(?:a\s+)?(?:minha\s+)?(?:autorizacao|permissao|consentimento|conhecimento)|"
+    r"sem\s+(?:que\s+)?eu\s+(?:saber|soubesse|pedir|pedisse|autorizar|autorizasse))"
+)
+_OPEN_ANY = (
+    r"(?:" + _ES_OPEN_SINGULAR + r"|" + _ES_OPEN_PLURAL + r"|" + _ES_OPEN_IMPERSONAL + r"|"
+    + _PT_OPEN_SINGULAR + r"|" + _PT_OPEN_PLURAL + r"|" + _PT_OPEN_IMPERSONAL + r")"
+)
+_PRODUCT_IN_MY_NAME = (
+    r"(?:(?:\S+\s+){0,3}?" + _PRODUCT_HEAD + r"\b(?:\s+[^\s,]+){0,3}?\s+" + _IN_MY_NAME
+    + r"|" + _IN_MY_NAME + r"\s+(?:\S+\s+){0,3}?" + _PRODUCT_HEAD + r")\b"
+)
+# Denial of having opened or requested an existing product ("una tarjeta que yo
+# nunca solicité", "yo no la pedí", "nunca abrí esa cuenta", PT "..., nunca abri").
+# Activation is not origination: "no la activé" describes a card not yet in use.
+_ES_PRODUCT_ORIGIN_VERBS = (
+    r"(?:abri|he abierto|solicite|he solicitado|pedi|he pedido|tramite|he tramitado|"
+    r"contrate|he contratado|firme|he firmado|saque|he sacado)"
+)
+_PT_PRODUCT_ORIGIN_VERBS = r"(?:abri|solicitei|pedi|contratei|assinei|tirei)"
+_PRODUCT_RELATIVE_HEAD = _rx(r"\b" + _PRODUCT_HEAD + r"\b(?:\s+[^\s,]+){0,4}\s+$")
+# A displayed product whose ownership is denied must be presented as existing in
+# the customer's records: a relative or locative tying it to what the customer
+# sees. A bare "esse cartão não é meu" is about a physical card, not a report.
+_ES_PRODUCT_EXISTS = (
+    r"(?:que\s+(?:me\s+)?(?:aparece|aparecen|aparecio|sale|salen|figura|figuran|consta|"
+    r"esta|estan|veo|tengo|hay)|(?:en|de)\s+mi\s+(?:perfil|app|aplicacion|banca|estado de cuenta|"
+    r"resumen|extracto|cuenta))"
+)
+_PT_PRODUCT_EXISTS = (
+    r"(?:que\s+(?:me\s+)?(?:aparece|aparecem|apareceu|consta|constam|esta|estao|vejo|tenho|ha)|"
+    r"(?:no|na|em|do|da)\s+(?:meu|minha)\s+(?:cadastro|perfil|app|aplicativo|extrato|conta|"
+    r"internet banking))"
+)
+# "no la pedí yo, la pidió mi esposa" attributes the origination to a named
+# relative; without a lack-of-authorization marker that is not a report.
+_KIN_ORIGINATION = _rx(
+    r"\b(?:(?:la|lo|las|los|o|a|os|as)\s+)?(?:pidio|solicito|abrio|tramito|contrato|saco|"
+    r"pediu|solicitou|abriu|contratou|tirou)\s+(?:mi|mis|meu|minha|meus|minhas)\s+" + _KIN + r"\b"
+    r"|\b(?:mi|mis|meu|minha|meus|minhas)\s+" + _KIN + r"\s+(?:me\s+)?(?:(?:la|lo|las|los|o|a|os|as)\s+)?"
+    r"(?:pidio|solicito|abrio|tramito|contrato|saco|pediu|solicitou|abriu|contratou|tirou)\b"
+)
+_WITHOUT_AUTHORIZATION = _rx(_WITHOUT_MY_AUTHORIZATION)
+# "esa tarjeta no es mía, es la de mi esposo" re-attributes the product to a named
+# owner; that is a correction, not a non-ownership report.
+_PRODUCT_REATTRIBUTION = _rx(
+    r"^\s*,?\s*(?:sino|si no|es de|es la de|es el de|son de|era de|pertenece a|e de|e da|e do|"
+    r"e a de|e o de|era da|era do|pertence a|mas sim)\b"
 )
 
 _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -559,6 +661,73 @@ _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
             + r"(?:(?:o|a|os|as|lhe|me)\s+)?" + _PT_THIRD_VERBS + r"\b"
         ),
     ),
+    # RF1Q: a relative's denial relayed through their own words ("mi esposo dice
+    # que no reconoce los cargos"). The cue starts at the named relative, so the
+    # third-party checks (named relative, existing item, self-performed) apply.
+    (
+        "relayed_denial",
+        _rx(
+            r"\b(?:mi|mis)\s+" + _KIN + r"\s+(?:me\s+)?"
+            r"(?:dice|dicen|dijo|dijeron|asegura|aseguran|aseguro|afirma|afirmo|comenta|"
+            r"comento|cuenta|conto|jura|juro|insiste|insistio)\s+que\s+"
+            r"(?:(?:el|ella|ellos|ellas)\s+)?(?:no|nunca|jamas)\s+" + _ES_CLITICS
+            + r"(?:" + _ES_THIRD_VERBS + r"|reconocen|hicieron|realizaron|autorizaron|sacaron|"
+            r"compraron|pidieron|solicitaron)\b"
+            r"|\b(?:meu|minha|meus|minhas)\s+" + _KIN + r"\s+(?:me\s+)?"
+            r"(?:diz|dizem|disse|disseram|afirma|afirmou|garante|garantiu|jura|jurou|conta|contou|"
+            r"insiste)\s+que\s+(?:(?:ele|ela|eles|elas)\s+)?(?:nao|nunca|jamais)\s+"
+            r"(?:(?:o|a|os|as|lhe|me)\s+)?"
+            r"(?:" + _PT_THIRD_VERBS + r"|reconhecem|fizeram|realizaram|autorizaram|sacaram|"
+            r"compraram|pediram|solicitaram)\b"
+        ),
+    ),
+    # RF1Q: a product opened in the customer's name by an unnamed party, or by
+    # anyone when the customer says it was without their authorization.
+    (
+        "identity_misuse",
+        _rx(
+            r"\b" + _UNNAMED_SUBJECT + r"\s+(?:me\s+)?(?:" + _ES_OPEN_SINGULAR + r"|"
+            + _ES_OPEN_PLURAL + r"|" + _PT_OPEN_SINGULAR + r"|" + _PT_OPEN_PLURAL + r")\s+"
+            + _PRODUCT_IN_MY_NAME
+            + r"|\b" + _OPEN_ANY + r"\s+" + _PRODUCT_IN_MY_NAME + r"(?:\s+[^\s,]+){0,4}?,?\s+"
+            + _WITHOUT_MY_AUTHORIZATION
+        ),
+    ),
+    # RF1Q: the customer denies opening or requesting an existing product.
+    (
+        "product_origination_denial",
+        _rx(
+            r"\b" + _RELATIVIZER + r"\s+(?:yo\s+" + _ES_NEG + r"|nunca|jamas)\s+" + _ES_CLITICS
+            + _ES_PRODUCT_ORIGIN_VERBS + r"\b"
+            + r"|\byo\s+" + _ES_NEG + r"\s+(?:me\s+)?(?:lo|la|los|las)\s+"
+            + _ES_PRODUCT_ORIGIN_VERBS + r"\b"
+            + r"|\b" + _ES_NEG + r"\s+(?:me\s+)?(?:lo|la|los|las)\s+" + _ES_PRODUCT_ORIGIN_VERBS
+            + r"\s+yo\b"
+            + r"|\b(?:nunca|jamas)\s+(?:me\s+)?(?:lo|la|los|las)\s+" + _ES_PRODUCT_ORIGIN_VERBS + r"\b"
+            + r"|\b" + _ES_NEG + r"\s+" + _ES_PRODUCT_ORIGIN_VERBS + r"\s+"
+            + r"(?:ese|esa|esos|esas|este|esta|estos|estas|aquel|aquella)\s+" + _PRODUCT_HEAD + r"\b"
+            + r"|\b" + _RELATIVIZER + r"\s+(?:eu\s+)?" + _PT_NEG + r"\s+(?:(?:o|a|os|as)\s+)?"
+            + _PT_PRODUCT_ORIGIN_VERBS + r"\b"
+            + r"|\b(?:eu\s+)?(?:nao|nunca|jamais)\s+(?:(?:o|a|os|as)\s+)?"
+            + _PT_PRODUCT_ORIGIN_VERBS + _CLAUSE_END
+            + r"|\b" + _PT_NEG + r"\s+" + _PT_PRODUCT_ORIGIN_VERBS + r"\s+"
+            + r"(?:essa|esse|esta|este|essas|esses|aquela|aquele)\s+" + _PRODUCT_HEAD + r"\b"
+        ),
+    ),
+    # RF1Q: a product shown in the customer's records that they say is not theirs.
+    (
+        "product_disownment",
+        _rx(
+            r"\b(?:esa|ese|esta|este|esas|esos|estas|estos|aquella|aquel|la|el|las|los|una|un)\s+"
+            + _PRODUCT_HEAD + r"\b(?:\s+[^\s,]+){0,2}?\s+" + _ES_PRODUCT_EXISTS
+            + r"(?:\s+[^\s,]+){0,4}?\s+(?:no|tampoco)\s+"
+            + r"(?:(?:es|son|era|eran)\s+(?:mia|mio|mias|mios)|me\s+pertenecen?)\b"
+            + r"|\b(?:essa|esse|esta|este|essas|esses|aquela|aquele|a|o|as|os|uma|um)\s+"
+            + _PRODUCT_HEAD + r"\b(?:\s+[^\s,]+){0,2}?\s+" + _PT_PRODUCT_EXISTS
+            + r"(?:\s+[^\s,]+){0,4}?\s+(?:nao|tambem nao)\s+"
+            + r"(?:(?:e|sao|era|eram)\s+(?:minha|meu|minhas|meus)|me\s+pertencem?)\b"
+        ),
+    ),
 )
 
 _RF1O_FAMILIES = frozenset(
@@ -568,6 +737,14 @@ _RF1O_FAMILIES = frozenset(
         "household_denial",
         "account_intrusion",
         "third_party_denial",
+    }
+)
+_RF1Q_FAMILIES = frozenset(
+    {
+        "relayed_denial",
+        "identity_misuse",
+        "product_origination_denial",
+        "product_disownment",
     }
 )
 # Families whose cue may borrow an anchor from the preceding sentence when the cue
@@ -628,7 +805,10 @@ _PROTASIS = _rx(
     r"\b(?:si|en caso de que|no caso de|supongamos que|suponhamos que|imagina que|"
     r"imagine que|(?:se|caso) (?=eu\b|nao\b|voce\b|alguem\b|algum\b|alguma\b|a gente\b"
     # RF1O: indefinite-future frames ("se um dia aparecer ...") are hypothetical too.
-    r"|um dia\b|por acaso\b|aparecer\b|aparecerem\b|houver\b|tiver\b|acontecer\b|vier\b))"
+    r"|um dia\b|por acaso\b|aparecer\b|aparecerem\b|houver\b|tiver\b|acontecer\b|vier\b)"
+    # RF1Q: "caso" with a present subjunctive ("caso apareça ...") is hypothetical too.
+    # Forms that normalize to a Spanish preterite ("noté", "encontré") are left out.
+    r"|caso (?=apareca\b|aparecam\b|haja\b|tenha\b|surja\b|surjam\b|veja\b))"
 )
 _PRIOR_BELIEF = _rx(
     r"\b(?:pense|pensaba|crei|creia|pensei|achei|achava|imagine|imaginei|supuse|supus)\s+que\b"
@@ -676,6 +856,52 @@ _LATER_RECOGNITION = _rx(
     r"|(?<!no )(?<!nao )(?<!ninguno )(?<!ninguna )(?<!nenhum )(?<!nenhuma )"
     r"\b(?:es|e)\s+(?:mio|mia|meu|minha)\b)"
 )
+# RF1Q: the customer says the item was already resolved, refunded, recognized,
+# or is no longer suspicious, so it is not an active unauthorized-activity report.
+_RESOLVED_AFTER = _rx(
+    r"(?<!no )(?<!nao )(?<!nunca )\b(?:ya|ja)\s+(?:me\s+|se\s+)?(?:(?:lo|la|los|las|o|a|os|as)\s+)?"
+    r"(?:devolvieron|reembolsaron|reintegraron|reversaron|revirtieron|anularon|resolvieron|"
+    r"solucionaron|aclararon|resolvio|soluciono|aclaro|resolvi|solucione|aclare|"
+    r"devolveram|estornaram|reembolsaram|resolveram|esclareceram|resolveu|esclareceu|"
+    r"resolvi|esclareci)\b"
+    r"|\b(?:ya|ja)\s+(?:esta|estan|quedo|quedaron|fue|foi|foram|ficou|ficaram)\s+"
+    r"(?:resuelt|solucionad|aclarad|reembolsad|devuelt|resolvid|esclarecid|estornad|devolvid)"
+    r"[oa]s?\b"
+    r"|\b(?:ya|ja)\s+no\s+(?:es|son|me parece|parece|e|sao)\s+(?:sospechos|rar|extran|suspeit|"
+    r"estranh)[oa]s?\b"
+    r"|\bresult(?:o|ou)\s+(?:que\s+)?(?:ser|era|fue|foi)\s+(?:mio|mia|meu|minha|mi|de mi|"
+    r"da minha|do meu)\b"
+)
+# A later recall resolves only a non-recognition told in the past or framed as
+# initial ("no reconocí ... al principio, pero ya me acordé"); "no reconozco este
+# cargo, pero ya me acordé de bloquear la tarjeta" stays a report, and so does a
+# recall of something to do ("me acordé de llamar").
+_PAST_OR_INITIAL_DENIAL = _rx(
+    r"\b(?:reconoci|reconocia|reconocimos|reconocio|identifique|identificaba|reconheci|"
+    r"reconhecia|reconheceu|identifiquei|identificava)\b"
+    r"|\b(?:al principio|al inicio|en un principio|en un primer momento|inicialmente|"
+    r"a principio|no principio|no inicio|de inicio|no comeco|num primeiro momento)\b"
+)
+_RECALLED_AFTER = _rx(
+    r"(?<!no )(?<!nao )\b(?:ya|ja|despues|luego|depois|logo)\s+(?:me\s+|se\s+)?"
+    r"(?:(?:lo|la|o|a)\s+)?"
+    r"(?:acorde|acordo|recorde|recordo|lembrei|lembrou|identifique|identifiquei|"
+    r"(?:reconoci|reconheci)(?!\s+que\b))\b(?!\s+(?:de|da|do)\s+(?!que\b)\S+(?:ar|er|ir)\b)"
+    r"|\b(?:ya|ja|despues|luego|depois)\s+vi\s+que\s+(?:era|fue|es|e|foi)\b"
+)
+
+
+def _resolution_blocker(sentence_text: str, message_tail: str) -> str | None:
+    """RF1Q: the item was resolved, or recalled after an initial non-recognition."""
+
+    recalled = _RECALLED_AFTER.search(message_tail) and _PAST_OR_INITIAL_DENIAL.search(
+        sentence_text
+    )
+    if _RESOLVED_AFTER.search(message_tail) or recalled:
+        return "resolved_or_recognized"
+    return None
+
+
 # Non-recognition of a descriptor (name, merchant, code) is a clarification
 # request about how an item is labelled, not a denial of the activity itself.
 _DESCRIPTOR_OBJECT = _rx(
@@ -848,6 +1074,8 @@ def _blocker(
     prefix = _clause_prefix(text, start)
     presupposed_relative = bool(_RELATIVIZER_TAIL.search(prefix))
 
+    if family in _RF1Q_FAMILIES:
+        return _rf1q_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1O_FAMILIES:
         return _rf1o_blocker(sentence, start, end, family, message_tail, message_head)
     if (
@@ -866,6 +1094,9 @@ def _blocker(
         return "uncertainty_hedge"
     if _LATER_RECOGNITION.search(message_tail):
         return "later_recognition"
+    resolution = _resolution_blocker(text, message_tail)
+    if resolution is not None:
+        return resolution
     if family in _CLAUSE_INITIAL_FAMILIES and _PERMISSION_GRANTED.search(
         _NEGATED_GRANT.sub(" ", message_tail)
     ):
@@ -958,6 +1189,9 @@ def _rf1o_blocker(
         return "uncertainty_hedge"
     if _LATER_RECOGNITION.search(message_tail):
         return "later_recognition"
+    resolution = _resolution_blocker(text, message_tail)
+    if resolution is not None:
+        return resolution
     if _PERMISSION_GRANTED.search(_NEGATED_GRANT.sub(" ", message_tail)):
         return "authorized_third_party"
     if _sentence_protasis(before):
@@ -1016,6 +1250,158 @@ def _rf1o_blocker(
     return None
 
 
+def _rf1q_licensed_anchor(
+    sentences: list[_Sentence], index: int, start: int, end: int, family: str
+) -> str | None:
+    """Anchor for an RF1Q cue, or None when the cue is not tied to a referent."""
+
+    text = sentences[index].text
+    cue = text[start:end]
+    if family == "relayed_denial":
+        return _rf1o_licensed_anchor(sentences, index, start, end, "third_party_denial")
+    if family in {"identity_misuse", "product_disownment"}:
+        # The product the cue names is the anchor.
+        product = _PRODUCT_ANCHOR.search(cue)
+        return product.group(0) if product else None
+    # product_origination_denial
+    if _RELATIVIZER_START.match(cue):
+        # A relative clause is anchored by its own product head only.
+        if not _PRODUCT_RELATIVE_HEAD.search(text[:start]):
+            return None
+        product = _PRODUCT_ANCHOR.search(text[:start])
+        return product.group(0) if product else None
+    # The product must be named in the cue or before it ("nunca pedí, ¿cómo
+    # solicito una tarjeta?" names a product it has not been given).
+    product = _PRODUCT_ANCHOR.search(text[:end])
+    if product is not None:
+        return product.group(0)
+    if index > 0 and (
+        len(text.split()) <= _ANAPHORIC_MAX_TOKENS
+        or _BACK_REFERENCE.search(cue)
+        or _opens_short_clause(text, start, end)
+    ):
+        previous = _PRODUCT_ANCHOR.search(sentences[index - 1].text)
+        return previous.group(0) if previous else None
+    return None
+
+
+_EMPHATIC_ORIGIN_DENIAL = _rx(r"\b(?:yo|eu|nunca|jamas|jamais)\b")
+_NOT_YET_AFTER = _rx(r"^\W*(?:[a-z0-9-]+\s+){0,3}?(?:todavia|aun|ainda)\b")
+
+
+def _rf1q_blocker(
+    sentence: _Sentence,
+    start: int,
+    end: int,
+    family: str,
+    message_tail: str,
+    message_head: str,
+) -> str | None:
+    """Scope checks for the RF1Q families.
+
+    The relay family is the RF1O third-party family reached through reported
+    speech, so it takes the third-party checks unchanged. The product families
+    take the shared RF1O scope checks (whole-sentence protasis, question scope,
+    hedges, retraction, resolution, permission) plus their own.
+    """
+
+    if family == "relayed_denial":
+        return _rf1o_blocker(
+            sentence, start, end, "third_party_denial", message_tail, message_head
+        )
+    text = sentence.text
+    before = text[:start]
+    after = text[end:]
+    cue = text[start:end]
+    prefix = _clause_prefix(text, start)
+    presupposed_relative = bool(
+        _RELATIVIZER_START.match(cue) and _PRODUCT_RELATIVE_HEAD.search(before)
+    )
+
+    if _DOUBLE_NEGATION.search(before):
+        return "double_negation"
+    if _PRIOR_BELIEF.search(before):
+        return "prior_belief"
+    if _REPORTED_SPEECH.search(before):
+        return "reported_speech"
+    hedge = _INTRUSION_HEDGE_TAIL if family == "identity_misuse" else _HEDGE_TAIL
+    if hedge.search(prefix):
+        return "uncertainty_hedge"
+    if _LATER_RECOGNITION.search(message_tail):
+        return "later_recognition"
+    resolution = _resolution_blocker(text, message_tail)
+    if resolution is not None:
+        return resolution
+    if _PERMISSION_GRANTED.search(_NEGATED_GRANT.sub(" ", message_tail)):
+        return "authorized_third_party"
+    if _sentence_protasis(before):
+        return "conditional_protasis"
+    in_question = sentence.question_start is not None and start >= sentence.question_start
+    if in_question and not presupposed_relative:
+        return "interrogative_scope"
+    if family == "product_disownment" and _PRODUCT_REATTRIBUTION.search(after):
+        return "corrective_reattribution"
+    if family == "product_origination_denial":
+        if _FORGOT_TO_ACT.search(message_head) or _FORGOT_TO_ACT.search(message_tail):
+            return "not_yet_or_causal"
+        if _NOT_YET_BEFORE.search(before) or _NOT_YET_AFTER.search(after):
+            return "not_yet_or_causal"
+        if _SYSTEM_FAILURE.search(text):
+            return "not_yet_or_causal"
+        whole = message_head + " " + cue + " " + message_tail
+        if _KIN_ORIGINATION.search(whole) and not _WITHOUT_AUTHORIZATION.search(whole):
+            return "attributed_to_named_relative"
+        # As for non-performance, an emphatic subject or "nunca" marks disowning,
+        # so a following reason clause does not turn it into a failure to act.
+        emphatic = bool(_EMPHATIC_BEFORE.search(before) or _EMPHATIC_ORIGIN_DENIAL.search(cue))
+        if not emphatic and _NOT_YET_OR_CAUSAL_AFTER.search(after):
+            return "not_yet_or_causal"
+    return None
+
+
+# ------------------------------------------------- RF1Q structural-scope demotion
+# The structural resolver asserts a few non-report shapes: an advice question with
+# an indefinite-future protasis embedded after its question word ("¿Qué debo hacer
+# si algún día veo un cargo que no reconozco?"), and a non-recognition the
+# customer resolves later in the same message ("No reconocí el cargo al
+# principio, pero ya me acordé: fue la suscripción"). For exactly these shapes
+# the structural assertion is demoted: it no longer decides on its own, and the
+# denial-safety layer, with all of its blockers, decides instead.
+_INDEFINITE_PROTASIS = _rx(
+    r"\b(?:si|se|caso)\s+(?:yo\s+|eu\s+)?(?:algun dia|alguna vez|en algun momento|en el futuro|"
+    r"un dia|algum dia|um dia|alguma vez|no futuro|por acaso|por casualidad|llegara a|"
+    r"llego a|llegase a|chegar a)\b"
+    r"|\bsi\s+(?:yo\s+)?(?:me\s+)?(?:viera|vieras|apareciera|aparecieran|hubiera|hubiese|"
+    r"tuviera|encontrara|notara|detectara|ocurriera|pasara|llegara)\b"
+    r"|\bse\s+(?:eu\s+)?(?:me\s+)?(?:vir|aparecer|aparecerem|houver|tiver|surgir|surgirem|"
+    r"acontecer|notar|encontrar|vier|visse|aparecesse|houvesse|tivesse)\b"
+    r"|\bcaso\s+(?:eu\s+)?(?:veja|apareca|aparecam|haja|tenha|surja|surjam)\b"
+    r"|\b(?:en caso de que|supongamos que|suponhamos que|imaginemos que|hipoteticamente)\b"
+)
+_SOURCE_SENTENCE_BREAK = _rx(r"[.!?;:\n]")
+def structural_assertion_demotion(text: str, source_start: int, source_end: int) -> str | None:
+    """Return why a structural ASSERTIVE proposition is demoted, or None.
+
+    ``source_start``/``source_end`` are the proposition's source offsets in
+    ``text``. Only the RF1Q shapes above demote; everything else the resolver
+    asserts keeps structural authority.
+    """
+
+    before = text[:source_start]
+    breaks = list(_SOURCE_SENTENCE_BREAK.finditer(before))
+    sentence_start = breaks[-1].end() if breaks else 0
+    if _INDEFINITE_PROTASIS.search(_normalize(text[sentence_start:source_start])):
+        return "indefinite_hypothetical_protasis"
+    tail = _normalize(text[source_end:])
+    if _RESOLVED_AFTER.search(tail):
+        return "resolved_after"
+    sentence_end = _SOURCE_SENTENCE_BREAK.search(text, source_end)
+    sentence = _normalize(text[sentence_start : sentence_end.start() if sentence_end else None])
+    if _RECALLED_AFTER.search(tail) and _PAST_OR_INITIAL_DENIAL.search(sentence):
+        return "recalled_after"
+    return None
+
+
 def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
     """Return every cue occurrence with its anchor and blocking decision."""
 
@@ -1023,14 +1409,21 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
     sentences = _sentences(normalized)
     findings: list[DenialSafetyFinding] = []
     for index, sentence in enumerate(sentences):
-        seen: set[tuple[int, int]] = set()
+        seen: set[tuple[bool, int, int]] = set()
         for family, pattern in _CUE_FAMILIES:
             for match in pattern.finditer(sentence.text):
-                span = (match.start(), match.end())
+                # RF1Q families keep their own span bookkeeping, so an older family
+                # matching the same span (and blocked for lack of an activity
+                # anchor) cannot hide a product-anchored RF1Q cue.
+                span = (family in _RF1Q_FAMILIES, match.start(), match.end())
                 if span in seen:
                     continue
                 seen.add(span)
-                if family in _RF1O_FAMILIES:
+                if family in _RF1Q_FAMILIES:
+                    anchor = _rf1q_licensed_anchor(
+                        sentences, index, match.start(), match.end(), family
+                    )
+                elif family in _RF1O_FAMILIES:
                     anchor = _rf1o_licensed_anchor(
                         sentences, index, match.start(), match.end(), family
                     )
