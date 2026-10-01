@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from app.amounts import extract_locale_amounts
 from app.bank import BankRepository
 from app.date_provenance import resolve_message_date_range
+from app.language_scope import unsupported_language_dominant
 from app.runtime import OperationalStore
 from app.unauthorized_signals import is_explicit_unauthorized_assertion
 from app.schemas import (
@@ -250,8 +251,16 @@ class InterpretationService:
         lexical_override = (
             lexical_unauthorized and not extraction.unauthorized_activity_asserted
         )
+        # RF1Q: English is outside the declared ES/PT scope. A predominantly
+        # English turn is never answered with account data; it abstains as an
+        # unsupported request unless an unauthorized-activity report escalates it.
+        intent = (
+            PolicyIntent.UNKNOWN
+            if unsupported_language_dominant(request.message)
+            else extraction.intent
+        )
 
-        reference_required = extraction.intent in _REFERENCE_REQUIRED_INTENTS
+        reference_required = intent in _REFERENCE_REQUIRED_INTENTS
         reference_status = TransactionReferenceStatus.NOT_REQUIRED
         verified_transaction_id: str | None = None
         candidate_ids: list[str] = []
@@ -299,7 +308,7 @@ class InterpretationService:
         return VerifiedInterpretation(
             status=InterpretationStatus.VERIFIED,
             language=session.language,
-            intent=extraction.intent,
+            intent=intent,
             unauthorized_activity_asserted=unauthorized,
             verified_transaction_id=verified_transaction_id,
             transaction_query=normalized_query,
