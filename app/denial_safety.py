@@ -1421,6 +1421,421 @@ _RF2_STRUCTURAL_NONRECOGNITION = _rx(
     r"reconheci|identifico|identifiquei|identifique)$"
 )
 
+# ---------------------------------------------------------------- RF3 families
+# RF2 fresh-confirmation miss shapes, read as one report shape rather than as more
+# phrasings: a financial action by an unnamed, unknown, or impersonal party on the
+# customer's own money, card, or account, in a message that says the customer did
+# not do it, did not allow it, or does not know who did. The action is parsed from a
+# verb lexicon in every tense and aspect; the object, the subject, and the licence
+# are then checked separately, so a new wording of the same report needs no new cue.
+def _rf3_alt(words: list[str] | tuple[str, ...]) -> str:
+    return r"(?:" + "|".join(sorted(set(words), key=len, reverse=True)) + r")"
+
+
+# Regular stems (normalized, without accents) of verbs that move, take, spend, or use
+# money or a card. Spanish and Portuguese first-conjugation stems share the
+# participle and the gerund; the finite endings differ.
+_RF3_ES_AR = (
+    "sac", "retir", "rob", "llev", "vaci", "limpi", "pas", "us", "utiliz", "ocup", "gast",
+    "compr", "pag", "cobr", "carg", "desvi", "quit", "dren", "agot", "mand", "envi", "gir",
+    "debit", "tom", "hurt", "vol",
+)
+_RF3_PT_AR = (
+    "sac", "retir", "roub", "lev", "esvazi", "zer", "limp", "pass", "us", "utiliz", "gast",
+    "compr", "pag", "cobr", "desvi", "tir", "furt", "rasp", "mand", "envi", "debit",
+    "moviment", "dren", "tom",
+)
+_RF3_PLURAL_FORMS = (
+    [s + e for s in _RF3_ES_AR for e in ("aron", "an", "aban")]
+    + [s + e for s in _RF3_PT_AR for e in ("aram", "am", "avam")]
+    + [
+        "transfirieron", "transfieren", "transferian", "movieron", "mueven", "movian",
+        "consumieron", "consumen", "consumian", "extrajeron", "extraen", "extraian",
+        "hicieron", "hacen", "hacian", "vuelan", "descontaron", "descuentan", "descontaban",
+        "transferiram", "transferem", "transferiam", "consumiram", "consomem", "consumiam",
+        "fizeram", "fazem", "faziam", "descontaram", "descontam",
+    ]
+)
+_RF3_SINGULAR_FORMS = (
+    [s + e for s in _RF3_ES_AR for e in ("o", "a", "aba")]
+    + [s + e for s in _RF3_PT_AR for e in ("ou", "a", "ava")]
+    + [
+        "transfirio", "transfiere", "transferia", "movio", "mueve", "movia", "consumio",
+        "consume", "consumia", "extrajo", "extrae", "extraia", "hizo", "hace", "hacia", "vuela",
+        "desconto", "descuenta", "descontaba", "transferiu", "transfere", "consumiu", "consome",
+        "fez", "faz", "fazia", "descontou", "desconta",
+    ]
+)
+_RF3_GERUNDS = (
+    [s + "ando" for s in set(_RF3_ES_AR) | set(_RF3_PT_AR)]
+    + [
+        "transfiriendo", "moviendo", "consumiendo", "extrayendo", "haciendo", "descontando",
+        "transferindo", "consumindo", "fazendo",
+    ]
+)
+_RF3_INFINITIVES = (
+    [s + "ar" for s in set(_RF3_ES_AR) | set(_RF3_PT_AR)]
+    + ["transferir", "mover", "consumir", "extraer", "hacer", "descontar", "fazer"]
+)
+_RF3_PARTICIPLE = (
+    _rf3_alt(
+        [s + "ad" for s in set(_RF3_ES_AR) | set(_RF3_PT_AR)]
+        + ["transferid", "movid", "consumid", "extraid", "descontad"]
+    )
+    + r"[oa]s?"
+)
+# Progressive, habitual, and continuative auxiliaries, with an optional duration
+# ("llevan días usando", "vem pagando há dias").
+_RF3_AUX_PLURAL = (
+    r"(?:estan|estaban|estuvieron|han estado|siguen|seguian|vienen|venian|andan|andaban|"
+    r"llevan|llevaban|continuan|continuaban|viven|estao|estavam|estiveram|tem estado|seguem|"
+    r"seguiam|vem|vinham|andam|andavam|continuam|continuavam|vivem|ficam|ficavam)"
+)
+_RF3_AUX_SINGULAR = (
+    r"(?:esta|estaba|estuvo|ha estado|sigue|seguia|viene|venia|anda|andaba|lleva|llevaba|"
+    r"continua|continuaba|vive|vivia|estava|esteve|tem estado|segue|vem|vinha|andava|"
+    r"continuava|fica|ficava)"
+)
+_RF3_DURATION = r"(?:\s+(?:(?:unos|unas|uns|umas|varios|varias)\s+)?(?:dias|semanas|meses|horas))?"
+_RF3_AGAIN_PLURAL = (
+    r"(?:volvieron a|vuelven a|empezaron a|comenzaron a|siguen a|voltaram a|voltam a|"
+    r"comecaram a|continuam a)"
+)
+_RF3_AGAIN_SINGULAR = (
+    r"(?:volvio a|vuelve a|empezo a|comenzo a|voltou a|volta a|comecou a|continua a)"
+)
+_RF3_PERFECT_PLURAL = r"(?:han|habian|tem|tinham)"
+_RF3_PERFECT_SINGULAR = r"(?:ha|habia|tem|tinha)"
+_RF3_CLITICS = r"(?:(?:me|nos|se|le|les|lhe|lhes|te)\s+)?(?:(?:lo|la|los|las|o|a|os|as)\s+)?"
+_RF3_PLURAL_VERB = (
+    r"(?:" + _RF3_AUX_PLURAL + _RF3_DURATION + r"\s+" + _rf3_alt(_RF3_GERUNDS)
+    + r"|" + _RF3_AGAIN_PLURAL + r"\s+" + _rf3_alt(_RF3_INFINITIVES)
+    + r"|" + _RF3_PERFECT_PLURAL + r"\s+" + _RF3_PARTICIPLE
+    + r"|" + _rf3_alt(_RF3_PLURAL_FORMS) + r")"
+)
+_RF3_SINGULAR_VERB = (
+    r"(?:" + _RF3_AUX_SINGULAR + _RF3_DURATION + r"\s+" + _rf3_alt(_RF3_GERUNDS)
+    + r"|" + _RF3_AGAIN_SINGULAR + r"\s+" + _rf3_alt(_RF3_INFINITIVES)
+    + r"|" + _RF3_PERFECT_SINGULAR + r"\s+" + _RF3_PARTICIPLE
+    + r"|" + _rf3_alt(_RF3_SINGULAR_FORMS) + r")"
+)
+_RF3_ENCLITIC = r"(?:-(?:o|a|os|as|lo|la|los|las|no|na|nos|nas))?"
+# An unknown, unnamed, or criminal party ("un desconocido", "um golpista", "alguien que
+# no conozco"), beyond the RF1S and RF2 unnamed actors.
+_RF3_ACTOR = (
+    r"(?:(?:(?:un|una|um|uma|el|la|o|a|unos|unas|uns|umas|los|las|os|as)\s+)?"
+    r"(?:desconocid[oa]s?|desconhecid[oa]s?|extran[oa]s?|estranh[oa]s?|golpistas?|"
+    r"estafador(?:a|es|as)?|ladron(?:a|es|as)?|ladra[oe]s?|ladras?|hackers?|delincuentes?|"
+    r"criminal(?:es)?|criminos[oa]s?|bandid[oa]s?|impostor(?:a|es|as)?|farsantes?|"
+    r"timador(?:a|es|as)?|vigaristas?|tercer[oa]s?|terceir[oa]s?)"
+    r"|alguien(?:\s+mas)?|alguem(?:\s+mais)?|gente|(?:una|uma)\s+persona|uma\s+pessoa"
+    r"|(?:alguien|alguem|gente|(?:una|uma)\s+persona|uma\s+pessoa)\s+que\s+(?:yo\s+|eu\s+)?"
+    r"(?:no|nao)\s+(?:conozco|conheco|soy|sou)(?:\s+(?:yo|eu))?)"
+)
+_RF3_THERE_IS_ACTOR = (
+    r"(?:hay|habia|tem|tinha|ha)\s+" + _RF3_ACTOR + r"\s+" + _rf3_alt(_RF3_GERUNDS)
+)
+_RF3_ACTIVE_EVENT = (
+    r"\b(?:" + _RF3_THERE_IS_ACTOR + r"|" + _RF3_CLITICS + r"(?:" + _RF3_PLURAL_VERB + r"|"
+    + _RF3_SINGULAR_VERB + r")" + _RF3_ENCLITIC + r")(?=[\s,.;:!?]|$)"
+)
+_RF3_PLURAL_CUE = _rx(r"^" + _RF3_CLITICS + _RF3_PLURAL_VERB + _RF3_ENCLITIC + r"$")
+_RF3_THERE_IS_CUE = _rx(r"^" + _RF3_THERE_IS_ACTOR + r"$")
+_RF3_CUE_CLITIC = _rx(
+    r"^(?:(?:me|nos|se|le|les|lhe|lhes|te)\s+)?(lo|la|los|las|o|a|os|as)\s"
+    r"|-(?:o|a|os|as|lo|la|los|las|no|na|nos|nas)$"
+)
+_RF3_CUE_DATIVE_OWN = _rx(r"^(?:me|nos)\b")
+_RF3_HACER = _rx(r"\b(?:hicieron|hacen|hacian|hizo|hace|hacia|haciendo|hacer|fizeram|fazem|"
+                 r"faziam|fez|faz|fazia|fazendo|fazer)\b")
+# Passive, reflexive-passive, state, and disappearance reports of the customer's
+# money or account ("el saldo de mi tarjeta se esfumó", "sumiu todo o dinheiro da
+# minha poupança", "la cuenta estaba vacía").
+_RF3_PASSIVE_AUX = (
+    r"(?:fue|fueron|ha sido|han sido|habia sido|habian sido|era|eran|foi|foram|tem sido|"
+    r"tinha sido|tinham sido|era|eram)"
+)
+_RF3_ADVERB = (
+    r"(?:\s+(?:completamente|totalmente|por completo|integramente|ayer|anoche|hoy|ontem|"
+    r"hoje|todo|toda|todos|todas|tudo|completo|completa|enterito|enterita|inteiro|inteira))?"
+)
+_RF3_EMPTY = (
+    r"(?:vaci[oa]s?|en\s+ceros?|a\s+cero|agotad[oa]s?|limpi[oa]s?|pelad[oa]s?|vazi[oa]s?|"
+    r"zerad[oa]s?|a\s+zero|esgotad[oa]s?|limp[oa]s?|sin\s+(?:saldo|fondos|nada|un\s+peso|"
+    r"un\s+centavo|un\s+quinto|plata|dinero)|sem\s+(?:saldo|nada|um\s+centavo|um\s+real|"
+    r"um\s+tostao|dinheiro))"
+)
+_RF3_STATE_VERB = (
+    r"(?:quedo|quedaron|amanecio|amanecieron|aparecio|aparecieron|esta|estan|estaba|estaban|"
+    r"termino|terminaron|ficou|ficaram|amanheceu|amanheceram|apareceu|apareceram|estao|estava|"
+    r"estavam|acabou|acabaram)"
+)
+_RF3_LEAVE = r"(?:(?:me|nos)\s+)?(?:(?:lo|la|los|las|a|as|o|os)\s+)?(?:dejaron|han dejado|dejo|ha dejado|deixaram|deixou)"
+_RF3_DISAPPEAR = (
+    r"(?:desaparecio|desaparecieron|se esfumo|se esfumaron|se evaporo|se evaporaron|volo|"
+    r"volaron|se fue|se fueron|sumiu|sumiram|desapareceu|desapareceram|evaporou|evaporaram|"
+    r"ya no esta|ya no estan|no queda nada|ya no queda nada|ya no hay nada|nao esta mais|"
+    r"nao estao mais|ja nao esta|nao sobrou nada|nao tem mais nada|ya no aparece|"
+    r"nao aparece mais)"
+)
+_RF3_PASSIVE_EVENT = (
+    r"\b(?:" + _RF3_PASSIVE_AUX + _RF3_ADVERB + r"\s+" + _RF3_PARTICIPLE
+    + r"|se\s+(?:(?:lo|la|los|las)\s+)?" + _rf3_alt(_RF3_SINGULAR_FORMS + _RF3_PLURAL_FORMS)
+    + r"|" + _RF3_STATE_VERB + _RF3_ADVERB + r"\s+" + _RF3_EMPTY
+    + r"|" + _RF3_LEAVE + r"(?:\s+[^\s,]+){0,4}?\s+" + _RF3_EMPTY
+    + r"|" + _RF3_DISAPPEAR + r")(?=[\s,.;:!?]|$)"
+)
+_RF3_DISAPPEAR_CUE = _rx(r"^" + _RF3_DISAPPEAR + r"$")
+_RF3_NOTHING_LEFT_CUE = _rx(
+    r"^(?:no queda nada|ya no queda nada|ya no hay nada|nao sobrou nada|nao tem mais nada)$"
+)
+_RF3_ACTIVE_PASSIVE_CUE = _rx(r"^(?:" + _RF3_LEAVE + r"|se\s)")
+# The customer's money, card, or account.
+_RF3_QUANT = (
+    r"(?:dos|tres|cuatro|cinco|ambas|ambos|todas|todos|varias|varios|algunas|algunos|duas|dois|"
+    r"quatro|algumas|alguns)"
+)
+_RF3_INSTRUMENT = (
+    r"(?:cuenta|cuentas|conta|contas|tarjeta|tarjetas|cartao|cartoes)\b"
+    r"(?!\s+(?:de|da|do|del)\s+(?!(?:" + _OWN_ACCOUNT_TYPE
+    + r"|credito|debito|corriente|corrente|ahorro|empresa|negocio|banco|la empresa|"
+    r"el negocio|beneficio|nomina)\b))"
+)
+_RF3_FUNDS = (
+    r"(?:dinero|plata|platica|lana|saldo|saldos|fondos|ahorros|sueldo|salario|nomina|quincena|"
+    r"pension|aguinaldo|bono|liquidacion|cesantias?|cupo|limite|efectivo|dinheiro|grana|"
+    r"poupanca|economias|fundos|rendimentos|decimo terceiro|fgts|aposentadoria|pensao|"
+    r"reservas|valores|prima\s+(?:vacacional|de servicios|navidena))\b"
+)
+_RF3_OWN = r"(?:mi|mis|minha|minhas|meu|meus|nuestra|nuestro|nuestras|nuestros|nossa|nosso|nossas|nossos)"
+_RF3_DET = (
+    r"(?:(?:todo|toda|todos|todas|tudo)\s+)?(?:el|la|los|las|o|a|os|as|un|una|um|uma)"
+)
+_RF3_OWN_NP = (
+    r"(?:(?:todo|toda|todos|todas|tudo)\s+)?(?:(?:el|la|los|las|o|a|os|as)\s+)?" + _RF3_OWN
+    + r"\s+(?:" + _RF3_QUANT + r"\s+)?(?:" + _RF3_INSTRUMENT + r"|" + _RF3_FUNDS + r")"
+)
+_RF3_ARTICLE_NP = (
+    r"(?:" + _RF3_DET + r"\s+(?:" + _RF3_QUANT + r"\s+)?|" + _RF3_QUANT + r"\s+)(?:"
+    + _RF3_INSTRUMENT + r"|" + _RF3_FUNDS + r")"
+)
+_RF3_BARE_FUNDS = r"(?:dinero|plata|dinheiro|grana|saldo|fondos|fundos|ahorros|economias)\b"
+_RF3_ALL = r"(?:todo|tudo|todo lo que tenia|tudo o que tinha|o que tinha|lo que tenia)\b"
+_RF3_ITEMS = (
+    r"(?:" + _ITEM + r"|contas|cuentas|facturas|faturas|boletos|suscripciones|assinaturas|"
+    r"recargas|apuestas|apostas)\b"
+)
+_RF3_SOURCE = (
+    r"(?:de|del|desde|da|do|das|dos|en|na|no|nas|nos|con|com|em|pelo|pela)\s+(?:(?:el|la|los|"
+    r"las|o|a|os|as)\s+)?(?:" + _RF3_OWN + r"\s+)?(?:" + _RF3_QUANT + r"\s+)?" + _RF3_INSTRUMENT
+)
+_RF3_OBJECT = _rx(
+    r"\b(?:" + _RF3_OWN_NP + r"|" + _RF3_ARTICLE_NP + r"|" + _RF3_BARE_FUNDS + r"|" + _RF3_ALL
+    + r"|lo de|o do|o da|" + _RF3_SOURCE + r")"
+)
+_RF3_SOURCE_BEFORE = _rx(r"\b" + _RF3_OWN + r"\s+" + _RF3_INSTRUMENT)
+_RF3_SOURCE_RX = _rx(r"\b" + _RF3_SOURCE)
+_RF3_ITEM_RX = _rx(r"\b" + _RF3_ITEMS)
+_RF3_OWN_NP_RX = _rx(r"\b" + _RF3_OWN_NP)
+_RF3_OF_IT = _rx(r"^\s*del[ae]s?\b")
+_RF3_REFLEXIVE_CUE = _rx(r"^se\s")
+_RF3_PT_OBJECT_PRONOUN = _rx(r"^\s+(?:ele|ela|eles|elas)\b")
+_RF3_THIRD_PARTY_DATIVE = _rx(r"^(?:le|les|lhe|lhes)\b")
+_RF3_BARE_RELATIVE = _rx(r"(?:^|\s)que\s*$")
+_RF3_NEEDS_INSTRUMENT = _rx(r"^(?:" + _RF3_ALL + r"|lo de|o do|o da)$")
+# Money named without the customer's possessive is the customer's only with a dative
+# ("me sacaron plata") or the customer's account or card as its source ("el saldo de
+# la tarjeta"); a stranger taking cash from an ATM is not account activity.
+_RF3_UNOWNED_FUNDS = _rx(r"^\s?(?:" + _RF3_DET + r"\s+(?:" + _RF3_QUANT + r"\s+)?)?" + _RF3_FUNDS)
+_RF3_DESTINATION_BEFORE = _rx(r"\b(?:a|al|hacia|para|pra|ao|pro)\s*$")
+_RF3_INSTRUMENT_RX = _rx(r"\b" + _RF3_INSTRUMENT)
+_RF3_FINANCIAL_CONTEXT = _rx(
+    r"\b(?:" + _RF3_INSTRUMENT + r"|" + _RF3_FUNDS + r"|cajero|caixa eletronico|atm|"
+    r"banco|en efectivo)"
+)
+_RF3_SUBJECT_NP = _rx(
+    r"\b(?:" + _RF3_OWN_NP + r"|" + _RF3_ARTICLE_NP + r"|" + _RF3_ALL + r"|lo de|o do|o da)"
+)
+# Money or a card named before a clitic or a subjectless passive is its antecedent; a
+# physical object named after it is the antecedent instead.
+_RF3_REFERENT = _rx(
+    r"\b(?:" + _RF3_INSTRUMENT + r"|" + _RF3_FUNDS + r"|casa|laptop|computador|computadora|"
+    r"celular|telefono|carro|coche|moto|bicicleta|bolso|cartera|billetera|mochila|maleta|reloj|"
+    r"nevera|heladera|alcancia|despensa|bodega|habitacion|oficina|tienda|llaves|chaves|"
+    r"carteira|bolsa|mochila|relogio|carro|moto|bicicleta|celular|telefone|notebook|"
+    r"documentos|pasaporte|passaporte|bolsillo|bolso|paquete|pacote)\b"
+)
+_RF3_MONEY_REFERENT = _rx(r"^(?:" + _RF3_INSTRUMENT + r"|" + _RF3_FUNDS + r")")
+# Someone else's money, card, or account.
+_RF3_FOREIGN_OWNER = _rx(
+    r"^\s*(?:de|del|da|do)\s+(?:mi|mis|meu|minha|meus|minhas|su|sus|seu|sua|el|la|o|a|un|una|"
+    r"um|uma|otra|otro|outra|outro)\b(?!\s+(?:" + _RF3_INSTRUMENT + r"|banco|cajero))"
+    r"|^\s*(?:ajen[oa]s?|alhei[oa]s?|dele|dela|deles|delas)\b"
+)
+# The customer did not do it, did not allow it, or does not know who did.
+_RF3_FIRST_PERSON_ACTS = (
+    r"(?:hice|he hecho|hecho|hago|saque|retire|use|utilice|ocupe|gaste|compre|pague|cargue|"
+    r"pedi|he pedido|transferi|movi|toque|mande|envie|solicite|autorice|he autorizado|di|fui|"
+    r"he ido|he estado|estuve|visito|uso|compro|pago|pido|cargo|frecuento|conozco|reconozco|"
+    r"fiz|faco|saquei|retirei|usei|utilizei|gastei|comprei|paguei|pedi|transferi|mexi|"
+    r"autorizei|dei|mandei|enviei|solicitei|estive|frequento|conheco|reconheco|peco|mexo|"
+    r"tirei|movimentei|tenho feito|tenho usado)"
+)
+_RF3_DISOWNING = (
+    r"\b(?:no|nao)\s+(?:fui|soy|sou|he sido|era|fue|foi)\s+(?:yo|eu)\b"
+    r"|\b(?:yo|eu)\s+(?:no|nao)\s+(?:fui|soy|sou|era)\b"
+    r"|\b(?:no|nao)\s+(?:son|sao|es|e)\s+(?:mias|mios|mia|mio|minhas|meus|minha|meu)\b"
+    r"|\b(?:yo|eu)\s+(?:no|nunca|jamas|nao|jamais)\s+(?:(?:lo|la|los|las|le|les|me|o|a|os|as|"
+    r"lhe|nada|ni)\s+){0,2}" + _RF3_FIRST_PERSON_ACTS + r"\b"
+    r"|\b(?:que|donde|onde|en los que|en las que|nos quais|nas quais)\s+(?:yo\s+|eu\s+)?"
+    r"(?:no|nunca|jamas|nao|jamais)\s+(?:(?:lo|la|los|las|le|les|me|o|a|os|as|lhe)\s+){0,2}"
+    + _RF3_FIRST_PERSON_ACTS + r"\b"
+    r"|\b(?:nunca|jamas|jamais)\s+(?:(?:lo|la|los|las|o|a|os|as)\s+)?" + _RF3_FIRST_PERSON_ACTS
+    + r"\b"
+    r"|\b(?:no|nao)\s+(?:(?:lo|la|los|las|o|a|os|as)\s+)?(?:hice|he hecho|saque|retire|"
+    r"autorice|he autorizado|pedi|he pedido|fiz|saquei|retirei|autorizei|usei|gastei|comprei|"
+    r"paguei|mexi|reconozco|reconheco)\b"
+)
+_RF3_NON_CONSENT = (
+    r"\b(?:sin|sem)\s+(?:(?:mi|minha|meu|el|la|a|o|ningun|ninguna|nenhum|nenhuma|previo|"
+    r"previa|tu|su)\s+)*(?:permiso|autorizacion|consentimiento|conocimiento|aviso|aprobacion|"
+    r"permissao|autorizacao|consentimento|conhecimento|aprovacao|aval|anuencia)\b"
+    r"|\b(?:sin|sem)\s+que\s+(?:(?:yo|eu|nadie|ninguem|ninguno|ninguna|nenhum)\s+)?"
+    r"(?:(?:me|lo|la|los|las|se|le|les|nos|o|a|os|as)\s+){0,2}(?:(?:autoriz|permit|consint|"
+    r"consent|aprob|aprov|sup|soub|enter|pid|ped|solicit|orden|hic|fiz|us|"
+    r"utiliz|compr|gast|retir|sac|consult|pregunt|pergunt|avis|perceb|mex|toc|mov)[a-z]*"
+    r"(?:ara|iera|ase|iese|asse|esse|isse|aran|ieran|assem|essem|issem)|sepa|sepan|saiba|"
+    r"diera|dieran|diese|desse|dessem|autorice|autorize|de|diga|pida|haya autorizado|"
+    r"tenha autorizado)\b"
+    r"|\bsin\s+(?:haber(?:le|les|lo|la|los|las|melo)?|habermelo)\s+(?:yo\s+)?(?:dado|autorizado|"
+    r"aprobado|pedido|solicitado|permitido)\b"
+    r"|\bsem\s+(?:que\s+)?(?:eu|ninguem)\s+(?:(?:me|lhe|o|a)\s+)?(?:ter\s+|tivesse\s+|tenha\s+|"
+    r"haver\s+)?(?:dado|dar|desse|autoriz\w*|permit\w*|consent\w*|aprov\w*|ped\w*|saber|"
+    r"soubesse|perceb\w*|mex\w*|us\w*|avis\w*|pergunt\w*|consult\w*|conhec\w*)"
+    r"|\b(?:sin|sem)\s+(?:preguntarme|consultarme|avisarme|decirme|pedirme|me\s+(?:perguntar|"
+    r"consultar|avisar|dizer|pedir))\b"
+    r"|\ba\s+mis\s+espaldas\b|\bpelas\s+minhas\s+costas\b|\bpor\s+tras\s+de\s+mim\b"
+    r"|\b(?:yo\s+|eu\s+)?(?:no|nunca|jamas|nao|jamais)\s+(?:(?:le|les|lhe|lhes)\s+)?"
+    r"(?:di|dei|he dado|otorgue)\s+(?:(?:mi|minha|ningun|ninguna|nenhum|nenhuma)\s+)?"
+    r"(?:permiso|autorizacion|consentimiento|permissao|autorizacao|consentimento|aval)\b"
+    r"|\b(?:nadie|ninguem)\s+(?:(?:lo|la|o|a)\s+)?(?:autorizo|autorizou|aprobo|aprovou)\b"
+    r"|\bautorizacion\s+de\s+nadie\b|\bautorizacao\s+de\s+ninguem\b"
+)
+_RF3_UNFAMILIAR = (
+    r"\b(?:en|desde|de|em|no|na|do|da|para)\s+(?:el\s+|o\s+)?(?:extranjero|exterior|"
+    r"otro pais|otra ciudad|otro estado|outro pais|outra cidade|outro estado)\b"
+    r"|\b(?:sitios|sites|paginas|tiendas|lojas)\s+(?:estrangeir|extranjer)\w*"
+)
+# An unknown or criminal party named anywhere licenses the report; a bare "gente" or
+# "una persona" does so only as the subject or agent of the action itself.
+_RF3_STRONG_ACTOR = (
+    r"(?:alguien|alguem|(?:un|una|um|uma|unos|unas|uns|umas)\s+(?:desconocid[oa]s?|"
+    r"desconhecid[oa]s?|extran[oa]s?|estranh[oa]s?)|desconocidos|desconhecidos|golpistas?|"
+    r"estafador(?:a|es|as)?|ladron(?:a|es|as)?|ladra[oe]s?|hackers?|delincuentes?|"
+    r"criminos[oa]s?|bandid[oa]s?|impostor(?:a|es|as)?|timador(?:a|es|as)?|vigaristas?|"
+    r"(?:no se|nao sei)\s+quien|nao sei quem)"
+)
+_RF3_LICENCE = _rx(
+    _RF3_DISOWNING + r"|" + _RF3_NON_CONSENT + r"|\b" + _RF3_STRONG_ACTOR + r"\b"
+)
+# Use abroad or in another city licenses a report only when the customer does not say
+# they were using the card themselves ("cuando uso la tarjeta en el exterior").
+_RF3_UNFAMILIAR_RX = _rx(_RF3_UNFAMILIAR)
+_RF3_SELF_USE = _rx(
+    r"(?<!no )(?<!nao )(?<!nunca )\b(?:uso|use|usamos|pague|pagamos|compre|compramos|viaje|"
+    r"viajo|viajamos|usei|usamos|paguei|comprei|viajei|viajamos)\b"
+    r"|\b(?:estoy|estamos|estou|estamos)\s+(?:de\s+viaje|de\s+viagem|viajando)\b"
+)
+_RF3_THEFT_VERB = _rx(r"\b(?:rob|roub|hurt|furt)[a-z]*$")
+_RF3_ACTOR_SLOT = _rx(
+    r"\b" + _RF3_ACTOR + r"(?:\s+(?:mas|mais|tambien|tambem|ya|ja|otra vez|de nuevo|de novo|"
+    r"anoche|ayer|ontem|hoje|hoy))?\s*$"
+)
+_RF3_UNKNOWN_AGENT = _rx(
+    r"^(?:\s+[^\s,]+){0,4}?\s+(?:por|pelo|pela)\s+(?:" + _RF3_ACTOR
+    + r"|(?:alguien|alguem)\s+que\s+(?:no|nao)\s+(?:soy|sou)\s+(?:yo|eu))\b"
+)
+_RF3_NAMED_AGENT = _rx(
+    r"^(?:\s+[^\s,]+){0,4}?\s+(?:por|pelo|pela)\s+(?:mi|mim|(?:mi|mis|meu|minha|meus|minhas)\s+"
+    r"[a-z]+|(?:el|la|o|a)\s+(?:banco|empresa|tienda|loja|juzgado|gobierno|governo)|banco|"
+    r"(?:mi|mim)\s+(?:mism[oa]|mesm[oa]))\b"
+)
+# A person, the bank, or another institution named as the subject of the action.
+_RF3_KNOWN_SUBJECT = _rx(
+    r"(?<!de )(?<!del )(?<!da )(?<!do )(?<!dos )(?<!das )"
+    r"\b(?:mi|mis|meu|minha|meus|minhas|su|sus|seu|sua|seus|suas|nuestro|nuestra|nuestros|"
+    r"nuestras|nosso|nossa|nossos|nossas)\s+(?:" + _KIN + r"|socio|socia|socios|jefe|jefa|"
+    r"contador|contadora|abogado|abogada|empleado|empleada|empleados|asistente|amigo|amiga|"
+    r"amigos|amigas|vecino|vecina|vecinos|familia|familiares|chefe|advogado|advogada|"
+    r"funcionario|funcionaria|vizinho|vizinha|parentes|empresa|banco|sobrino|sobrina|"
+    r"sobrinho|sobrinha|primo|prima|cunado|cunada|cunhado|cunhada|nuera|yerno|nora|genro|"
+    r"ex)\b"
+    r"|\b(?:yo|eu|nosotros|nosotras|ellos|ellas|eles|elas|el|ella|ele|ela|usted|ustedes|voce|"
+    r"voces)\s*(?:(?:me|nos|se|le|les|lhe|lo|la|los|las|o|a|os|as)\s+)*$"
+    r"|(?<!de )(?<!da )(?<!do )\b(?:el|la|los|las|o|a|os|as)\s+(?:banco|bancos|empresa|tienda|"
+    r"comercio|comercios|entidad|gobierno|juzgado|loja|lojas|governo|aseguradora|seguradora|"
+    r"operadora|tiendas|supermercado|colegio|universidad|escola|faculdade)\b"
+    r"(?:\s+[^\s,]+){0,2}?\s*$"
+    r"|(?<!de )(?<!del )(?<!da )(?<!do )\b(?:banco|bancos)\b(?:\s+[^\s,]+){0,2}?\s*$"
+)
+# The customer allowed it, asked for it, or the money is arriving.
+_RF3_PERMISSION = _rx(
+    r"\bcon\s+(?:mi|el|su)\s+(?:permiso|autorizacion|consentimiento)\b"
+    r"|\bcon\s+(?:permiso|autorizacion)\s+mi[oa]\b"
+    r"|\bcom\s+(?:a\s+|o\s+)?(?:minha|meu)\s+(?:permissao|autorizacao|consentimento)\b"
+    r"|\b(?:como|segun|conforme)\s+(?:yo\s+|eu\s+)?(?:lo\s+|o\s+)?(?:pedi|solicite|ordene|"
+    r"acordamos|quedamos|combinamos|indique|solicitei|ordenei)\b"
+    r"|\b(?:yo|eu)\s+(?:(?:le|les|lhe|lo|la|o|a)\s+)?(?:deje|deixei|autorice|autorizei|permiti)\b"
+    r"|\b(?:le|les|lhe)\s+(?:di|dei)\s+(?:(?:mi|minha)\s+)?(?:permiso|permissao|autorizacion|"
+    r"autorizacao)\b"
+)
+_RF3_INCOMING = _rx(
+    r"^(?:me|nos|lhe)\s+(?:(?:lo|la|los|las|o|a|os|as)\s+)?(?:transfirieron|transfirio|"
+    r"depositaron|deposito|pagaron|pago|mandaron|mando|enviaron|envio|abonaron|abono|"
+    r"consignaron|consigno|giraron|giro|transferiram|transferiu|depositaram|depositou|"
+    r"pagaram|pagou|mandaram|mandou|enviaram|enviou)\b"
+)
+_RF3_FOREIGN_DESTINATION = _rx(
+    r"\b(?:a|hacia|para|pra)\s+(?:(?:una|uma|otra|outra)\s+)+(?:cuenta|conta|persona|"
+    r"pessoa|tarjeta|cartao)\b|\b(?:a|para|pra)\s+(?:otra|outra|otro|outro)\b"
+    r"|\bcuenta\s+(?:desconocida|ajena)|\bconta\s+(?:desconhecida|alheia)"
+)
+_RF3_TRANSFER_CUE = _rx(r"\b(?:transf|mand|envi|gir|pas|mov|deposit)")
+_RF3_TO_MY_ACCOUNT = _rx(r"\b(?:a|hacia|para|pra|na)\s+(?:mi|minha)\s+(?:cuenta|conta)\b")
+_RF3_FEE = _rx(
+    r"\b(?:comision|comisiones|cuota|cuotas|seguro|anualidad|intereses|interes|tarifa|tarifas|"
+    r"impuesto|impuestos|manejo|mensualidad|multa|multas|deuda|deudas|embargo|embargos|"
+    r"prestamo|retencion|anuidade|juros|taxa|taxas|imposto|impostos|mensalidade|parcela|"
+    r"parcelas|divida|dividas|emprestimo|financiamento|iof|retencao|bloqueio|bloqueo|"
+    r"pension alimenticia|pensao alimenticia)\b"
+)
+# The customer's own action named as the cause ("porque pagué la tarjeta").
+_RF3_SELF_CAUSE = _rx(
+    r"\b(?:porque|ya que|pues|pois|por que|despues de que|depois que)\s+(?:yo\s+|eu\s+)?"
+    r"(?:(?:la|lo|las|los|a|o|as|os)\s+)?(?:pague|cerre|retire|saque|gaste|compre|transferi|"
+    r"pase|movi|use|invert|paguei|fechei|saquei|gastei|comprei|transferi|passei|usei|"
+    r"investi)\w*\b"
+)
+_RF3_SI_PREFIX = _rx(r"\bsi(?=[a-z])")
+_RF3_NEGATED_BEFORE = _rx(r"\b(?:no|nao|nunca|jamas|jamais|ni|nem)\s+$")
+_RF3_DETERMINER_BEFORE = _rx(
+    r"\b(?:un|una|el|la|los|las|um|uma|o|a|os|as|mi|mis|meu|minha|meus|minhas|este|esta|ese|"
+    r"esa|esse|essa|del|do|da|de|ningun|ninguna|nenhum|nenhuma|cada|otro|otra|outro|outra|su|"
+    r"seu|sua|al|ao|primer|primera|ultimo|ultima|algun|alguna|algum|alguma)\s+$"
+)
+# 7. RF1U F5 gap: card or account data used to subscribe to or contract a service.
+_RF3_SUBSCRIPTION = (
+    r"(?:\s+[^\s,]+){0,3}?\s+(?:para|pra|a fin de|con el fin de)\s+(?:poder\s+)?"
+    r"(?:assinar|suscribir(?:se)?|subscribir(?:se)?|contratar|afiliar(?:se)?|inscribir(?:se)?|"
+    r"registrar(?:se)?|cadastrar(?:-se)?|adquirir|abonar(?:se)?|activar|ativar|"
+    r"(?:hacer|fazer)\s+(?:una|uma)\s+(?:suscripcion|assinatura))\b"
+)
+_RF3_DATA_SUBSCRIPTION = (
+    r"\b(?:" + _PLURAL_USE + r"|" + _UNNAMED_ACTOR + r"\s+" + _SINGULAR_USE + r")\s+" + _DATA_NP
+    + _RF3_SUBSCRIPTION
+)
+
+
 _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "non_recognition",
@@ -1796,6 +2211,12 @@ _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("rf2_ruin_idiom", _rx(_RF2_RUIN_IDIOM)),
     # RF2: the customer left without money in the account.
     ("rf2_no_money_state", _rx(_RF2_NO_MONEY_STATE)),
+    # RF3: an unnamed or impersonal party acting on the customer's money or card.
+    ("rf3_active_event", _rx(_RF3_ACTIVE_EVENT)),
+    # RF3: the customer's money or account drained, emptied, or gone (passive/state).
+    ("rf3_passive_event", _rx(_RF3_PASSIVE_EVENT)),
+    # RF3: card or account data used to subscribe to or contract a service.
+    ("rf3_data_subscription", _rx(_RF3_DATA_SUBSCRIPTION)),
 )
 
 _RF1O_FAMILIES = frozenset(
@@ -1851,6 +2272,7 @@ _RF2_FAMILIES = frozenset(
 _RF2_STATE_FAMILIES = frozenset(
     {"rf2_passive_depletion", "rf2_depleted_state", "rf2_no_money_state"}
 )
+_RF3_FAMILIES = frozenset({"rf3_active_event", "rf3_passive_event", "rf3_data_subscription"})
 _CHARACTERIZATION_FAMILIES = frozenset({"fraud_characterization", "unknown_characterization"})
 # Families whose cue may borrow an anchor from the preceding sentence when the cue
 # carries its own back-reference (demonstrative or clitic object) or opens a short
@@ -2267,6 +2689,8 @@ def _blocker(
     prefix = _clause_prefix(text, start)
     presupposed_relative = bool(_RELATIVIZER_TAIL.search(prefix))
 
+    if family in _RF3_FAMILIES:
+        return _rf3_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF2_FAMILIES:
         return _rf2_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1Y_FAMILIES:
@@ -3061,6 +3485,203 @@ def _rf2_blocker(
     return None
 
 
+def _rf3_clause_slot(text: str, start: int) -> str:
+    """The clause before an RF3 cue, reaching back over a bare relative "que"."""
+
+    before = text[:start]
+    breaks = [brk for brk in _CLAUSE_BREAK.finditer(before)]
+    clause_start = breaks[-1].end() if breaks else 0
+    slot = before[clause_start:]
+    if _RF3_BARE_RELATIVE.search(slot) and breaks:
+        previous = breaks[-2].end() if len(breaks) >= 2 else 0
+        slot = before[previous:]
+    return slot
+
+
+def _rf3_object(
+    sentences: list[_Sentence], index: int, start: int, end: int, family: str
+) -> str | None:
+    """The customer's money, card, or account the RF3 action applies to, if any."""
+
+    text = sentences[index].text
+    cue = text[start:end]
+    message = " ".join(s.text for s in sentences)
+    head = " ".join([s.text for s in sentences[:index]] + [text[:start]])
+    brk = _CLAUSE_BREAK.search(text, end)
+    window = text[end : brk.start() if brk else len(text)]
+    window = " ".join(window.split()[:8])
+    if family == "rf3_active_event" and _RF3_HACER.search(cue):
+        # "hacer compras / fazer pagamentos" needs the item and the customer's card or
+        # account as its instrument ("compras con mi tarjeta", "cargos en la tarjeta").
+        item = _RF3_ITEM_RX.search(window)
+        if item and _RF3_SOURCE_RX.search(window[item.end() :]):
+            return item.group(0)
+        if item and _RF3_SOURCE_BEFORE.search(head):
+            return item.group(0)
+        return None
+    found = None
+    for candidate in _RF3_OBJECT.finditer(" " + window):
+        if _RF3_DESTINATION_BEFORE.search((" " + window)[: candidate.start()]):
+            continue
+        if _RF3_UNOWNED_FUNDS.match(candidate.group(0)) and not (
+            _RF3_CUE_DATIVE_OWN.match(cue)
+            or _RF3_SOURCE_RX.search(window[candidate.end() - 1 :])
+        ):
+            continue
+        found = candidate
+        break
+    if found is not None:
+        word = found.group(0)
+        owner = _RF3_FOREIGN_OWNER.match(window[found.end() - 1 :])
+        if owner is not None:
+            # "dele / dela" may stand for the card or account named just before.
+            referents = _RF3_REFERENT.findall(head)
+            if not (
+                _RF3_OF_IT.match(owner.group(0))
+                and referents
+                and _RF3_MONEY_REFERENT.match(referents[-1])
+            ):
+                return None
+        if _RF3_NEEDS_INSTRUMENT.match(word):
+            if _RF3_INSTRUMENT_RX.search(window) or _RF3_INSTRUMENT_RX.search(message):
+                return word
+            return None
+        return word
+    if family == "rf3_passive_event":
+        # A passive, state, or disappearance names its subject before the cue in the
+        # clause, or names an unknown agent after it with money or an account in view.
+        slot = _rf3_clause_slot(text, start)
+        subject = None
+        for subject in _RF3_SUBJECT_NP.finditer(slot):
+            pass
+        if subject is not None:
+            if _RF3_NEEDS_INSTRUMENT.match(subject.group(0)) and not _RF3_INSTRUMENT_RX.search(
+                message
+            ):
+                return None
+            return subject.group(0)
+        if _RF3_UNKNOWN_AGENT.match(text[end:]) and _RF3_FINANCIAL_CONTEXT.search(message):
+            return "agent"
+        if _RF3_NOTHING_LEFT_CUE.match(cue) and _RF3_FINANCIAL_CONTEXT.search(text):
+            return "context"
+        if _RF3_DISAPPEAR_CUE.match(cue) or _RF3_REFLEXIVE_CUE.match(cue):
+            # "se fue", "voló", "se llevaron" need their own money subject: people
+            # leave and take things too.
+            return None
+    # A clitic stands for the last money, card, or physical object named before it.
+    clitic = _RF3_CUE_CLITIC.search(cue)
+    if clitic is None:
+        clitic = _RF3_PT_OBJECT_PRONOUN.match(text[end:])
+    if clitic is not None or family == "rf3_passive_event":
+        referents = _RF3_REFERENT.findall(head)
+        if referents and _RF3_MONEY_REFERENT.match(referents[-1]):
+            return referents[-1]
+    return None
+
+
+def _rf3_licensed_anchor(
+    sentences: list[_Sentence], index: int, start: int, end: int, family: str
+) -> str | None:
+    """Anchor for an RF3 cue, or None when its object or licence is missing."""
+
+    text = sentences[index].text
+    cue = text[start:end]
+    message = " ".join(s.text for s in sentences)
+    before = text[:start]
+    if _RF3_NEGATED_BEFORE.search(before):
+        return None
+    if family == "rf3_data_subscription":
+        # The data and the service are the cue; RF1U data misuse needs no other licence.
+        return cue
+    if _RF3_DETERMINER_BEFORE.search(before):
+        return None
+    if family == "rf3_active_event" and not (
+        _RF3_PLURAL_CUE.match(cue) or _RF3_THERE_IS_CUE.match(cue)
+    ):
+        # A singular action needs an unknown or unnamed actor as its subject.
+        if not _RF3_ACTOR_SLOT.search(_rf3_clause_slot(text, start)):
+            return None
+    if _rf3_object(sentences, index, start, end, family) is None:
+        return None
+    if _RF3_LICENCE.search(message) or (
+        _RF3_UNFAMILIAR_RX.search(message) and not _RF3_SELF_USE.search(message)
+    ):
+        return cue
+    if family == "rf3_active_event" and (
+        _RF3_THERE_IS_CUE.match(cue)
+        or _RF3_ACTOR_SLOT.search(_rf3_clause_slot(text, start))
+        or _RF3_THEFT_VERB.search(cue)
+    ):
+        # An unknown actor, or a verb that itself means taking without consent.
+        return cue
+    if family == "rf3_passive_event" and _RF3_UNKNOWN_AGENT.match(text[end:]):
+        return cue
+    return None
+
+
+def _rf3_blocker(
+    sentence: _Sentence,
+    start: int,
+    end: int,
+    family: str,
+    message_tail: str,
+    message_head: str,
+) -> str | None:
+    """Scope checks for the RF3 families.
+
+    Every family takes the shared RF1U checks (retraction, reported speech, hedges,
+    resolution, permission, protasis, interrogative scope, delegation). An action
+    named for someone else ("le vaciaron"), by a known person, the bank, or another
+    institution, with the customer's permission, as money arriving, or as a fee, debt,
+    or the customer's own payment stays outside.
+    """
+
+    original = sentence.text
+    after = original[end:]
+    cue = original[start:end]
+    # The shared protasis pattern also reads "si" at the start of a longer word ("sin",
+    # "sigue", "sitios"); as for RF2's "sin", that token is masked (same length) for
+    # these families' checks only.
+    sentence = _Sentence(
+        text=_RF3_SI_PREFIX.sub("s_", original[:end]) + original[end:],
+        question_start=sentence.question_start,
+    )
+    shared = "data_misuse" if family == "rf3_data_subscription" else "third_party_authorship"
+    blocked = _rf1u_blocker(sentence, start, end, shared, message_tail, message_head)
+    if blocked is not None:
+        return blocked
+    if family == "rf3_data_subscription":
+        return None
+    whole = message_head + " " + cue + " " + message_tail
+    if _RF3_PERMISSION.search(_NEGATED_GRANT.sub(" ", whole)):
+        return "authorized_third_party"
+    if _RF3_THIRD_PARTY_DATIVE.match(cue):
+        return "third_party_dative"
+    slot = _rf3_clause_slot(original, start)
+    # A passive, state, or disappearance names the money, not the actor, before it;
+    # "dejar" and a reflexive "se llevó" are actions whose subject comes first.
+    active = family == "rf3_active_event" or _RF3_ACTIVE_PASSIVE_CUE.match(cue)
+    if active and _RF3_KNOWN_SUBJECT.search(slot) and not _RF3_ACTOR_SLOT.search(slot):
+        return "named_actor"
+    if family == "rf3_passive_event" and _RF3_NAMED_AGENT.match(after):
+        return "named_actor"
+    if _RF2_CAUSE_AFTER.match(after) or _RF1Y_POST_VERBAL_CAUSE.match(after):
+        return "post_verbal_cause"
+    brk = _CLAUSE_BREAK.search(original, end)
+    clause = original[start : brk.start() if brk else len(original)]
+    if _RF3_FEE.search(clause) or _RF3_FEE.search(slot):
+        return "known_charge"
+    if _RF3_SELF_CAUSE.search(original) and not _RF3_LICENCE.search(original[start:]):
+        return "self_explained"
+    if _RF3_INCOMING.match(cue) and not (
+        _RF3_FOREIGN_DESTINATION.search(after) or _RF3_OWN_NP_RX.search(after)
+    ):
+        return "incoming_transfer"
+    if _RF3_TRANSFER_CUE.search(cue) and _RF3_TO_MY_ACCOUNT.search(after):
+        return "incoming_transfer"
+    return None
+
+
 # ------------------------------------------------- RF1Q structural-scope demotion
 # The structural resolver asserts a few non-report shapes: an advice question with
 # an indefinite-future protasis embedded after its question word ("¿Qué debo hacer
@@ -3185,7 +3806,9 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 # matching the same span (and blocked for lack of an activity
                 # anchor) cannot hide a product-anchored RF1Q cue.
                 span = (
-                    6
+                    7
+                    if family in _RF3_FAMILIES
+                    else 6
                     if family in _RF2_FAMILIES
                     else 5
                     if family in _RF1Y_FAMILIES
@@ -3202,7 +3825,15 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 if span in seen:
                     continue
                 seen.add(span)
-                if family in _RF2_FAMILIES:
+                if family in _RF3_FAMILIES:
+                    anchor = _rf3_licensed_anchor(
+                        sentences, index, match.start(), match.end(), family
+                    )
+                    # RF3 cues are lexicon matches; without the customer's money or
+                    # card and a licence the match is not an RF3 cue occurrence.
+                    if anchor is None:
+                        continue
+                elif family in _RF2_FAMILIES:
                     anchor = _rf2_licensed_anchor(
                         sentences, index, match.start(), match.end(), family
                     )
