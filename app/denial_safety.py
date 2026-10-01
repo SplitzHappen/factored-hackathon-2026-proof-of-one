@@ -1153,6 +1153,274 @@ _INTERFACE_FINANCIAL = _rx(
     r"extracto|extrato|estado de cuenta|fatura|factura|resumen)\b"
 )
 
+# ---------------------------------------------------------------- RF2 families
+# RF1Z miss shapes of the RF1Y families, plus a guard for the one RF1Z
+# over-escalation. Each family needs the customer's own account, card, or funds and
+# an unnamed, impersonal, or disowned actor; a cue whose licence is missing stays
+# unasserted.
+_RF2_QUANT = r"(?:dos|tres|cuatro|ambas|ambos|todas|todos|duas|dois|quatro|varias|varios)"
+_RF2_FUNDS = (
+    r"(?:ahorros|poupanca|economias|saldo|dinero|plata|fondos|fundos|dinheiro|grana|sueldo|"
+    r"salario|nomina|quincena|pension|pensao|aposentadoria)\b"
+)
+_RF2_OWN_OBJECT = (
+    r"(?:(?:todo|toda|todos|todas|tudo)\s+)?(?:(?:el|la|los|las|o|a|os|as)\s+)?"
+    r"(?:mi|mis|minha|minhas|meu|meus)\s+(?:" + _RF1Y_ACCOUNT + r"|" + _RF2_FUNDS + r")"
+)
+# A stranger or an unknown person, beyond the RF1S unnamed actors.
+_RF2_ACTOR = (
+    r"(?:(?:una|uma)\s+persona\s+que\s+(?:yo\s+)?no\s+conozco|uma\s+pessoa\s+que\s+(?:eu\s+)?"
+    r"nao\s+conheco|alguien\s+que\s+(?:yo\s+)?no\s+conozco|alguem\s+que\s+(?:eu\s+)?nao\s+"
+    r"conheco|gente\s+que\s+(?:yo\s+)?no\s+conozco|un\s+extrano|una\s+extrana|um\s+estranho|"
+    r"uma\s+estranha|extranos|estranhos|" + _UNNAMED_ACTOR + r")"
+)
+_RF2_ACTOR_START = _rx(r"^" + _RF2_ACTOR + r"\b")
+# A clause-initial frame before an impersonal plural verb: learning of it, or how long
+# it has gone on ("fiquei sabendo que andavam ...", "hace días que ...").
+_RF2_PLURAL_SLOT = _rx(
+    r"(?:\b(?:fiquei sabendo|me entere(?:\s+de)?|me acabo de enterar(?:\s+de)?|vi|veo|vejo|"
+    r"noto|note|reparei|resulta)\s+que|\b(?:hace|faz)\s+(?:[^\s,]+\s+){1,2}que|"
+    r"\b(?:durante la (?:noche|madrugada)|de madrugada|anteontem|anteayer|el fin de semana|"
+    r"no fim de semana))\s*(?:me\s+)?$"
+)
+# The customer did not do it or did not allow it: a disowning, a household denial, a
+# lack of authorization or consent, or the customer being asleep or away.
+_RF2_NON_AUTHORIZATION = (
+    r"\bsin\s+que\s+(?:yo\s+)?(?:(?:lo|la|los|las|me|se\s+lo)\s+)?(?:diera|diese|hiciera|"
+    r"autorizara|aprobara|pidiera|supiera|solicitara|ordenara|permitiera|consintiera|enterara|"
+    r"diera cuenta|haya autorizado|hubiera autorizado|haya dado|hubiera dado)\b"
+    r"|\bsin\s+(?:haber(?:lo|la|los|las)?|habermelo)\s+(?:yo\s+)?(?:autorizado|aprobado|pedido|"
+    r"solicitado|permitido)\b"
+    r"|\bsin\s+(?:mi\s+)?(?:permiso|autorizacion|consentimiento|conocimiento|aprobacion)\b"
+    r"|\bsin\s+(?:preguntarme|consultarme|pedirme permiso)\b"
+    r"|\bsem\s+(?:que\s+)?eu\s+(?:ter\s+|tivesse\s+|tenha\s+)?(?:autorizado|autorizar|autorizasse|"
+    r"permitido|permitir|permitisse|pedido|pedir|pedisse|saber|soubesse|dado|feito|fizesse|desse|"
+    r"aprovado|aprovar|aprovasse)\b"
+    r"|\bsem\s+(?:a\s+|o\s+)?(?:minha\s+|meu\s+)?(?:permissao|autorizacao|consentimento|"
+    r"conhecimento|aprovacao)\b"
+    r"|\bsem\s+me\s+(?:perguntar|consultar|pedir)\b"
+)
+_RF2_DISOWNED = _rx(
+    _RF2_NON_AUTHORIZATION
+    + r"|\b(?:no fui yo|yo no fui|nao fui eu|eu nao fui)\b"
+    r"|\b(?:yo|eu)\s+(?:no|nunca|nao|jamas|jamais)\s+(?:(?:lo|la|los|las|o|a|os|as|me|le|lhe)\s+)?"
+    r"(?:saque|retire|hice|autorice|transferi|toque|movi|use|di|gaste|pedi|fiz|autorizei|tirei|"
+    r"saquei|retirei|mexi|usei|gastei|dei)\b"
+    r"|\b(?:nunca|jamas|jamais)\s+(?:he ido|he estado|fui|estuve|estive|pisei)\b"
+    r"|\b(?:nadie|ninguno|ninguna|ninguem|nenhum|nenhuma)\s+(?:de|da|do|en|na|no)\s+(?:mi|minha|"
+    r"meu)\s+(?:familia|casa)\s+(?:(?:lo|la|los|las|o|a|os|as|nela|nele)\s+)?(?:hizo|saco|retiro|"
+    r"uso|toco|movio|fez|sacou|retirou|usou|mexeu|tirou)\b"
+    r"|\b(?:mientras|enquanto)\s+(?:yo\s+|eu\s+)?(?:dormia|estaba dormid[oa]|estaba durmiendo|"
+    r"estava dormindo|estaba de viaje|estava viajando|viajaba|viajava|estaba fuera|estava fora)\b"
+)
+# An unnamed party taking the money, anywhere in the message ("alguien sacó todo").
+_RF2_UNNAMED_TAKE = _rx(
+    r"\b" + _RF2_ACTOR + r"\s+(?:(?:me|nos|le|lhe)\s+)?(?:saco|retiro|robo|llevo|vacio|"
+    r"transfirio|uso|gasto|sacou|retirou|roubou|levou|esvaziou|zerou|transferiu|usou|gastou|"
+    r"tirou)\b"
+    r"|" + _NOT_NEGATED + r"\b(?:me|nos)\s+(?:(?:lo|la|los|las)\s+)?(?:sacaron|robaron|retiraron|"
+    r"llevaron|vaciaron|quitaron|sacaram|roubaram|retiraram|levaram|esvaziaram|tiraram)\b"
+)
+# A fee, debt, or seizure named after the cue is its cause, not an actor.
+_RF2_CAUSE_AFTER = _rx(
+    r"^(?:\s+[^\s,]+){0,4}?\s+(?:por|pelo|pela|pelos|pelas|con|com)\s+(?:(?:un|una|el|la|los|las|"
+    r"um|uma|o|a|os|as|tantas|tantos)\s+)?(?:embargo|embargos|bloqueo|bloqueio|retencion|retencao|"
+    r"comisiones|comision|intereses|cargos|cuotas|deudas|deuda|impuestos|juros|tarifas|taxas|"
+    r"dividas|divida|parcelas)\b"
+)
+# 1. Passive drain of the customer's account, card, or funds with a non-"cuenta"
+# subject, an adverbial, an inverted subject, or a reflexive passive ("fueron
+# retirados todos mis ahorros", "minha poupança foi zerada").
+_RF2_PASSIVE_AUX = (
+    r"(?:fue|fueron|ha sido|han sido|habia sido|habian sido|foi|foram|tem sido|tinha sido|"
+    r"tinham sido)"
+)
+_RF2_PASSIVE_PARTICIPLE = (
+    r"(?:vaciad|limpiad|retirad|sacad|transferid|robad|desviad|drenad|esvaziad|zerad|limpad|"
+    r"raspad|roubad|levad|resgatad|furtad)[oa]s?"
+)
+_RF2_DEGREE = r"(?:\s+(?:completamente|totalmente|por completo|integramente|ayer|anoche|ontem))?"
+_RF2_PASSIVE_DEPLETION = (
+    r"\b" + _RF2_OWN_OBJECT + r"(?:\s+[^\s,]+){0,3}?\s+" + _RF2_PASSIVE_AUX + _RF2_DEGREE + r"\s+"
+    + _RF2_PASSIVE_PARTICIPLE + r"\b"
+    + r"|\b" + _RF2_PASSIVE_AUX + r"\s+" + _RF2_PASSIVE_PARTICIPLE + r"\s+" + _RF2_OWN_OBJECT
+    + r"|\bse\s+(?:retiraron|sacaron|llevaron|robaron|vaciaron|retiro|saco|llevo|robo|vacio)\s+"
+    + _RF2_OWN_OBJECT
+)
+_RF2_NAMED_AGENT = _rx(
+    r"^(?:\s+[^\s,]+){0,3}?\s+(?:por|pelo|pela)\s+(?:mi|mim|(?:mi|mis|meu|minha|meus|minhas)\s+"
+    + _KIN + r"|(?:el|la|o|a)\s+(?:banco|empresa|tienda|loja|juzgado|gobierno)|banco)\b"
+)
+_RF2_UNNAMED_AGENT = _rx(r"^\s*(?:,\s*)?(?:por|pelo|pela)\s+" + _RF2_ACTOR + r"\b")
+# Quasi-passive: the customer's account(s) found empty ("las dos cuentas que tengo
+# amanecieron vacías", "minha conta amanheceu zerada").
+_RF2_STATE_SUBJECT = (
+    r"(?:" + _RF2_OWN_OBJECT + r"|(?:(?:las|as|mis|minhas|meus)\s+)?" + _RF2_QUANT + r"\s+"
+    + _RF1Y_PLURAL_ACCOUNT + r"(?:\s+que\s+(?:tengo|tenemos|tenho|temos))?)"
+)
+_RF2_STATE_VERB = (
+    r"(?:amanecio|amanecieron|aparecio|aparecieron|quedo|quedaron|amanheceu|amanheceram|"
+    r"apareceu|apareceram|ficou|ficaram)"
+)
+_RF2_EMPTY = (
+    r"(?:vaci[ao]s?|en\s+cero|vazi[ao]s?|zerad[ao]s?|limpi[ao]s?|sin\s+(?:saldo|fondos|dinero|"
+    r"plata|nada|un peso|un centavo)|sem\s+(?:saldo|dinheiro|nada|um centavo))"
+)
+_RF2_DEPLETED_STATE = (
+    r"\b" + _RF2_STATE_SUBJECT + r"(?:\s+[^\s,]+){0,2}?\s+" + _RF2_STATE_VERB + _RF2_DEGREE + r"\s+"
+    + _RF2_EMPTY + r"\b"
+)
+# 2. Spanish clitic drain beyond "me la vaciaron": the clitic stands for money named
+# earlier in the message ("tenía mis ahorros ... y me los sacaron").
+_RF2_CLITIC_PLURAL = (
+    r"(?:sacaron|robaron|vaciaron|limpiaron|retiraron|llevaron|quitaron|volaron|han sacado|"
+    r"han robado|han vaciado|han limpiado|han retirado|han llevado|han quitado)"
+)
+_RF2_CLITIC_SINGULAR = (
+    r"(?:saco|robo|vacio|limpio|retiro|llevo|quito|ha sacado|ha robado|ha vaciado|ha retirado|"
+    r"ha llevado|ha quitado)"
+)
+_RF2_CLITIC_DRAIN = (
+    _NOT_NEGATED + r"\b(?:me|nos)\s+(?:lo|los|la|las)\s+" + _RF2_CLITIC_PLURAL + r"\b"
+    + r"|\b" + _RF2_ACTOR + r"\s+(?:me|nos)\s+(?:lo|los|la|las)\s+" + _RF2_CLITIC_SINGULAR + r"\b"
+)
+_RF2_MONEY_REFERENT = (
+    r"(?:ahorros|dinero|plata|platica|saldo|fondos|sueldo|salario|quincena|pension|aguinaldo|"
+    r"cuenta|cuentas|tarjeta|tarjetas)"
+)
+_RF2_PHYSICAL_REFERENT = (
+    r"(?:casa|laptop|computador|computadora|celular|telefono|carro|coche|moto|bicicleta|bolso|"
+    r"cartera|billetera|mochila|maleta|reloj|nevera|heladera|alcancia|despensa|bodega|"
+    r"habitacion|oficina|tienda|efectivo)"
+)
+_RF2_REFERENT = _rx(r"\b(?:" + _RF2_MONEY_REFERENT + r"|" + _RF2_PHYSICAL_REFERENT + r")\b")
+_RF2_MONEY_REFERENT_RX = _rx(r"^" + _RF2_MONEY_REFERENT + r"$")
+# 3. Ongoing, habitual, or present use of the customer's account or card ("llevan días
+# usando mi tarjeta", "estão utilizando a minha conta pra ...", "um estranho usa minha
+# conta para ..."), licensed by a financial purpose, purchases somewhere, or a lack of
+# authorization.
+_RF2_ONGOING_PLURAL = (
+    r"(?:" + _PROGRESSIVE_PLURAL + r"|llevan|llevaban|vienen|venian|andaban|estaban|seguian|"
+    r"continuan|continuaban|ficam|ficavam|vivem)"
+)
+_RF2_ONGOING_SINGULAR = (
+    r"(?:" + _PROGRESSIVE_SINGULAR + r"|lleva|llevaba|viene|venia|andaba|seguia|vive)"
+)
+_RF2_DURATION = (
+    r"(?:\s+(?:(?:unos|unas|varios|varias|uns|umas)\s+)?(?:dias|semanas|meses|"
+    r"horas|tiempo|un tiempo|rato))?"
+)
+_RF2_GERUND = r"\s+(?:usando|utilizando|ocupando)"
+_RF2_USE_TARGET = (
+    r"\s+(?:(?:la|las|a|as|o|os|el|los)\s+)?(?:mi|mis|minha|minhas|meu|meus)\s+" + _RF1Y_ACCOUNT
+)
+_RF2_ONGOING_USE = (
+    _NOT_NEGATED + r"\b" + _RF2_ONGOING_PLURAL + _RF2_DURATION + _RF2_GERUND + _RF2_USE_TARGET
+    + r"|\b" + _RF2_ACTOR + r"\s+" + _RF2_ONGOING_SINGULAR + _RF2_DURATION + _RF2_GERUND
+    + _RF2_USE_TARGET
+    + r"|\b" + _RF2_ACTOR + r"\s+(?:usa|utiliza|usaba|utilizaba|usava|utilizava)" + _RF2_USE_TARGET
+    + r"|" + _NOT_NEGATED + r"\b(?:usan|utilizan|usaban|utilizaban|usam|utilizam|usavam|"
+    r"utilizavam)" + _RF2_USE_TARGET
+)
+_RF2_ITEM_OBJECT = (
+    r"(?:\s+[^\s,]+){0,3}?\s+(?:" + _ITEM + r"|" + _PRODUCT_HEAD + r"|dinero|dinheiro|plata|grana|"
+    r"fondos|fundos|valores|saldo)\b"
+)
+_RF2_PURPOSE = _rx(
+    r"^(?:\s+[^\s,]+){0,3}?\s+(?:para|pra|a fin de|con el fin de|com o fim de)\s+(?:poder\s+)?"
+    r"(?:(?:pagar|comprar|transferir|retirar|sacar|girar|gastar)\b"
+    r"|(?:mandar|enviar|mover|movimentar|mexer|hacer|realizar|efectuar|fazer|efetuar|pedir|"
+    r"solicitar|tirar|sacar)" + _RF2_ITEM_OBJECT + r")"
+    r"|^(?:\s+[^\s,]+){0,3}?\s+(?:en|em|para comprar en|para comprar em)\s+(?:(?:unas|unos|umas|"
+    r"uns|varias|varios)\s+)?(?:tiendas|comercios|lojas|sitios|sites|paginas|"
+    r"establecimientos|estabelecimentos)\b"
+)
+# 4. A fronted lack of authorization or consent before an impersonal or unnamed taking
+# or use of money, a card, or a payment ("Sin que yo diera permiso, sacaron el dinero
+# de la cuenta", "Sem meu consentimento, usaram o cartão ...").
+_RF2_FRONT = (
+    r"(?:sin\s+que\s+(?:yo\s+)?(?:(?:lo|la|los|las|me)\s+)?(?:diera|diese|hiciera|autorizara|"
+    r"aprobara|pidiera|supiera|solicitara|ordenara|permitiera|consintiera)(?:\s+(?:permiso|"
+    r"autorizacion|consentimiento|ninguna orden|orden|nada))?"
+    r"|sin\s+(?:haber(?:lo|la|los|las)?|habermelo)\s+(?:yo\s+)?(?:autorizado|aprobado|pedido|"
+    r"solicitado|permitido)(?:\s+yo)?"
+    r"|sin\s+(?:mi\s+)?(?:permiso|autorizacion|consentimiento|conocimiento|aprobacion)"
+    r"|sem\s+(?:que\s+)?eu\s+(?:ter\s+|tivesse\s+)?(?:autorizado|autorizar|autorizasse|permitido|"
+    r"permitir|permitisse|pedido|pedir|pedisse|saber|soubesse|dado|desse|aprovado|aprovar)"
+    r"(?:\s+(?:permissao|autorizacao|nada))?"
+    r"|sem\s+(?:a\s+|o\s+)?(?:minha\s+|meu\s+)?(?:permissao|autorizacao|consentimento|"
+    r"conhecimento|aprovacao))"
+)
+_RF2_TAKE_PLURAL = (
+    r"(?:sacaron|retiraron|transfirieron|llevaron|robaron|vaciaron|limpiaron|usaron|utilizaron|"
+    r"gastaron|compraron|pagaron|hicieron|realizaron|movieron|mandaron|enviaron|desviaron|"
+    r"han sacado|han retirado|han transferido|han usado|han hecho|sacaram|retiraram|transferiram|"
+    r"levaram|roubaram|esvaziaram|zeraram|limparam|usaram|utilizaram|gastaram|compraram|pagaram|"
+    r"fizeram|realizaram|movimentaram|mandaram|enviaram|tiraram|desviaram)"
+)
+_RF2_TAKE_SINGULAR = (
+    r"(?:saco|retiro|transfirio|llevo|robo|vacio|limpio|uso|utilizo|gasto|compro|pago|hizo|"
+    r"realizo|movio|mando|envio|desvio|sacou|retirou|transferiu|levou|roubou|esvaziou|zerou|"
+    r"limpou|usou|utilizou|gastou|comprou|pagou|fez|realizou|movimentou|mandou|enviou|tirou|"
+    r"desviou)"
+)
+_RF2_TAKE_TARGET = (
+    r"\s+(?!(?:de|da|do|del|das|dos)\b)(?:[^\s,]+\s+){0,5}?(?:" + _RF2_FUNDS + r"|" + _ITEM
+    + r"\b|(?:cuenta|cuentas|conta|contas|tarjeta|tarjetas|cartao|cartoes)\b)"
+)
+_RF2_FRONTED_NON_CONSENT = (
+    r"(?:^|(?<=, ))" + _RF2_FRONT + r"\s*,?\s+(?:"
+    + _RF2_ACTOR + r"\s+(?:(?:me|nos|se|le|lhe)\s+)?" + _RF2_TAKE_SINGULAR
+    + r"|(?:(?:me|nos|se|le|lhe)\s+)?" + _RF2_TAKE_PLURAL + r")\b" + _RF2_TAKE_TARGET
+)
+# 5. Money taken from several of the customer's cards or accounts ("me sacaron dinero de
+# mis tres tarjetas").
+_RF2_PLURAL_SOURCE = (
+    r"(?:\s+(?:(?:todo|todos|tudo|el|la|los|las|o|a|os|as|un|una|um|uma)\s+)?(?:(?:poco|pouco|algo)"
+    r"\s+(?:de\s+)?)?(?:dinero|plata|fondos|saldo|saldos|dinheiro|grana|ahorros|todo|tudo))?"
+    r"\s+(?:de|desde|da|das|dos)\s+(?:(?:mis|minhas|meus)\s+(?:" + _RF2_QUANT + r"\s+)?"
+    r"|(?:las|as|os)\s+" + _RF2_QUANT + r"\s+(?:(?:mis|minhas|meus)\s+)?)" + _RF1Y_PLURAL_ACCOUNT
+)
+_RF2_PLURAL_TAKE = (
+    r"(?:sacaron|robaron|retiraron|quitaron|llevaron|han sacado|han robado|han retirado|"
+    r"han quitado|sacaram|roubaram|tiraram|levaram|retiraram)"
+)
+_RF2_PLURAL_INSTRUMENT_DRAIN = (
+    _NOT_NEGATED + r"\b(?:(?:me|nos|se)\s+)?" + _RF2_PLURAL_TAKE + _RF2_PLURAL_SOURCE
+    + r"|\b" + _RF2_ACTOR + r"\s+(?:(?:me|nos|se)\s+)?(?:saco|robo|retiro|quito|llevo|sacou|roubou|"
+    r"tirou|levou|retirou)" + _RF2_PLURAL_SOURCE
+)
+# 6. The customer left ruined or without money in the account ("me dejaron en la
+# ruina", "quedé sin nada en la cuenta"), licensed by the account and a disowning,
+# a lack of authorization, or an unnamed party's taking.
+_RF2_RUIN = (
+    r"(?:en\s+la\s+ruina|en\s+la\s+calle|en\s+bancarrota|en\s+la\s+lona|sin\s+nada|"
+    r"pelad[oa]s?|limpi[oa]s?|na\s+miseria|na\s+rua|na\s+pindaiba|sem\s+nada|liso|lisa|"
+    r"quebrad[oa]s?)"
+)
+_RF2_RUIN_IDIOM = (
+    _NOT_NEGATED + r"\b(?:me|nos)\s+(?:dejaron|han dejado|deixaram)\s+" + _RF2_RUIN + r"(?=\W|$)"
+    + r"|\b" + _RF2_ACTOR + r"\s+(?:me|nos)\s+(?:dejo|ha dejado|deixou)\s+" + _RF2_RUIN + r"(?=\W|$)"
+)
+_RF2_NO_MONEY_STATE = (
+    r"\b(?:amaneci|me quede|quede|desperte|me encontre|estoy|amanheci|fiquei|acordei|estou)\s+"
+    r"(?:sin|sem)\s+(?:(?:un|um|ni un|nem um|un solo|um so)\s+)?(?:peso|centavo|quinto|real|"
+    r"euro|dolar|nada|plata|dinero|dinheiro|saldo|fondos|fundos)\b(?:\s+[^\s,]+){0,2}?\s+"
+    r"(?:en|na|no)\s+(?:(?:la|a|o)\s+)?(?:(?:mi|minha|meu)\s+)?(?:cuenta|conta|tarjeta|cartao)\b"
+)
+_RF2_SIN = _rx(r"\bsin\b")
+_RF2_INCOMING_DATIVE = _rx(
+    r"\b(?:me|lhe)\s+(?:transfirieron|enviaron|mandaron|pagaron|depositaron|transferiram|enviaram|"
+    r"mandaram|pagaram|depositaram)\b"
+)
+# 7. RF1Z over-escalation: the interface named after an adverb ("não reconheço mais o
+# menu") is still the interface.
+_RF2_INTERFACE_ADVERB = _rx(r"^\s*(?:mas|mais|ya|bien|direito|nada|para nada)\b")
+_RF2_STRUCTURAL_NONRECOGNITION = _rx(
+    r"^(?:no|nao)\s+(?:(?:lo|la|los|las|o|a|os|as)\s+)?(?:reconozco|reconheco|reconoci|"
+    r"reconheci|identifico|identifiquei|identifique)$"
+)
+
 _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "non_recognition",
@@ -1512,6 +1780,22 @@ _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("quantified_plural_drain", _rx(_QUANTIFIED_PLURAL_DRAIN)),
     # RF1Y: the customer left without money by an impersonal or unnamed party.
     ("no_money_drain", _rx(_NO_MONEY_DRAIN)),
+    # RF2: passive drain of the customer's account, card, or funds (wider subjects).
+    ("rf2_passive_depletion", _rx(_RF2_PASSIVE_DEPLETION)),
+    # RF2: the customer's account(s) found empty (quasi-passive).
+    ("rf2_depleted_state", _rx(_RF2_DEPLETED_STATE)),
+    # RF2: Spanish clitic drain of money named earlier ("me los sacaron").
+    ("rf2_clitic_drain", _rx(_RF2_CLITIC_DRAIN)),
+    # RF2: ongoing, habitual, or present use of the customer's account or card.
+    ("rf2_ongoing_use", _rx(_RF2_ONGOING_USE)),
+    # RF2: fronted lack of authorization before a taking or use of money or a card.
+    ("rf2_fronted_non_consent", _rx(_RF2_FRONTED_NON_CONSENT)),
+    # RF2: money taken from several of the customer's cards or accounts.
+    ("rf2_plural_instrument_drain", _rx(_RF2_PLURAL_INSTRUMENT_DRAIN)),
+    # RF2: the customer left ruined by an impersonal or unnamed party.
+    ("rf2_ruin_idiom", _rx(_RF2_RUIN_IDIOM)),
+    # RF2: the customer left without money in the account.
+    ("rf2_no_money_state", _rx(_RF2_NO_MONEY_STATE)),
 )
 
 _RF1O_FAMILIES = frozenset(
@@ -1551,6 +1835,21 @@ _RF1Y_FAMILIES = frozenset(
         "quantified_plural_drain",
         "no_money_drain",
     }
+)
+_RF2_FAMILIES = frozenset(
+    {
+        "rf2_passive_depletion",
+        "rf2_depleted_state",
+        "rf2_clitic_drain",
+        "rf2_ongoing_use",
+        "rf2_fronted_non_consent",
+        "rf2_plural_instrument_drain",
+        "rf2_ruin_idiom",
+        "rf2_no_money_state",
+    }
+)
+_RF2_STATE_FAMILIES = frozenset(
+    {"rf2_passive_depletion", "rf2_depleted_state", "rf2_no_money_state"}
 )
 _CHARACTERIZATION_FAMILIES = frozenset({"fraud_characterization", "unknown_characterization"})
 # Families whose cue may borrow an anchor from the preceding sentence when the cue
@@ -1968,6 +2267,8 @@ def _blocker(
     prefix = _clause_prefix(text, start)
     presupposed_relative = bool(_RELATIVIZER_TAIL.search(prefix))
 
+    if family in _RF2_FAMILIES:
+        return _rf2_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1Y_FAMILIES:
         return _rf1y_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1W_FAMILIES:
@@ -2586,6 +2887,10 @@ def _interface_nonrecognition(text: str, end: int) -> bool:
     """True when a non-recognition cue's object is the app or its interface only."""
 
     after = text[end:]
+    # RF2: an adverb before the object ("não reconheço mais o menu").
+    adverb = _RF2_INTERFACE_ADVERB.match(after)
+    if adverb:
+        after = after[adverb.end() :]
     if not _INTERFACE_OBJECT.match(after):
         return False
     stop = re.search(r"[,¿?]", after)
@@ -2661,6 +2966,98 @@ def _rf1y_blocker(
         return blocked
     if _RF1Y_POST_VERBAL_CAUSE.match(after):
         return "post_verbal_cause"
+    return None
+
+
+def _rf2_licensed_anchor(
+    sentences: list[_Sentence], index: int, start: int, end: int, family: str
+) -> str | None:
+    """Anchor for an RF2 cue, or None when its licence is missing."""
+
+    text = sentences[index].text
+    cue = text[start:end]
+    message = " ".join(s.text for s in sentences)
+    if family in ("rf2_passive_depletion", "rf2_depleted_state", "rf2_no_money_state"):
+        # A depleted account or state needs the customer's disowning, a lack of
+        # authorization, an unnamed agent, or an unnamed party's taking.
+        if family == "rf2_passive_depletion" and _RF2_UNNAMED_AGENT.match(text[end:]):
+            return cue
+        if _RF2_DISOWNED.search(message) or _RF2_UNNAMED_TAKE.search(message):
+            return cue
+        return None
+    if family == "rf2_clitic_drain":
+        # The clitic's antecedent is the last money or physical noun before it.
+        head = " ".join([s.text for s in sentences[:index]] + [text[:start]])
+        referents = _RF2_REFERENT.findall(head)
+        if referents and _RF2_MONEY_REFERENT_RX.match(referents[-1]):
+            return cue
+        return None
+    if family == "rf2_ongoing_use":
+        if _RF2_PURPOSE.match(text[end:]) or _RF2_DISOWNED.search(message):
+            return cue
+        return None
+    if family == "rf2_ruin_idiom":
+        if _RF1Y_ACCOUNT_CONTEXT.search(message) and (
+            _RF2_DISOWNED.search(message) or _RF2_UNNAMED_TAKE.search(message)
+        ):
+            return cue
+        return None
+    # rf2_fronted_non_consent, rf2_plural_instrument_drain: the cue carries its own
+    # lack of consent or the customer's instruments.
+    return cue
+
+
+def _rf2_blocker(
+    sentence: _Sentence,
+    start: int,
+    end: int,
+    family: str,
+    message_tail: str,
+    message_head: str,
+) -> str | None:
+    """Scope checks for the RF2 families.
+
+    Every family takes the shared RF1U checks (retraction, reported speech, hedges,
+    resolution, permission, protasis, interrogative scope, delegation, a named actor
+    right before the cue, a not-yet frame) and blocks a fee, debt, or seizure named
+    as the cause. The passive and state families block a named or self agent. The
+    active families need an unnamed actor or no overt subject, as for RF1W, and
+    account use or taking cannot be money arriving to the customer.
+    """
+
+    after = sentence.text[end:]
+    # "sin" before the cue end is a no-permission or no-money preposition, never a
+    # conditional; the shared protasis pattern also reads "si" inside "sin", so that
+    # token is masked (same length) for these families' checks only.
+    sentence = _Sentence(
+        text=_RF2_SIN.sub("s_n", sentence.text[:end]) + sentence.text[end:],
+        question_start=sentence.question_start,
+    )
+    blocked = _rf1u_blocker(sentence, start, end, "data_misuse", message_tail, message_head)
+    if blocked is not None:
+        return blocked
+    if _RF2_CAUSE_AFTER.match(after) or _RF1Y_POST_VERBAL_CAUSE.match(after):
+        return "post_verbal_cause"
+    if family in _RF2_STATE_FAMILIES:
+        if _RF2_NAMED_AGENT.match(after):
+            return "named_actor"
+        return None
+    text = sentence.text
+    cue = text[start:end]
+    if family != "rf2_fronted_non_consent" and not _RF2_ACTOR_START.match(cue):
+        before = text[:start]
+        clause_start = 0
+        for brk in _CLAUSE_BREAK.finditer(before):
+            clause_start = brk.end()
+        slot = before[clause_start:]
+        if not (_INTRUSION_PLURAL_SLOT.search(slot) or _RF2_PLURAL_SLOT.search(slot)):
+            return "overt_subject"
+    if family in ("rf2_ongoing_use", "rf2_fronted_non_consent") and _RF1W_INCOMING.search(text):
+        return "incoming_transfer"
+    if family == "rf2_fronted_non_consent" and (
+        _RF2_INCOMING_DATIVE.search(cue) or _TO_MY_ACCOUNT.search(text[start:])
+    ):
+        return "incoming_transfer"
     return None
 
 
@@ -2765,6 +3162,12 @@ def structural_assertion_demotion(text: str, source_start: int, source_end: int)
         and (_DECLINE_OUTCOME.search(_normalize(text)) or _STATUS_FRAME.search(sentence))
     ):
         return "declined_own_attempt"
+    # RF2: non-recognition of the app, its version, or its interface only ("depois da
+    # atualização não reconheço mais o menu") is not a disowned transaction.
+    if _RF2_STRUCTURAL_NONRECOGNITION.match(span):
+        clause = _normalize(text[source_end : sentence_end.start() if sentence_end else None])
+        if _interface_nonrecognition(" " + clause, 0):
+            return "interface_nonrecognition"
     return None
 
 
@@ -2782,7 +3185,9 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 # matching the same span (and blocked for lack of an activity
                 # anchor) cannot hide a product-anchored RF1Q cue.
                 span = (
-                    5
+                    6
+                    if family in _RF2_FAMILIES
+                    else 5
                     if family in _RF1Y_FAMILIES
                     else 4
                     if family in _RF1W_FAMILIES
@@ -2797,7 +3202,11 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 if span in seen:
                     continue
                 seen.add(span)
-                if family in _RF1Y_FAMILIES:
+                if family in _RF2_FAMILIES:
+                    anchor = _rf2_licensed_anchor(
+                        sentences, index, match.start(), match.end(), family
+                    )
+                elif family in _RF1Y_FAMILIES:
                     anchor = _rf1y_licensed_anchor(
                         sentences, index, match.start(), match.end(), family
                     )
