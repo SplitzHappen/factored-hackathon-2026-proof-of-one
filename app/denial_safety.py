@@ -24,7 +24,12 @@ This layer is a bounded safety net for that structural silence only. Its contrac
    de mi cuenta"), and a named relative's denial relayed by the customer. RF1Q
    adds product-anchored families (a product opened in the customer's name, a
    denied product origination, a product in the customer's records disowned) and
-   a relative's denial relayed through reported speech.
+   a relative's denial relayed through reported speech. RF1S adds active own-account
+   compromise families (an unnamed party's activity tied to the customer's account,
+   impersonation in a banking context, a disowned credential change) and widens
+   existing ones structurally: observed items heading a relative clause across a
+   modifier chain, items located in the customer's financial records, more product
+   heads, and relays by someone acting for the account holder.
 3. Activity anchor. The cue's sentence must name account activity (activity noun,
    charge/debit verb, or use of the customer's card/account). A short follow-up
    sentence may borrow the anchor of the immediately preceding sentence (a
@@ -39,11 +44,15 @@ This layer is a bounded safety net for that structural silence only. Its contrac
    compré ..."). RF1O families read conditional scope over the whole sentence and
    never use the why-question exception, so hypothetical advice questions built on
    them stay unlicensed. RF1Q blocks every family when the message says the item
-   was resolved, refunded, or (after an initial non-recognition) recalled.
-5. RF1Q structural demotion. ``structural_assertion_demotion`` names the two
-   shapes the resolver asserts that are not active reports: an embedded
-   indefinite-future protasis in an advice question, and a same-message
-   resolution. The caller then lets this layer decide instead.
+   was resolved, refunded, or (after an initial non-recognition) recalled. RF1S
+   adds a resolution earlier in the same sentence with no fresh event after it, and
+   a past non-recognition later attributed to a known relative.
+5. Structural demotion. ``structural_assertion_demotion`` names the shapes the
+   resolver asserts that are not active reports: an embedded indefinite-future
+   protasis in an advice question and a same-message resolution (RF1Q), plus a
+   resolution earlier in the sentence, a later attribution to a known relative,
+   and the customer's own declined attempt labelled "no autorizado" (RF1S). The
+   caller then lets this layer decide instead.
 
 It never consults the retired legacy whole-message regex inventory in
 ``app.unauthorized_signals``.
@@ -133,11 +142,13 @@ _PT_NEG = r"(?:nao|nunca|jamais|tambem nao)"
 _ES_SETUP_VERBS = (
     r"(?:inicie|he iniciado|programe|he programado|agende|he agendado|suscribi|he suscrito|"
     r"contrate|he contratado|active|he activado|configure|he configurado|inscribi|"
-    r"he inscrito|registre|he registrado|agregue|he agregado|anadi|he anadido|di de alta)"
+    r"he inscrito|registre|he registrado|agregue|he agregado|anadi|he anadido|di de alta|"
+    # RF1S: consenting to a recurring item is setting it up.
+    r"acepte|he aceptado)"
 )
 _PT_SETUP_VERBS = (
     r"(?:iniciei|programei|agendei|assinei|contratei|ativei|configurei|cadastrei|registrei|"
-    r"adicionei|inscrevi)"
+    r"adicionei|inscrevi|aceitei)"
 )
 _ES_DEMONSTRATIVE_OBJECT = (
     r"(?:(?:a|en|de|para)\s+)?(?:ese|esa|eso|esto|este|esta|esos|esas|estos|estas|"
@@ -178,6 +189,17 @@ _RELATIVE_HEAD = _rx(
     r"contatos|suscripcion|suscripciones|assinatura|assinaturas|domiciliacion|"
     r"recorrencia)\b(?:\s+[^\s,]+){0,4}\s+$"
 )
+# RF1S: an item the customer observes ("veo un cobro mensual de una app de música
+# que nunca agregué") can head a relative clause across a longer modifier chain,
+# because the observation frame fixes the referent.
+_OBSERVED_RELATIVE_HEAD = _rx(
+    r"\b(?:cargo|cargos|cobro|cobros|compra|compras|pago|pagos|movimiento|movimientos|"
+    r"operacion|operaciones|transaccion|transacciones|transferencia|transferencias|"
+    r"debito|debitos|retiro|retiros|giro|giros|consumo|consumos|avance|avances|cobranca|"
+    r"cobrancas|pagamento|pagamentos|lancamento|lancamentos|operacao|operacoes|transacao|"
+    r"transacoes|pix|saque|saques|gasto|gastos|boleto|boletos|suscripcion|suscripciones|"
+    r"assinatura|assinaturas|domiciliacion|recorrencia)\b(?:\s+[^\s,]+){0,8}\s+$"
+)
 # Enrolled payees and recurring set-ups are account activity for set-up denials.
 _ITEM_ANCHOR = _rx(
     r"\b(?:destinatario|destinatarios|beneficiario|beneficiarios|favorecido|favorecidos|"
@@ -195,6 +217,21 @@ _MONEY_FLOW_ANCHOR = _rx(
     r"|\b" + _MONEY + r"\s+(?:[a-z]+\s+){0,3}?(?:desaparecio|ha desaparecido|ya no estaba|"
     r"tinha sumido|sumiu|desapareceu|nao estava mais)\b"
 )
+# RF1S: an amount taken from or vanished out of an account is a money flow too
+# ("de su cuenta salieron 900 mil", "sumiram 300 reais").
+_AMOUNT = (
+    r"(?:\$\s*)?(?:\d+(?:[.,]\d+)*\s*(?:mil|millones|millon|pesos|reais|dolares|euros)|"
+    r"\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d{3,})"
+    r"|(?:un|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|cien|quinientos|um|dois|"
+    r"quatro|cem|quinhentos)\s+(?:mil|millones|millon|pesos|reais)"
+)
+_AMOUNT_FLOW_ANCHOR = _rx(
+    r"\b(?:desaparecieron|desaparecio|han desaparecido|ha desaparecido|salieron|salio|"
+    r"sairam|saiu|sacaron|saco|"
+    r"retiraron|retiro|transfirieron|transfirio|robaron|robo|quitaron|descontaron|"
+    r"sumiram|sumiu|desapareceram|desapareceu|tiraram|tirou|sacaram|sacou|transferiram|"
+    r"transferiu|roubaram|roubou|levaram|levou)\s+(?:\S+\s+){0,2}?(?:" + _AMOUNT + r")(?!\w)"
+)
 # Third-party reports: a relative's denial, relayed by the customer. The ticket
 # stays bound to the reporting session; no third-party account is looked up.
 _KIN = (
@@ -206,6 +243,16 @@ _KIN = (
     r"companheiro|companheira|namorado|namorada|neto|neta|filhos)"
 )
 _KIN_POSSESSED = _rx(r"\b(?:mi|mis|meu|minha|meus|minhas)\s+" + _KIN + r"\b")
+# RF1S: a relay may also come from someone acting for the account holder: a
+# caregiver, legal representative, or anyone writing on a named person's behalf.
+_REPRESENTED_PRINCIPAL = _rx(
+    r"\b(?:soy|somos|sou|somos)\s+(?:(?:el|la|los|las|o|a|os|as|su|sua)\s+)?"
+    r"(?:cuidador|cuidadora|cuidadores|apoderado|apoderada|tutor|tutora|representante|"
+    r"curador|curadora|acudiente|enfermero|enfermera|procurador|procuradora|responsavel)"
+    r"(?:\s+legal)?\s+(?:de|del|da|do|das|dos)\b"
+    r"|\b(?:de parte de|en nombre de|em nome de|da parte de|a pedido de|a pedido do|"
+    r"a pedido da)\s+(?:mi|mis|meu|minha|meus|minhas|don|dona|senor|senora|seu|sr|sra)\b"
+)
 _ES_THIRD_VERBS = (
     r"(?:hizo|ha hecho|realizo|efectuo|saco|ha sacado|retiro|ha retirado|autorizo|"
     r"ha autorizado|aprobo|compro|envio|mando|transfirio|pidio|solicito|inicio|programo|"
@@ -214,6 +261,14 @@ _ES_THIRD_VERBS = (
 _PT_THIRD_VERBS = (
     r"(?:fez|realizou|efetuou|sacou|retirou|autorizou|aprovou|comprou|enviou|mandou|"
     r"transferiu|pediu|solicitou|iniciou|programou|reconhece|reconheceu)"
+)
+_ELLIPTICAL_AGENCY = _rx(r"\b(?:fue|ha sido|foi)\b")
+_KIN_PERFORMED = _rx(
+    r"(?<!no )(?<!nao )\b(?:mi|mis|meu|minha|meus|minhas)\s+" + _KIN + r"\s+(?:me\s+)?"
+    r"(?:(?:lo|la|los|las|o|a|os|as)\s+)?(?:hizo|realizo|compro|pago|saco|retiro|transfirio|"
+    r"uso|fez|realizou|comprou|pagou|sacou|transferiu|usou)\b"
+    r"|\b(?:lo|la|los|las|o|a|os|as)\s+(?:hizo|realizo|compro|pago|saco|fez|realizou|comprou|"
+    r"pagou|sacou)\s+(?:mi|meu|minha)\s+" + _KIN + r"\b"
 )
 _LATER_ATTRIBUTION = _rx(r"(?<!no )(?<!nao )\b(?:fue el|fue ella|foi ele|foi ela)\b")
 # Intrusion into the customer's own account or app by an unnamed party. Plural
@@ -332,7 +387,13 @@ _NON_BANK_ACCOUNT_AFTER = _rx(
 # Banking products that can be opened, requested, or held in the customer's name.
 _PRODUCT_HEAD = (
     r"(?:tarjeta|tarjetas|cuenta|cuentas|credito|creditos|prestamo|prestamos|chequera|"
-    r"cartao|cartoes|conta|contas|emprestimo|emprestimos|financiamento|cheque especial)"
+    r"cartao|cartoes|conta|contas|emprestimo|emprestimos|financiamento|cheque especial|"
+    # RF1S: deposits, insurance, and credit lines held in the customer's name.
+    # "seguro" is the product only when not the adjective ("estoy seguro", "seguro que").
+    r"cdt|cdts|cdb|cdbs|libranza|microcredito|microcreditos|sobregiro|sobregiros|"
+    r"poliza|polizas|apolice|apolices|(?<!estoy )(?<!estaba )(?<!estamos )(?<!muy )"
+    r"seguro(?!\s+(?:de\s+)?que\b)|seguros|consorcio|"
+    r"inversion|inversiones|investimento|investimentos)"
 )
 _PRODUCT_ANCHOR = _rx(r"\b" + _PRODUCT_HEAD + r"\b")
 # Identity misuse: a product opened in the customer's name. The opener must be an
@@ -386,10 +447,23 @@ _PRODUCT_IN_MY_NAME = (
 # Activation is not origination: "no la activé" describes a card not yet in use.
 _ES_PRODUCT_ORIGIN_VERBS = (
     r"(?:abri|he abierto|solicite|he solicitado|pedi|he pedido|tramite|he tramitado|"
-    r"contrate|he contratado|firme|he firmado|saque|he sacado)"
+    r"contrate|he contratado|firme|he firmado|saque|he sacado|"
+    # RF1S: accepting a product (an insurance policy, an offer) is origination too.
+    r"acepte|he aceptado)"
 )
-_PT_PRODUCT_ORIGIN_VERBS = r"(?:abri|solicitei|pedi|contratei|assinei|tirei)"
+_PT_PRODUCT_ORIGIN_VERBS = r"(?:abri|solicitei|pedi|contratei|assinei|tirei|aceitei)"
 _PRODUCT_RELATIVE_HEAD = _rx(r"\b" + _PRODUCT_HEAD + r"\b(?:\s+[^\s,]+){0,4}\s+$")
+_OBSERVED_PRODUCT_HEAD = _rx(r"\b" + _PRODUCT_HEAD + r"\b(?:\s+[^\s,]+){0,8}\s+$")
+# RF1S: the customer's financial records. Whatever they show was opened, contracted,
+# or charged in the customer's name, so a relative-clause origination denial over
+# an item located there names an existing product even without a product noun.
+_RECORD_LOCATION = _rx(
+    r"\b(?:en|de|del|no|na|do|da)\s+(?:(?:el|la|los|las|mi|mis|o|a|meu|minha|meus|minhas)\s+)?"
+    r"(?:extracto|extractos|estado de cuenta|estados de cuenta|cartola|historial|"
+    r"historial crediticio|central de riesgo|centrales de riesgo|reporte de credito|"
+    r"extrato|extratos|fatura|historico|cadastro positivo)\b"
+    r"|\b(?:el|mi|del)\s+resumen\b"
+)
 # A displayed product whose ownership is denied must be presented as existing in
 # the customer's records: a relative or locative tying it to what the customer
 # sees. A bare "esse cartão não é meu" is about a physical card, not a report.
@@ -417,6 +491,166 @@ _WITHOUT_AUTHORIZATION = _rx(_WITHOUT_MY_AUTHORIZATION)
 _PRODUCT_REATTRIBUTION = _rx(
     r"^\s*,?\s*(?:sino|si no|es de|es la de|es el de|son de|era de|pertenece a|e de|e da|e do|"
     r"e a de|e o de|era da|era do|pertence a|mas sim)\b"
+)
+
+# ---------------------------------------------------------------- RF1S families
+# Unnamed-actor activity: an unnamed party performed account activity ("un tercero
+# retiró dinero de mi cuenta"). The actor must be unnamed; a named person acting
+# is a household or permission matter handled elsewhere.
+_UNNAMED_ACTOR = (
+    r"(?:" + _UNNAMED_SUBJECT + r"|una persona|otra persona|un tercero|una tercera persona|"
+    r"un desconocido|una desconocida|uma pessoa|outra pessoa|um terceiro|um desconhecido|"
+    r"uma desconhecida)"
+)
+_ES_ACTOR_VERBS = (
+    r"(?:hizo|ha hecho|realizo|ha realizado|efectuo|ha efectuado|saco|ha sacado|retiro|"
+    r"ha retirado|transfirio|ha transferido|compro|ha comprado|pago|ha pagado|gasto|"
+    r"ha gastado|uso|ha usado|utilizo|ha utilizado|cobro|movio|ha movido|vacio|ha vaciado|"
+    r"envio|ha enviado|mando|ha mandado|hicieron|han hecho|realizaron|han realizado|"
+    r"efectuaron|sacaron|han sacado|retiraron|han retirado|transfirieron|han transferido|"
+    r"compraron|han comprado|pagaron|han pagado|gastaron|han gastado|usaron|han usado|"
+    r"utilizaron|movieron|vaciaron|enviaron|mandaron|"
+    r"(?:esta|estan|ha estado|han estado)\s+(?:usando|utilizando|haciendo|sacando|retirando|"
+    r"comprando|gastando|pagando|transfiriendo)|"
+    r"(?:volvio|volvieron|ha vuelto|han vuelto)\s+a\s+(?:usar|utilizar|hacer|sacar|retirar|"
+    r"comprar|gastar|pagar|transferir|cobrar))"
+)
+_PT_ACTOR_VERBS = (
+    r"(?:fez|realizou|efetuou|sacou|retirou|transferiu|comprou|pagou|gastou|usou|utilizou|"
+    r"movimentou|enviou|mandou|fizeram|realizaram|efetuaram|sacaram|retiraram|transferiram|"
+    r"compraram|pagaram|gastaram|usaram|utilizaram|movimentaram|enviaram|mandaram|"
+    r"(?:esta|estao|tem)\s+(?:usado|usando|utilizando|fazendo|sacando|comprando|gastando)|"
+    r"(?:voltou|voltaram)\s+a\s+(?:usar|utilizar|fazer|sacar|retirar|comprar|gastar|pagar|"
+    r"transferir|cobrar))"
+)
+# Someone sending money to the customer is incoming, not unauthorized activity:
+# a dative "me" with a send/pay verb, or the customer's account as destination.
+_INCOMING_DATIVE = _rx(
+    r"^(?:me|lhe)\s+(?:transfirio|transfirieron|envio|enviaron|mando|mandaron|pago|pagaron|"
+    r"deposito|depositaron|consigno|consignaron|giro|giraron|transferiu|transferiram|enviou|"
+    r"enviaram|mandou|mandaram|pagou|pagaram|depositou|depositaram)\b"
+    r"|^(?:me|lhe)\s+(?:hizo|ha hecho|hicieron|fez|fizeram)\s+(?:(?:un|una|um|uma)\s+)?"
+    r"(?:transferencia|deposito|consignacion|giro|pago|abono|pix|pagamento)\b"
+)
+_TO_MY_ACCOUNT = _rx(
+    r"\b(?:a|hacia|para|en)\s+mi\s+(?:cuenta|tarjeta)\b|\b(?:na|para a|pra)\s+minha\s+conta\b"
+)
+_FROM_MY_ACCOUNT = _rx(
+    r"\b(?:de|desde|con|del)\s+(?:mi|mis)\s+(?:cuenta|cuentas|tarjeta|tarjetas|datos|clave|app)\b"
+    r"|\b(?:da|de|com|do|dos|das)\s+(?:minha|meu|minhas|meus)\s+(?:conta|contas|cartao|"
+    r"cartoes|dados|senha)\b"
+)
+# The activity must be tied to the customer's account: the account, card, or data
+# as source, instrument, or location, or an observation of the customer's own
+# records ("me di cuenta de que alguien ..."). A bare "alguien hizo una compra" stays
+# outside, as the structural grammar decides for performance without an instrument.
+_ACCOUNT_TIE = _rx(
+    r"\b(?:de|desde|con|del|en)\s+(?:mi|mis)\s+(?:cuenta|cuentas|tarjeta|tarjetas|datos|clave|"
+    r"app|aplicacion|banca)\b"
+    r"|\b(?:da|de|com|do|dos|das|na|no|em)\s+(?:minha|meu|minhas|meus)\s+(?:conta|contas|"
+    r"cartao|cartoes|dados|senha|app|aplicativo)\b"
+    r"|\b(?:usando|usaron|uso|usar|utilizaron|utilizando|utilizo|utilizar|usou|usaram|utilizou|"
+    r"utilizaram)\s+(?:mi|mis|minha|minhas|meu|meus)\s+(?:tarjeta|tarjetas|cuenta|cartao|cartoes|"
+    r"conta|datos|dados)\b"
+)
+_OBSERVATION_FRAME = _rx(
+    r"\b(?:vi|veo|vimos|vemos|note|notamos|me di cuenta(?: de)?|nos dimos cuenta(?: de)?|"
+    r"descubri|descubrimos|me entere(?: de)?|aparece|aparecio|sale|salio|vejo|percebi|"
+    r"notei|descobri|reparei|apareceu)\s+que\b"
+)
+# What was observed must be the customer's own records or a bank notice, not a
+# stranger seen at a cash machine.
+_RECORDS_CONTEXT = _rx(
+    r"\b(?:app|aplicacion|aplicativo|banca|extracto|extrato|movimientos|movimentacoes|"
+    r"historial|historico|estado de cuenta|resumen|fatura|notificacion|notificacao|alerta|"
+    r"mi cuenta|minha conta)\b"
+)
+# The customer asked the actor to do it ("hizo el pago por mí, como le encargué").
+_DELEGATED_FOR_ME = _rx(
+    r"(?<!pasar )(?<!passar )\bpor\s+(?:mi|mim)\b(?!\s+(?:cuenta|conta|tarjeta|cartao))"
+)
+_DELEGATED_REQUEST = _rx(
+    r"\b(?:como|que)\s+(?:yo\s+|eu\s+)?(?:le|les|lhe|lhes)\s+(?:pedi|encargue|solicite)\b"
+    r"|\b(?:a mi pedido|a pedido mio|a pedido meu|por encargo mio)\b"
+)
+# Impersonation / identity theft: an unnamed party posing as the customer. The
+# customer is the referent, so the cue anchors itself, but only in a banking
+# context (an account, product, credential, or the bank itself is mentioned).
+_ES_IMPERSONATION = (
+    r"(?:se\s+(?:esta|estan|ha|han|hizo|hicieron|hace|hacen)\s+(?:estado\s+)?"
+    r"(?:haciendo\s+|hecho\s+)?|(?:esta|estan)\s+haciendose\s+)pasar\s+por\s+mi\b"
+    r"|\bme\s+(?:suplantaron|han suplantado|estan suplantando|suplanto|ha suplantado|"
+    r"esta suplantando)\b"
+    r"|\b(?:suplantaron|robaron|usurparon|han suplantado|han robado|han usurpado|"
+    r"estan suplantando)\s+(?:mi|la)\s+identidad\b"
+    r"|\bme\s+(?:robaron|han robado)\s+(?:la|mi)\s+identidad\b"
+    r"|\b(?:usaron|han usado|estan usando|utilizaron|han utilizado)\s+"
+    r"(?:mi|mis)\s+(?:cedula|identidad|datos|documento|documentos)\b"
+)
+_PT_IMPERSONATION = (
+    r"(?:se\s+passou|se\s+passaram|(?:esta|estao)\s+se\s+passando|(?:esta|estao)\s+"
+    r"passando-se)\s+por\s+mim\b"
+    r"|\b(?:roubaram|usurparam|clonaram)\s+(?:a\s+)?minha\s+identidade\b"
+    r"|\b(?:usaram|estao usando|utilizaram)\s+(?:o\s+|os\s+|a\s+)?(?:meu|meus|minha)\s+"
+    r"(?:cpf|identidade|dados|documento|documentos|rg)\b"
+)
+_BANK_CONTEXT = _rx(
+    r"\b(?:banco|cuenta|cuentas|tarjeta|tarjetas|perfil|clave|contrasena|app|aplicacion|"
+    r"credito|creditos|prestamo|prestamos|oficina|sucursal|linea|plata|dinero|conta|contas|"
+    r"cartao|cartoes|senha|aplicativo|emprestimo|agencia|dinheiro|pix)\b"
+)
+_NON_BANK_PLATFORM = _rx(
+    r"\b(?:en|no|na|por)\s+(?:instagram|facebook|whatsapp|tiktok|twitter|redes sociales|"
+    r"redes sociais|linkedin|telegram)\b"
+)
+# Credential takeover: the customer's access credentials or contact data were
+# changed, and the change is disowned. The change itself is the cue; the
+# customer's own credential is the anchor.
+_CREDENTIAL = (
+    r"(?:(?:la|el|las|los|mi|mis|o|a|os|as|meu|minha|meus|minhas)\s+)"
+    r"(?:contrasena|contrasenas|clave|claves|clave de acceso|clave dinamica|pin|"
+    r"correo(?: electronico)?|email|e-mail|celular|numero de celular|numero de telefono|"
+    r"telefono|usuario|token|datos de contacto|senha|senhas|telefone|numero de telefone|"
+    r"dados cadastrais)\b"
+)
+_ES_CHANGE_SINGULAR = (
+    r"(?:cambio|ha cambiado|modifico|ha modificado|actualizo|ha actualizado|restablecio|"
+    r"reseteo|altero|ha alterado)"
+)
+_ES_CHANGE_PLURAL = (
+    r"(?:cambiaron|han cambiado|modificaron|han modificado|actualizaron|han actualizado|"
+    r"restablecieron|resetearon|alteraron|han alterado)"
+)
+_PT_CHANGE_SINGULAR = r"(?:mudou|alterou|trocou|redefiniu|modificou)"
+_PT_CHANGE_PLURAL = r"(?:mudaram|alteraram|trocaram|redefiniram|modificaram)"
+_CREDENTIAL_CHANGE = (
+    r"\b" + _UNNAMED_ACTOR + r"\s+(?:me\s+|le\s+)?(?:" + _ES_CHANGE_SINGULAR + r"|"
+    + _ES_CHANGE_PLURAL + r"|" + _PT_CHANGE_SINGULAR + r"|" + _PT_CHANGE_PLURAL + r")\s+"
+    r"(?:\S+\s+){0,2}?" + _CREDENTIAL
+    + r"|(?<!\byo )(?<!\beu )\b(?:me\s+|le\s+)?(?:" + _ES_CHANGE_PLURAL + r"|" + _PT_CHANGE_PLURAL
+    + r"|se\s+(?:cambio|modifico|actualizo|restablecio))\s+(?:\S+\s+){0,2}?" + _CREDENTIAL
+    + r"|\b" + _CREDENTIAL + r"(?:\s+\S+){0,4}?\s+(?:fue|ha sido|foi)\s+"
+    r"(?:cambiad|modificad|actualizad|restablecid|alterad|trocad|mudad|redefinid)[oa]\b"
+)
+_UNNAMED_CHANGE = _rx(r"^" + _UNNAMED_ACTOR + r"\b")
+# Disowning the change: a first-person denial of making it, an agency denial, or
+# an explicit lack of authorization anywhere in the message.
+_CHANGE_DISOWNED = _rx(
+    r"\b(?:yo|eu)\s+(?:no|nunca|jamas|nao|jamais)\s+(?:(?:la|lo|las|los|a|o|as|os|me|le)\s+)?"
+    r"(?:cambie|he cambiado|modifique|actualice|restableci|pedi|solicite|hice|mudei|troquei|"
+    r"alterei|redefini|solicitei|fiz)\b"
+    r"|\b(?:no|nunca|nao)\s+(?:(?:la|lo|a|o)\s+)?(?:cambie|modifique|mudei|troquei|alterei)\s+"
+    r"(?:yo|eu)\b"
+    r"|\b(?:no|nunca|nao)\s+(?:hice|he hecho|solicite|pedi|autorice|fiz|solicitei|pedi|"
+    r"autorizei)\s+(?:ese|esa|esos|esas|ningun|ninguna|esse|essa|nenhum|nenhuma)\s+"
+    r"(?:cambio|cambios|mudanca|alteracao)\b"
+    r"|\b(?:no fui yo|yo no fui|nao fui eu|eu nao fui)\b"
+    r"|" + _WITHOUT_MY_AUTHORIZATION
+)
+# The customer asked for the change ("me restablecieron el PIN como solicité").
+_CUSTOMER_REQUESTED = _rx(
+    r"\b(?:como|que)\s+(?:yo\s+|eu\s+)?(?:lo\s+|la\s+|o\s+|a\s+)?(?:pedi|solicite|habia pedido|"
+    r"habia solicitado|solicitei|tinha pedido)\b|\b(?:a peticion mia|a mi pedido|a pedido meu)\b"
 )
 
 _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -659,6 +893,11 @@ _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ES_CLITICS + _ES_THIRD_VERBS + r"\b"
             + r"|\b(?:ele|ela|(?:meu|minha|meus|minhas)\s+" + _KIN + r")\s+(?:nao|nunca|jamais)\s+"
             + r"(?:(?:o|a|os|as|lhe|me)\s+)?" + _PT_THIRD_VERBS + r"\b"
+            # RF1S: the relayed elliptical agency denial ("..., y no fue ella").
+            + r"|\b(?:no|nunca)\s+(?:fue|ha sido)\s+(?:el|ella)" + _CLAUSE_END
+            + r"|\b(?:el|ella)\s+no\s+(?:fue|ha sido)" + _CLAUSE_END
+            + r"|\b(?:nao|nunca)\s+foi\s+(?:ele|ela)" + _CLAUSE_END
+            + r"|\b(?:ele|ela)\s+nao\s+foi" + _CLAUSE_END
         ),
     ),
     # RF1Q: a relative's denial relayed through their own words ("mi esposo dice
@@ -728,6 +967,18 @@ _CUE_FAMILIES: tuple[tuple[str, re.Pattern[str]], ...] = (
             + r"(?:(?:e|sao|era|eram)\s+(?:minha|meu|minhas|meus)|me\s+pertencem?)\b"
         ),
     ),
+    # RF1S: an unnamed party performed activity tied to the customer's account.
+    (
+        "unnamed_actor_activity",
+        _rx(
+            r"\b" + _UNNAMED_ACTOR + r"\s+(?:(?:me|le|lhe|nos)\s+)?(?:" + _ES_ACTOR_VERBS + r"|"
+            + _PT_ACTOR_VERBS + r")\b"
+        ),
+    ),
+    # RF1S: an unnamed party is posing as the customer or using their identity.
+    ("impersonation", _rx(r"\b(?:" + _ES_IMPERSONATION + r"|" + _PT_IMPERSONATION + r")")),
+    # RF1S: the customer's credentials or contact data were changed, and disowned.
+    ("credential_takeover", _rx(_CREDENTIAL_CHANGE)),
 )
 
 _RF1O_FAMILIES = frozenset(
@@ -747,6 +998,7 @@ _RF1Q_FAMILIES = frozenset(
         "product_disownment",
     }
 )
+_RF1S_FAMILIES = frozenset({"unnamed_actor_activity", "impersonation", "credential_takeover"})
 # Families whose cue may borrow an anchor from the preceding sentence when the cue
 # carries its own back-reference (demonstrative or clitic object) or opens a short
 # coordinated clause.
@@ -760,7 +1012,9 @@ _ANCHORS: tuple[re.Pattern[str], ...] = (
     _rx(
         r"\b(?:cargo|cargos|cobro|cobros|compra|compras|pago|pagos|movimiento|movimientos|"
         r"operacion|operaciones|transaccion|transacciones|transferencia|transferencias|"
-        r"debito|debitos|retiro|retiros|consumo|consumos|giro|giros)\b"
+        r"debito|debitos|retiro|retiros|consumo|consumos|giro|giros|"
+        # RF1S: a cash advance is money disbursed from the customer's credit line.
+        r"avance|avances)\b"
     ),
     _rx(
         r"\b(?:cobranca|cobrancas|pagamento|pagamentos|lancamento|lancamentos|operacao|"
@@ -770,7 +1024,8 @@ _ANCHORS: tuple[re.Pattern[str], ...] = (
     _rx(
         r"\b(?:cobraron|cobraban|han cobrado|cargaron|han cargado|debitaron|han debitado|"
         r"sacaron|retiraron|transfirieron|cobraram|cobrou|debitaram|debitou|tiraram|"
-        r"sacaram|transferiram|levaram|vaciaron|han vaciado|esvaziaram|zeraram)\b"
+        r"sacaram|transferiram|levaram|vaciaron|han vaciado|esvaziaram|zeraram|"
+        r"descontaron|han descontado|descontaram)\b"
     ),
     _rx(
         r"\b(?:usando|usaron|uso|utilizaron|utilizando|utilizo|usou|usaram)\s+"
@@ -891,13 +1146,57 @@ _RECALLED_AFTER = _rx(
 )
 
 
-def _resolution_blocker(sentence_text: str, message_tail: str) -> str | None:
-    """RF1Q: the item was resolved, or recalled after an initial non-recognition."""
+# RF1S: the item turned out to belong to a known relative ("era una compra de mi
+# hija", "fue mi esposa"), which resolves an earlier non-recognition.
+_RECOGNIZED_ATTRIBUTION = _rx(
+    r"(?<!no )(?<!nao )(?<!nunca )"
+    r"\b(?:era|eran|fue|fueron|resulto ser|resultaron ser|foi|foram|eram)\s+"
+    r"(?:(?:un|una|unos|unas|el|la|los|las|o|a|os|as|um|uma)\s+(?:[^\s,.]+\s+){0,3}?"
+    r"(?:de|del|da|do|das|dos)\s+|(?:de|del|da|do)\s+)?"
+    r"(?:mi|mis|meu|minha|meus|minhas)\s+" + _KIN + r"\b"
+)
+_UNAUTHORIZED_USE = _rx(
+    _WITHOUT_MY_AUTHORIZATION
+    + r"|\bsin\s+(?:mi\s+)?(?:permiso|autorizacion|consentimiento)\b"
+    + r"|\bsem\s+(?:a\s+)?(?:minha\s+)?(?:permissao|autorizacao|consentimento)\b"
+)
 
-    recalled = _RECALLED_AFTER.search(message_tail) and _PAST_OR_INITIAL_DENIAL.search(
-        sentence_text
-    )
+
+_FRESH_EVENT = _rx(
+    r"\b(?:pero|mas|ahora|agora|hoy|hoje|otra vez|de nuevo|nuevamente|outra vez|de novo|"
+    r"novamente|volvio|volvieron|voltou|voltaram|otro|otra|otros|otras|outro|outra|outros|"
+    r"outras|nuevo|nueva|nuevos|nuevas|novo|nova|novos|novas)\b"
+)
+
+
+def _resolved_earlier_in_sentence(sentence_text: str, start: int) -> bool:
+    """RF1S: a resolution before ``start`` in the same sentence, with no fresh event after it."""
+
+    resolution = _RESOLVED_AFTER.search(sentence_text[:start])
+    return bool(resolution and not _FRESH_EVENT.search(sentence_text[resolution.end() :]))
+
+
+def _resolution_blocker(sentence_text: str, message_tail: str, start: int = 0) -> str | None:
+    """RF1Q: the item was resolved, or recalled after an initial non-recognition.
+
+    RF1S: the item is also resolved when the resolution comes first in the same
+    sentence ("ya se aclaró lo del débito que no reconocía") with no fresh event
+    after it, or when a non-recognition told in the past or framed as initial is
+    later attributed to a known relative ("resultó ser de mi esposa"), unless the
+    message says that use was unauthorized.
+    """
+
+    past_or_initial = _PAST_OR_INITIAL_DENIAL.search(sentence_text)
+    recalled = _RECALLED_AFTER.search(message_tail) and past_or_initial
     if _RESOLVED_AFTER.search(message_tail) or recalled:
+        return "resolved_or_recognized"
+    if _resolved_earlier_in_sentence(sentence_text, start):
+        return "resolved_or_recognized"
+    if (
+        past_or_initial
+        and _RECOGNIZED_ATTRIBUTION.search(message_tail)
+        and not _UNAUTHORIZED_USE.search(sentence_text + " " + message_tail)
+    ):
         return "resolved_or_recognized"
     return None
 
@@ -1016,12 +1315,51 @@ def _opens_short_clause(text: str, start: int, end: int) -> bool:
 def _rf1o_anchor(text: str, family: str) -> str | None:
     anchor = _anchor(text)
     if anchor is None:
-        flow = _MONEY_FLOW_ANCHOR.search(text)
+        flow = _MONEY_FLOW_ANCHOR.search(text) or _AMOUNT_FLOW_ANCHOR.search(text)
         anchor = flow.group(0) if flow else None
     if anchor is None and family == "non_origination":
         item = _ITEM_ANCHOR.search(text)
         anchor = item.group(0) if item else None
     return anchor
+
+
+_NOUN_PHRASE_TAIL = _rx(
+    r"\b(?:un|una|unos|unas|el|la|los|las|um|uma|uns|umas|o|a|os|as)\s+[^\s,]+"
+    r"(?:\s+[^\s,]+){0,6}\s+$"
+)
+
+
+def _observed_head(before: str, head: re.Pattern[str]) -> bool:
+    """RF1S: a relative-clause head reached across a modifier chain in an observation."""
+
+    match = head.search(before)
+    return bool(match and _OBSERVED_ACTIVITY.search(before[: match.start()]))
+
+
+def _activity_relative_head(before: str) -> bool:
+    return bool(_RELATIVE_HEAD.search(before)) or _observed_head(before, _OBSERVED_RELATIVE_HEAD)
+
+
+def _product_relative_anchor(before: str) -> str | None:
+    """Anchor for a relative-clause origination denial, or None.
+
+    The head is a product noun, possibly behind a modifier chain inside an
+    observation (RF1S), or any noun phrase the customer observes in their
+    financial records ("en la central de riesgo figura un ... que nunca solicité").
+    """
+
+    if _PRODUCT_RELATIVE_HEAD.search(before) or _observed_head(before, _OBSERVED_PRODUCT_HEAD):
+        product = _PRODUCT_ANCHOR.search(before)
+        return product.group(0) if product else None
+    noun_phrase = _NOUN_PHRASE_TAIL.search(before)
+    record = _RECORD_LOCATION.search(before)
+    if (
+        noun_phrase
+        and record
+        and _OBSERVED_ACTIVITY.search(before[: noun_phrase.start()])
+    ):
+        return record.group(0)
+    return None
 
 
 def _rf1o_licensed_anchor(
@@ -1038,7 +1376,7 @@ def _rf1o_licensed_anchor(
         # The located activity must precede the place relative clause.
         return _anchor(text[:start])
     if family == "non_origination" and _RELATIVIZER_START.match(cue):
-        if _RELATIVE_HEAD.search(text[:start]):
+        if _activity_relative_head(text[:start]):
             # A relative clause is anchored by its own head, never by another sentence.
             return _rf1o_anchor(text[:start], family)
         # Without a nominal head "que" is a complementizer ("le confirmo que no
@@ -1074,6 +1412,8 @@ def _blocker(
     prefix = _clause_prefix(text, start)
     presupposed_relative = bool(_RELATIVIZER_TAIL.search(prefix))
 
+    if family in _RF1S_FAMILIES:
+        return _rf1s_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1Q_FAMILIES:
         return _rf1q_blocker(sentence, start, end, family, message_tail, message_head)
     if family in _RF1O_FAMILIES:
@@ -1094,7 +1434,7 @@ def _blocker(
         return "uncertainty_hedge"
     if _LATER_RECOGNITION.search(message_tail):
         return "later_recognition"
-    resolution = _resolution_blocker(text, message_tail)
+    resolution = _resolution_blocker(text, message_tail, start)
     if resolution is not None:
         return resolution
     if family in _CLAUSE_INITIAL_FAMILIES and _PERMISSION_GRANTED.search(
@@ -1174,7 +1514,7 @@ def _rf1o_blocker(
     cue = text[start:end]
     prefix = _clause_prefix(text, start)
     presupposed_relative = bool(_RELATIVIZER_TAIL.search(prefix)) or bool(
-        _RELATIVIZER_START.match(cue) and _RELATIVE_HEAD.search(before)
+        _RELATIVIZER_START.match(cue) and _activity_relative_head(before)
     )
 
     if _DOUBLE_NEGATION.search(before):
@@ -1189,7 +1529,7 @@ def _rf1o_blocker(
         return "uncertainty_hedge"
     if _LATER_RECOGNITION.search(message_tail):
         return "later_recognition"
-    resolution = _resolution_blocker(text, message_tail)
+    resolution = _resolution_blocker(text, message_tail, start)
     if resolution is not None:
         return resolution
     if _PERMISSION_GRANTED.search(_NEGATED_GRANT.sub(" ", message_tail)):
@@ -1219,10 +1559,19 @@ def _rf1o_blocker(
             return "authorized_third_party"
         return None
     if family == "third_party_denial":
-        if not _KIN_POSSESSED.search(message_head + " " + cue):
+        relay_context = message_head + " " + cue
+        if not (
+            _KIN_POSSESSED.search(relay_context) or _REPRESENTED_PRINCIPAL.search(relay_context)
+        ):
             return "no_named_relative"
         if _LATER_ATTRIBUTION.search(message_tail):
             return "later_recognition"
+        # RF1S: "no fue él" only says who did not do it; when the message names the
+        # relative who did ("la hizo mi esposa; no fue él"), nobody disowns it.
+        if _ELLIPTICAL_AGENCY.search(cue) and _KIN_PERFORMED.search(
+            message_head + " " + cue + " " + message_tail
+        ):
+            return "attributed_to_named_relative"
         # "mi hijo no la hizo, la hice yo" / "yo hice la compra y mi esposa no la
         # aprobó": the customer performed the activity, so nobody is disowning it.
         if _SELF_PERFORMED_ACTIVITY.search(message_head) or _SELF_PERFORMED_ACTIVITY.search(
@@ -1266,10 +1615,7 @@ def _rf1q_licensed_anchor(
     # product_origination_denial
     if _RELATIVIZER_START.match(cue):
         # A relative clause is anchored by its own product head only.
-        if not _PRODUCT_RELATIVE_HEAD.search(text[:start]):
-            return None
-        product = _PRODUCT_ANCHOR.search(text[:start])
-        return product.group(0) if product else None
+        return _product_relative_anchor(text[:start])
     # The product must be named in the cue or before it ("nunca pedí, ¿cómo
     # solicito una tarjeta?" names a product it has not been given).
     product = _PRODUCT_ANCHOR.search(text[:end])
@@ -1285,6 +1631,14 @@ def _rf1q_licensed_anchor(
     return None
 
 
+_ACCEPTANCE = _rx(r"\b(?:acepte|he aceptado|aceitei)\b")
+_CHARGED_ITEM = _rx(
+    r"\b(?:cobrad|debitad|descontad|cargad|facturad)[oa]s?\b"
+    r"|\b(?:me|lo|la|los|las|o|a)\s+(?:cobran|cobraron|descuentan|descontaron|debitan|debitaron|"
+    r"cobram|cobraram|descontam|debitam)\b"
+    r"|\b(?:cobro|cobros|cargo|cargos|debito|debitos|cobranca|cobrancas|descuento|descuentos|"
+    r"desconto|descontos)\b"
+)
 _EMPHATIC_ORIGIN_DENIAL = _rx(r"\b(?:yo|eu|nunca|jamas|jamais)\b")
 _NOT_YET_AFTER = _rx(r"^\W*(?:[a-z0-9-]+\s+){0,3}?(?:todavia|aun|ainda)\b")
 
@@ -1315,7 +1669,7 @@ def _rf1q_blocker(
     cue = text[start:end]
     prefix = _clause_prefix(text, start)
     presupposed_relative = bool(
-        _RELATIVIZER_START.match(cue) and _PRODUCT_RELATIVE_HEAD.search(before)
+        _RELATIVIZER_START.match(cue) and _product_relative_anchor(before) is not None
     )
 
     if _DOUBLE_NEGATION.search(before):
@@ -1329,7 +1683,7 @@ def _rf1q_blocker(
         return "uncertainty_hedge"
     if _LATER_RECOGNITION.search(message_tail):
         return "later_recognition"
-    resolution = _resolution_blocker(text, message_tail)
+    resolution = _resolution_blocker(text, message_tail, start)
     if resolution is not None:
         return resolution
     if _PERMISSION_GRANTED.search(_NEGATED_GRANT.sub(" ", message_tail)):
@@ -1351,11 +1705,122 @@ def _rf1q_blocker(
         whole = message_head + " " + cue + " " + message_tail
         if _KIN_ORIGINATION.search(whole) and not _WITHOUT_AUTHORIZATION.search(whole):
             return "attributed_to_named_relative"
+        if _ACCEPTANCE.search(cue):
+            # RF1S: declining an offer is not a report. Acceptance is disowned only
+            # over an item already charged or shown in the customer's records, and a
+            # reason clause marks a decision, not a disowning.
+            if _NOT_YET_OR_CAUSAL_AFTER.search(after):
+                return "not_yet_or_causal"
+            if not (
+                _CHARGED_ITEM.search(whole)
+                or _RECORD_LOCATION.search(whole)
+                or _OBSERVED_ACTIVITY.search(message_head + " " + before)
+            ):
+                return "no_existing_item"
         # As for non-performance, an emphatic subject or "nunca" marks disowning,
         # so a following reason clause does not turn it into a failure to act.
         emphatic = bool(_EMPHATIC_BEFORE.search(before) or _EMPHATIC_ORIGIN_DENIAL.search(cue))
         if not emphatic and _NOT_YET_OR_CAUSAL_AFTER.search(after):
             return "not_yet_or_causal"
+    return None
+
+
+def _rf1s_licensed_anchor(
+    sentences: list[_Sentence], index: int, start: int, end: int, family: str
+) -> str | None:
+    """Anchor for an RF1S cue, or None when the cue is not tied to the customer's account."""
+
+    text = sentences[index].text
+    cue = text[start:end]
+    if family == "credential_takeover":
+        # The customer's own credential is the anchor.
+        credential = _rx(_CREDENTIAL).search(cue)
+        return credential.group(0) if credential else None
+    if family == "impersonation":
+        # The customer is the referent; the conversation must be about banking.
+        if any(_BANK_CONTEXT.search(sentence.text) for sentence in sentences):
+            return cue
+        return None
+    # unnamed_actor_activity: the customer's account, card, or data as source,
+    # instrument, or location, or activity observed in the customer's records.
+    tie = _ACCOUNT_TIE.search(text) or _MONEY_FLOW_ANCHOR.search(text)
+    if tie is not None:
+        return tie.group(0)
+    if _OBSERVATION_FRAME.search(text[:start]) and _RECORDS_CONTEXT.search(text):
+        # The observed actor verb is itself the activity.
+        return _rf1o_anchor(text, family) or cue
+    return None
+
+
+_DATIVE_REPORT = _rx(r"\b(?:me|nos)\s+(?:dice|dijo|dicen|dijeron|diz|disse|dizem|disseram)\s+que\b")
+
+
+def _rf1s_blocker(
+    sentence: _Sentence,
+    start: int,
+    end: int,
+    family: str,
+    message_tail: str,
+    message_head: str,
+) -> str | None:
+    """Scope checks for the RF1S families.
+
+    They take the shared RF1O scope checks (whole-sentence protasis, question
+    scope, hedges, retraction, resolution, permission). Reported speech blocks
+    unless it is a notification to the customer ("me dice que ...") or a relay by
+    a named relative or represented principal. Each family adds its own checks.
+    """
+
+    text = sentence.text
+    before = text[:start]
+    after = text[end:]
+    cue = text[start:end]
+    prefix = _clause_prefix(text, start)
+    whole = message_head + " " + cue + " " + message_tail
+
+    if _DOUBLE_NEGATION.search(before):
+        return "double_negation"
+    if _PRIOR_BELIEF.search(before):
+        return "prior_belief"
+    if _REPORTED_SPEECH.search(before) and not _DATIVE_REPORT.search(before):
+        return "reported_speech"
+    if _INTRUSION_HEDGE_TAIL.search(prefix):
+        return "uncertainty_hedge"
+    if _LATER_RECOGNITION.search(message_tail):
+        return "later_recognition"
+    resolution = _resolution_blocker(text, message_tail, start)
+    if resolution is not None:
+        return resolution
+    # These cues report a past event, so a resolution earlier in the same sentence
+    # covers it ("ya me reintegraron lo que alguien retiró ..."), unless a fresh event
+    # is marked in between ("..., pero ahora alguien ...").
+    if _PERMISSION_GRANTED.search(_NEGATED_GRANT.sub(" ", message_tail)):
+        return "authorized_third_party"
+    # The cue is included: "se alguém fez" needs the subject to read as a protasis.
+    if _sentence_protasis(text[:end]):
+        return "conditional_protasis"
+    if sentence.question_start is not None and start >= sentence.question_start:
+        return "interrogative_scope"
+
+    if family == "unnamed_actor_activity":
+        remainder = _UNNAMED_CHANGE.sub("", cue).strip()
+        incoming = _INCOMING_DATIVE.match(remainder) or _TO_MY_ACCOUNT.search(after)
+        if incoming and not _FROM_MY_ACCOUNT.search(text):
+            return "incoming_transfer"
+        if _DELEGATED_FOR_ME.search(after) or _DELEGATED_REQUEST.search(message_tail):
+            return "delegated_by_customer"
+        if _NOT_YET_BEFORE.search(before) or _NOT_YET_AFTER.search(after):
+            return "not_yet_or_causal"
+        return None
+    if family == "impersonation":
+        if _NON_BANK_PLATFORM.search(after):
+            return "non_bank_context"
+        return None
+    # credential_takeover
+    if _CUSTOMER_REQUESTED.search(whole):
+        return "customer_requested"
+    if not (_UNNAMED_CHANGE.match(cue) or _CHANGE_DISOWNED.search(whole)):
+        return "change_not_disowned"
     return None
 
 
@@ -1379,12 +1844,51 @@ _INDEFINITE_PROTASIS = _rx(
     r"|\b(?:en caso de que|supongamos que|suponhamos que|imaginemos que|hipoteticamente)\b"
 )
 _SOURCE_SENTENCE_BREAK = _rx(r"[.!?;:\n]")
+# RF1S: the customer's own attempted payment came back "not authorized". The
+# adjectival non-authorization is the system's status on the customer's own
+# attempt, not a denial of someone else's activity. It needs an own attempt in
+# the same sentence (a possessed transaction or an attempt verb), no newly
+# introduced item, and a decline outcome or a status frame on the label.
+_ADJECTIVAL_NON_AUTHORIZATION = _rx(r"\b(?:no|nao)\s+(?:(?:fue|fueron|foi|foram)\s+)?autorizad[oa]s?\b")
+_FIRST_PERSON_DISOWNING = _rx(
+    r"\b(?:no|nunca|jamas|nao|jamais)\s+(?:(?:lo|la|los|las|o|a|os|as|me)\s+)?"
+    r"(?:reconozco|reconoci|reconheco|reconheci|hice|realice|autorice|fiz|realizei|autorizei|"
+    r"pedi|solicite|solicitei)\b"
+    r"|\b(?:no fui yo|yo no fui|nao fui eu|eu nao fui)\b"
+    r"|\b(?:no|nao)\s+(?:es|son|e|sao)\s+(?:mio|mia|mios|mias|meu|minha|meus|minhas)\b"
+    r"|\bautorizad[oa]s?\s+por\s+(?:mi|mim)\b"
+)
+_OWN_ATTEMPT = _rx(
+    r"\b(?:mi|mis|meu|minha|meus|minhas)\s+(?:pago|pagos|compra|compras|transaccion|"
+    r"transacciones|transferencia|transferencias|retiro|giro|pagamento|pagamentos|transacao|"
+    r"transacoes|saque|pix)\b"
+    r"|\b(?:intente|intentamos|quise|quisimos|trate de|tratamos de|tentei|tentamos|quis)\b"
+    r"|\b(?:al|ao|fui a|fui|fuimos a|fomos)\s+(?:pagar|comprar|retirar|sacar|transferir)\b"
+    r"|\b(?:estaba|estava)\s+(?:pagando|comprando|retirando|sacando|transfiriendo|transferindo)\b"
+)
+_DECLINE_OUTCOME = _rx(
+    r"\b(?:rechaz|declin|deneg|recusad|recusou|recusaram|negad)\w*"
+    r"|\bno\s+(?:me\s+)?(?:paso|pasa|dejo|deja|funciono|funciona)\b"
+    r"|\bno\s+se\s+(?:pudo|proceso|aprobo)\b"
+    r"|\bnao\s+(?:me\s+)?(?:passou|passa|deixou|funcionou|foi aprovad[oa])\b"
+    r"|\b(?:tuve|tuvimos|tive|tivemos)\s+que\s+pagar\b"
+)
+_STATUS_FRAME = _rx(
+    r"\b(?:salio|sale|aparece|aparecio|dice|dijo|dio|marco|marca|quedo|figura|diz|disse|deu|"
+    r"ficou|apareceu|consta)\s+(?:como\s+)?\W?(?:[a-z]+\s+){0,2}?(?:no|nao)\s+autorizad"
+)
+_NEW_ITEM_INTRO = _rx(
+    r"\b(?:hay|habia|hubo|aparece|aparecen|aparecio|tengo|veo|vi|tem|houve|apareceu|vejo)\s+"
+    r"(?:un|una|unos|unas|dos|tres|varios|varias|otro|otra|um|uma|uns|umas|outro|outra)\b"
+)
+
+
 def structural_assertion_demotion(text: str, source_start: int, source_end: int) -> str | None:
     """Return why a structural ASSERTIVE proposition is demoted, or None.
 
     ``source_start``/``source_end`` are the proposition's source offsets in
-    ``text``. Only the RF1Q shapes above demote; everything else the resolver
-    asserts keeps structural authority.
+    ``text``. Only the RF1Q and RF1S shapes above demote; everything else the
+    resolver asserts keeps structural authority.
     """
 
     before = text[:source_start]
@@ -1393,12 +1897,34 @@ def structural_assertion_demotion(text: str, source_start: int, source_end: int)
     if _INDEFINITE_PROTASIS.search(_normalize(text[sentence_start:source_start])):
         return "indefinite_hypothetical_protasis"
     tail = _normalize(text[source_end:])
-    if _RESOLVED_AFTER.search(tail):
+    # RF1S: the resolver's span can swallow the start of the resolution ("no
+    # reconocí ya está | aclarado"), so the check reads from the span start.
+    if _RESOLVED_AFTER.search(tail) or _RESOLVED_AFTER.search(_normalize(text[source_start:])):
         return "resolved_after"
     sentence_end = _SOURCE_SENTENCE_BREAK.search(text, source_end)
     sentence = _normalize(text[sentence_start : sentence_end.start() if sentence_end else None])
-    if _RECALLED_AFTER.search(tail) and _PAST_OR_INITIAL_DENIAL.search(sentence):
+    past_or_initial = _PAST_OR_INITIAL_DENIAL.search(sentence)
+    if _RECALLED_AFTER.search(tail) and past_or_initial:
         return "recalled_after"
+    # RF1S shapes.
+    sentence_prefix = _normalize(text[sentence_start:source_start])
+    if _resolved_earlier_in_sentence(sentence, len(sentence_prefix)):
+        return "resolved_before"
+    if (
+        past_or_initial
+        and _RECOGNIZED_ATTRIBUTION.search(tail)
+        and not _UNAUTHORIZED_USE.search(_normalize(text))
+    ):
+        return "recognized_attribution"
+    span = _normalize(text[source_start:source_end])
+    if (
+        _ADJECTIVAL_NON_AUTHORIZATION.search(span)
+        and not _FIRST_PERSON_DISOWNING.search(span)
+        and _OWN_ATTEMPT.search(sentence)
+        and not _NEW_ITEM_INTRO.search(sentence)
+        and (_DECLINE_OUTCOME.search(_normalize(text)) or _STATUS_FRAME.search(sentence))
+    ):
+        return "declined_own_attempt"
     return None
 
 
@@ -1415,11 +1941,19 @@ def denial_safety_findings(text: str) -> tuple[DenialSafetyFinding, ...]:
                 # RF1Q families keep their own span bookkeeping, so an older family
                 # matching the same span (and blocked for lack of an activity
                 # anchor) cannot hide a product-anchored RF1Q cue.
-                span = (family in _RF1Q_FAMILIES, match.start(), match.end())
+                span = (
+                    2 if family in _RF1S_FAMILIES else int(family in _RF1Q_FAMILIES),
+                    match.start(),
+                    match.end(),
+                )
                 if span in seen:
                     continue
                 seen.add(span)
-                if family in _RF1Q_FAMILIES:
+                if family in _RF1S_FAMILIES:
+                    anchor = _rf1s_licensed_anchor(
+                        sentences, index, match.start(), match.end(), family
+                    )
+                elif family in _RF1Q_FAMILIES:
                     anchor = _rf1q_licensed_anchor(
                         sentences, index, match.start(), match.end(), family
                     )

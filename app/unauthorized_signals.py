@@ -396,7 +396,10 @@ def is_explicit_unauthorized_assertion(text: str) -> bool:
     RF1Q narrows that authority for exactly two shapes the resolver asserts but
     which are not active reports: an embedded indefinite-future protasis in an
     advice question, and a non-recognition resolved later in the same message.
-    Such an assertive positive is demoted, and the denial-safety layer decides.
+    RF1S adds three: a resolution earlier in the same sentence, a past
+    non-recognition later attributed to a known relative, and the customer's own
+    declined attempt labelled "not authorized". Such an assertive positive is
+    demoted, and the denial-safety layer decides.
     """
 
     propositions = tuple(
