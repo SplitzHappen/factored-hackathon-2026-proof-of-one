@@ -123,19 +123,32 @@ Fresh independent probes found natural, explicit first-person denials ("se hizo 
   - a non-recognition resolved later in the same message.
 
   Such an assertion is demoted (`structural_assertion_demotion`), and the layer decides with all of its blockers. Every other structural assertion stays authoritative, including present-tense help questions ("¿Qué hago si tengo un cargo que no reconozco?");
+- RF1S adds three families for active own-account compromise reports the resolver is silent on:
+  - an unnamed party performed activity tied to the customer's account ("un tercero retiró dinero de mi cuenta", "alguém voltou a usar meu cartão"). The tie is the customer's account, card, or data as source, instrument, or location, or an observation of the customer's own records or a bank notice ("abrí la app y me di cuenta de que alguien ..."). A bare "alguien hizo una compra" stays outside, as the structural grammar decides. Incoming money ("alguien me transfirió ..."), delegation ("por mí", "como le pedí"), questions, conditionals, hedges, and resolutions block it;
+  - impersonation or identity theft by an unnamed party ("se hizo pasar por mí", "me suplantaron", "usaron mis documentos", "roubaram minha identidade"), only when the conversation is about banking and not about a social-media profile;
+  - a change to the customer's credentials or contact data (password, PIN, e-mail, phone) that is disowned: an unnamed actor, a first-person denial ("yo no la cambié"), "no fui yo", or an explicit lack of authorization. A change the customer requested ("como solicité") or simply reports without disowning is not licensed;
+- RF1S widens existing families structurally rather than by wording:
+  - a relative-clause set-up or origination denial may reach its head across a modifier chain of up to eight words when the customer is describing something observed ("veo un cobro mensual de una app de música que nunca agregué"), and an origination denial over any item located in the customer's financial records (statement, credit bureau, history) names an existing product;
+  - product heads now include deposits, insurance, and credit lines (CDT/CDB, póliza/apólice, seguro, libranza, microcrédito, sobregiro, inversión), and accepting an item ("nunca acepté ese seguro") counts as origination. A declined offer with a reason ("..., porque era cara") or with no charged or recorded item is not a report;
+  - a cash advance (`avance`) is account activity, and an amount taken from an account ("de su cuenta salieron 900 mil") is a money-flow anchor;
+  - a relay may come from someone acting for the account holder (a caregiver, legal representative, or "en nombre de / de parte de" a named person), and the relayed elliptical agency denial "..., y no fue él / ela não foi" is a third-party cue. The same third-party contract applies, and a message that names the relative who did it ("la hizo mi esposa; no fue él") is not a report;
+- RF1S over-escalation controls:
+  - **own declined payment.** When the resolver asserts an adjectival "no autorizado / não autorizado" that is the system's label on the customer's own attempt (a possessed transaction or an attempt verb in the same sentence, no newly introduced item, and a decline outcome or a status frame such as "salió como"), the assertion is demoted. A decline next to a genuine report ("..., había compras no autorizadas que yo no hice", "no fue autorizado por mí") stays a report;
+  - **resolved or recognized.** A resolution earlier in the same sentence ("ya se aclaró lo del débito que no reconocía") resolves the item unless a fresh event follows it ("pero", "hoy", "otra vez", "otro cargo"). A non-recognition told in the past or framed as initial is resolved by a later attribution to a known relative ("resultó ser de mi esposa"), unless the message says the use was unauthorized. Both shapes demote a structural assertion and block every layer family. A resolution in an earlier sentence does not cover a later report;
 - it never consults the retired whole-message regex inventory.
 
 Consequences:
 
 - a licensed denial routes to verified escalation (`unauthorized_activity_reported`), attaching only an owned transaction and never disclosing a foreign one;
-- recall is still bounded: inferential denials ("no puede ser mía") and induced-scam payments are not covered; third-party reports are covered only when a named relative ("mi papá", "minha mãe") denies the activity; money-movement and set-up denials without a back-reference to an existing item ("no envié el pago", "no programé el pago") are deliberately not licensed because they usually describe a failure to act;
+- recall is still bounded: inferential denials ("no puede ser mía") and induced-scam payments are not covered; third-party reports are covered only when a named relative ("mi papá", "minha mãe") or someone acting for the account holder relays a denial of the activity; money-movement and set-up denials without a back-reference to an existing item ("no envié el pago", "no programé el pago") are deliberately not licensed because they usually describe a failure to act;
 - where the structural resolver resolves a hypothetical or other non-assertive reading, the layer defers even if a denial is present;
-- the structural resolver itself still escalates some hedged or "not yet" statements conservatively. Embedded advice-question hypotheticals and same-message resolutions are demoted only in the two RF1Q shapes above;
+- the structural resolver itself still escalates some hedged or "not yet" statements conservatively, and a delegated use the customer asked for ("alguien ... pagó ... con mi tarjeta, como le pedí") when the resolver asserts it. Embedded advice-question hypotheticals, same-message resolutions, own declined payments, and relative attributions are demoted only in the RF1Q and RF1S shapes above;
 - product and identity-misuse recall is bounded:
-  - a stand-alone identity-theft statement without a product ("me robaron la identidad") is not covered;
+  - a stand-alone identity-theft statement ("me robaron la identidad") is covered by RF1S only in a banking context; a bare impersonation with no account, product, credential, or bank mention is not;
   - an opening by a named relative is covered only with an explicit lack of authorization;
   - "suspicious" or "strange" charges relayed for a relative are not a denial, so they are not covered;
-- a resolution marker about a different item in the same message ("..., el anterior ya me lo devolvieron") can block a fresh report. RF1Q accepts this conservatively and records it as a residual.
+- a resolution marker about a different item in the same message ("..., el anterior ya me lo devolvieron") can block a fresh report. RF1Q accepts this conservatively and records it as a residual. RF1S keeps the same posture for a resolution earlier in the same sentence, but only when no fresh-event marker follows it;
+- RF1S windows are bounded on purpose: an observed relative head reaches at most eight words, an unnamed actor needs an account tie or an observation of the customer's records, and impersonation needs a banking context. Wording outside these bounds falls back to the earlier behavior.
 
 ## 13. Remaining validation before final submission
 
