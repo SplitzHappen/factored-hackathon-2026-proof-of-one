@@ -115,6 +115,49 @@ _FTP2_CLEANUP_CANDIDATE = _rx(
 )
 _POSITIVE_LOSS_GUARD_RX = _rx(r"\b(?:" + _POSITIVE_LOSS_GUARD + r")\b")
 
+# RF4-style guard surface reused for RF5 M1/M4 raise-only cues. These guards are
+# intentionally provider-free and suppress only RF5's added recall floor; they do
+# not alter the authoritative unauthorized detector or RF4 itself.
+_RF5_HYPOTHETICAL_OR_PROCEDURAL_GUARD = _rx(
+    r"\b(?:si|en caso de|caso|supongamos|imaginemos)\b(?:\s+\S+){0,12}?\b(?:" + _NO_AUTH + r"|" + _SCAM + r")\b"
+    r"|\b(?:se|caso)\b(?:\s+\S+){0,6}?\b(?:alguem|alguien|um terceiro|un tercero)\b"
+    r"|\b(?:que hago si|que hacer si|que debo hacer si|o que faco se|o que fazer se|o que faco caso|o que fazer caso)\b"
+)
+_RF5_PREVENTION_QUESTION_GUARD = _rx(
+    r"\b(?:como|como puedo|como puedo saber|como faço para|como saber|como detectar|como identificar)\b"
+    r"(?:\s+\S+){0,10}?\b(?:" + _SCAM + r"|" + _NO_AUTH + r")\b"
+    r"|\b(?:prevenir|evitar|detectar|identificar|protegerme|me proteger)\b"
+    r"(?:\s+\S+){0,10}?\b(?:" + _SCAM + r"|" + _NO_AUTH + r")\b"
+)
+_RF5_RESOLVED_GUARD = _rx(
+    r"\b(?:ya|ja)\b(?:\s+\S+){0,8}?\b(?:reversaron|revirtieron|revertieron|reversaram|estornaron|estornaram|devolvieron|devolveram|reembolsaron|reembolsaram|resolvieron|resolveram|solucionaron|solucionaram)\b"
+    r"|\b(?:reversado|revertido|estornado|devuelto|devolvido|reembolsado|resuelto|resolvido|solucionado)\b"
+)
+_RF5_LAWFUL_CAUSE_GUARD = _rx(
+    r"\b(?:dian|receita federal|autoridad tributaria|autoridade tributaria|fisco|hacienda|juzgado|juez|tribunal)\b"
+    r"|\b(?:impuesto|impuestos|imposto|impostos|tributo|tributos|embargo|embargaron|embargado|embargaram|penhora|penhorado|retencion|retencao|retuvo|retuvieron|reteve|reteram|bloqueo|bloqueou|bloquearon|bloquearam)\b"
+)
+_RF5_RAISE_GUARDS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("hypothetical_or_procedural", _RF5_HYPOTHETICAL_OR_PROCEDURAL_GUARD),
+    ("prevention_question", _RF5_PREVENTION_QUESTION_GUARD),
+    ("resolved_or_reversed", _RF5_RESOLVED_GUARD),
+    ("lawful_cause", _RF5_LAWFUL_CAUSE_GUARD),
+)
+
+
+def _rf5_raise_blocker(normalized: str, family: str) -> str | None:
+    """Return the RF4-style guard that blocks an RF5 M1/M4 raise, if any."""
+
+    if family not in {
+        "m1_no_authorization_activity",
+        "m4_scam_social_engineering_activity",
+    }:
+        return None
+    for guard_name, pattern in _RF5_RAISE_GUARDS:
+        if pattern.search(normalized):
+            return guard_name
+    return None
+
 
 def rf5_stage1_findings(text: str) -> tuple[RF5Stage1Finding, ...]:
     """Return deterministic RF5 Stage 1 raise and cleanup-candidate findings."""
@@ -127,7 +170,10 @@ def rf5_stage1_findings(text: str) -> tuple[RF5Stage1Finding, ...]:
         ("m2_money_reference_disowning", _M2_MONEY_DISOWNING),
         ("m4_scam_social_engineering_activity", _M4_SCAM_ACTIVITY),
     ):
+        blocker = _rf5_raise_blocker(normalized, family)
         for match in pattern.finditer(normalized):
+            if blocker is not None:
+                continue
             findings.append(
                 RF5Stage1Finding(
                     family=family,
