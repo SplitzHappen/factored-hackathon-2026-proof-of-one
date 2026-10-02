@@ -189,6 +189,21 @@ Consequences:
   - The shared conditional pattern also reads "si" at the start of a longer word ("sin", "sigue"). Inside an RF3 cue's sentence only, such a "si" is masked for the shared checks; a real "si" conditional still blocks, and the shared pattern is unchanged.
   - Still outside: a drain with no lack of consent, disowning, or unknown party ("me vaciaron la tarjeta anoche"), English, and wording whose action verb or money noun is outside the lexicons. RF3 is broader per report shape than RF2 but remains lexicon bounded, and fresh wording can still be missed.
 
+## 12A. Fail-safe escalation floor (RF4)
+
+Lexicon-bounded recognition kept missing new ways of describing what happened to the money, even when the customer's denial was clear. RF4 therefore adds a conservative floor in `app/failsafe_escalation.py`:
+
+- the unauthorized-activity detector above is unchanged and stays authoritative; the floor is consulted only when that detector is silent, so it can add an escalation but never remove or relabel one;
+- the floor fires only when a message contains both a first-person denial or non-consent cue ("no fui yo", "sin mi permiso", "não autorizei", "não reconheço") and a mention of money, a card, an account or a similar financial asset;
+- one shared set of guards applies to every floor cue: hypothetical or conditional framing, worry or purpose, prevention, procedure, insurance or education questions, app or interface non-recognition, lawful or administrative causes (seizure, embargo, garnishment, tax authority, court order, fees, interest, collections, bank-initiated debits), failure to pay or insufficient funds, retraction, explicit permission, a named relative or acquaintance as the actor, someone else's account or hearsay, money arriving, and a declined own payment;
+- floor escalations carry the distinct reason code `possible_unauthorized_activity` and a ticket summary that asks for human review of *possible* unrecognized activity. They are a request for review, not a fraud determination.
+
+Residual limitations:
+
+- the cue list and guards are deterministic and closed. Unusual phrasings can still be missed, and benign messages that combine a denial with a money mention outside the guarded shapes can be escalated unnecessarily;
+- the floor errs toward human review. Some customers with an ordinary request will be routed to a person;
+- the authoritative detector's own pre-existing behaviour is unchanged, including cases where it escalates benign administrative or payment messages.
+
 ## 13. Remaining validation before final submission
 
 Judge-facing evidence still depends on later gates including final RF1H-B2 closure under the narrowed contract, B3 resolution/integration, RF1J fresh/generalization evaluation, live/provider evaluation where applicable, final deployment/judge-facing UX, and final limitations/evaluation reconciliation.

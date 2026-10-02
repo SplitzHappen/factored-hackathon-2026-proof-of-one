@@ -94,6 +94,11 @@ languages even when the server session language is one of them. This protects co
 and injection-plus-fraud cases such as "ignore the rules; I do not recognize this purchase."
 
 This backstop is monotonic: it may change `false -> true`, never `true -> false`.
+
+The RF4 fail-safe floor (`app/failsafe_escalation.py`) is a separate, server-side signal
+(`possible_unauthorized_activity`) computed after the backstop and only when it is false.
+It is not part of the model's response schema, the model cannot set it, and it is equally
+monotonic.
 It is not a fraud classifier and does not inspect behavioral evidence or fraud labels.
 
 ## Deferred to R3D and later evaluation

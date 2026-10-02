@@ -15,6 +15,7 @@ from app.bank import BankRepository
 from app.date_provenance import resolve_message_date_range
 from app.language_scope import unsupported_language_dominant
 from app.runtime import OperationalStore
+from app.failsafe_escalation import is_failsafe_escalation
 from app.unauthorized_signals import is_explicit_unauthorized_assertion
 from app.schemas import (
     AuthenticatedSession,
@@ -214,20 +215,24 @@ class InterpretationService:
                 provider_attempts=attempt,
             )
 
+        fallback_unauthorized = self._lexical_unauthorized_assertion(
+            message,
+            session.language.value,
+        )
         return VerifiedInterpretation(
             status=InterpretationStatus.SAFE_FALLBACK,
             language=session.language,
             intent=PolicyIntent.UNKNOWN,
-            unauthorized_activity_asserted=self._lexical_unauthorized_assertion(
-                message,
-                session.language.value,
-            ),
+            unauthorized_activity_asserted=fallback_unauthorized,
             verified_transaction_id=None,
             transaction_query=None,
             transaction_reference_status=TransactionReferenceStatus.NOT_REQUIRED,
             candidate_transaction_ids=[],
             provider_attempts=self.max_attempts,
             lexical_unauthorized_override=False,
+            possible_unauthorized_activity=self._failsafe_floor(
+                message, fallback_unauthorized
+            ),
             fallback_reason=last_failure,
             requires_human_fallback=True,
         )
@@ -316,6 +321,9 @@ class InterpretationService:
             candidate_transaction_ids=candidate_ids,
             provider_attempts=provider_attempts,
             lexical_unauthorized_override=lexical_override,
+            possible_unauthorized_activity=self._failsafe_floor(
+                request.message, unauthorized
+            ),
             fallback_reason=None,
             requires_human_fallback=False,
         )
@@ -410,6 +418,12 @@ class InterpretationService:
                 return False
 
         return True
+
+    @staticmethod
+    def _failsafe_floor(message: str, unauthorized: bool) -> bool:
+        # RF4 B-HYBRID: consulted only when the authoritative signal is false, so
+        # it can add an escalation but never remove or relabel one.
+        return not unauthorized and is_failsafe_escalation(message)
 
     @classmethod
     def _lexical_unauthorized_assertion(cls, message: str, language: str) -> bool:

@@ -32,7 +32,8 @@ def route_policy(policy_input: PolicyInput) -> PolicyResult:
     """Return the authoritative deterministic route.
 
     Precedence is intentional:
-    1. hard safety/escalation conditions;
+    1. hard safety/escalation conditions (explicit unauthorized-activity report,
+       then the RF4 fail-safe floor);
     2. prohibited/unsupported requests;
     3. clarification for supported requests;
     4. verified supported answer.
@@ -42,6 +43,14 @@ def route_policy(policy_input: PolicyInput) -> PolicyResult:
         return PolicyResult(
             route=RouteDecision.ESCALATE,
             reason_codes=[PolicyReason.UNAUTHORIZED_ACTIVITY_REPORTED],
+            safe_to_answer=False,
+            mandatory_escalation=True,
+        )
+
+    if policy_input.possible_unauthorized_activity:
+        return PolicyResult(
+            route=RouteDecision.ESCALATE,
+            reason_codes=[PolicyReason.POSSIBLE_UNAUTHORIZED_ACTIVITY],
             safe_to_answer=False,
             mandatory_escalation=True,
         )
