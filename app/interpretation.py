@@ -16,6 +16,7 @@ from app.date_provenance import resolve_message_date_range
 from app.language_scope import unsupported_language_dominant
 from app.runtime import OperationalStore
 from app.failsafe_escalation import is_failsafe_escalation
+from app.rf5_stage1 import rf5_stage1_should_raise
 from app.unauthorized_signals import is_explicit_unauthorized_assertion
 from app.schemas import (
     AuthenticatedSession,
@@ -421,9 +422,11 @@ class InterpretationService:
 
     @staticmethod
     def _failsafe_floor(message: str, unauthorized: bool) -> bool:
-        # RF4 B-HYBRID: consulted only when the authoritative signal is false, so
-        # it can add an escalation but never remove or relabel one.
-        return not unauthorized and is_failsafe_escalation(message)
+        # RF4/RF5 floors are consulted only when the authoritative signal is false,
+        # so they can add escalation but never remove or relabel one.
+        return not unauthorized and (
+            is_failsafe_escalation(message) or rf5_stage1_should_raise(message)
+        )
 
     @classmethod
     def _lexical_unauthorized_assertion(cls, message: str, language: str) -> bool:
