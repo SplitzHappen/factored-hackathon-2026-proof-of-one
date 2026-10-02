@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-DEMO_UI_HTML = """<!doctype html>
+DEMO_UI_HTML = r'''<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -10,297 +10,207 @@ DEMO_UI_HTML = """<!doctype html>
   <style>
     :root {
       color-scheme: dark;
-      --ink: #f7f2e7;
-      --ink-strong: #fff8dc;
-      --muted: #b8c0ad;
-      --muted-2: #87917f;
-      --rail-bg: #111712;
-      --panel: #223028;
-      --panel-2: #2e3b33;
-      --panel-3: #3d493f;
-      --cream: #f6f1dd;
-      --black: #121612;
-      --line: #73806e;
-      --line-soft: rgba(246, 241, 221, 0.14);
-      --green: #49e28d;
-      --green-dim: #1f7f51;
-      --yellow: #ffca3a;
-      --yellow-dim: #88620c;
-      --red: #ff4f46;
-      --red-dim: #8f241f;
-      --blue: #94b8ff;
-      --blue-dim: #355188;
-      --violet: #c0a1ff;
-      --off: #3b453d;
-      --shadow: 0 30px 80px rgba(0, 0, 0, 0.38);
-      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #101710;
+      --panel: #172319;
+      --panel-2: #213027;
+      --cream: #f5edcf;
+      --cream-2: #e7ddbd;
+      --ink: #101410;
+      --muted: #aeb7a7;
+      --line: rgba(245, 237, 207, 0.24);
+      --rail: #485243;
+      --answer: #37d67a;
+      --clarify: #ffd15c;
+      --abstain: #a9b1bd;
+      --escalate: #ff665c;
+      --handoff: #bb8cff;
+      --shadow: 0 26px 70px rgba(0, 0, 0, 0.35);
+      font-family: "IBM Plex Mono", "Cascadia Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      min-height: 100vh;
+      color: var(--cream);
       background:
-        radial-gradient(circle at 18% 12%, rgba(255, 202, 58, 0.15), transparent 28rem),
-        radial-gradient(circle at 82% 0%, rgba(73, 226, 141, 0.12), transparent 30rem),
-        linear-gradient(145deg, #0b0f0c, #1b241d 48%, #0f1511);
-      color: var(--ink);
+        radial-gradient(circle at 15% 0%, rgba(80, 114, 82, 0.35), transparent 28rem),
+        radial-gradient(circle at 90% 8%, rgba(122, 95, 49, 0.28), transparent 24rem),
+        linear-gradient(145deg, #0b120d 0%, #111a13 54%, #161f17 100%);
+      min-height: 100vh;
     }
 
-    button, select, textarea {
-      font: inherit;
-    }
-
-    button:focus-visible, select:focus-visible, textarea:focus-visible {
-      outline: 3px solid var(--yellow);
-      outline-offset: 3px;
+    .page {
+      width: min(1500px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 34px;
     }
 
     .shell {
-      width: min(1480px, 100%);
-      margin: 0 auto;
-      padding: 24px;
+      border: 1px solid rgba(245, 237, 207, 0.28);
+      border-radius: 28px;
+      overflow: hidden;
+      background: rgba(17, 25, 18, 0.92);
+      box-shadow: var(--shadow);
     }
 
-    .masthead {
+    .topbar {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 24px;
-      align-items: stretch;
-      margin-bottom: 18px;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+      padding: 24px 28px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(15, 27, 16, 0.98), rgba(18, 28, 20, 0.92));
     }
 
     .brand {
       display: grid;
-      gap: 14px;
-      padding: 22px;
-      border-radius: 28px;
-      background:
-        linear-gradient(135deg, rgba(246, 241, 221, 0.10), rgba(246, 241, 221, 0.04)),
-        var(--panel);
-      border: 1px solid rgba(246, 241, 221, 0.20);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-      position: relative;
-    }
-
-    .brand:after {
-      content: "";
-      position: absolute;
-      inset: auto -90px -120px auto;
-      width: 260px;
-      height: 260px;
-      border-radius: 50%;
-      background: rgba(255, 202, 58, 0.13);
-      filter: blur(10px);
-      pointer-events: none;
-    }
-
-    .title-mark {
-      width: max-content;
-      max-width: 100%;
-      padding: 8px;
-      border-radius: 10px;
-      background: var(--black);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10);
-    }
-
-    .title-mark span {
-      display: block;
-      padding: 10px 18px 7px;
-      border: 3px solid var(--cream);
-      border-radius: 6px;
-      color: var(--cream);
-      font-size: clamp(32px, 5vw, 62px);
-      line-height: 0.92;
-      font-weight: 900;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      font-family: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+      gap: 8px;
     }
 
     .brand h1 {
       margin: 0;
-      max-width: 900px;
-      font-size: clamp(25px, 3.3vw, 44px);
-      line-height: 0.98;
-      letter-spacing: -0.045em;
+      font-size: clamp(24px, 4vw, 44px);
+      line-height: 0.96;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: var(--cream);
+      text-shadow: 0 0 20px rgba(245, 237, 207, 0.18);
     }
 
     .brand p {
       margin: 0;
-      max-width: 78ch;
+      max-width: 870px;
       color: var(--muted);
-      font-size: 16px;
-      line-height: 1.55;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
     }
 
-    .runtime {
-      min-width: 330px;
-      display: grid;
-      align-content: start;
-      gap: 12px;
-      padding: 20px;
-      border-radius: 28px;
-      background: #0e140f;
-      border: 1px solid rgba(246, 241, 221, 0.18);
-      box-shadow: var(--shadow);
-    }
-
-    .runtime h2 {
-      margin: 0;
-      font-size: 16px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
+    .route-token {
+      justify-self: end;
+      min-width: 190px;
+      text-align: center;
+      padding: 14px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(245, 237, 207, 0.22);
       color: var(--cream);
+      background: rgba(255, 255, 255, 0.08);
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
-    .meter {
+    .route-token.answer { background: rgba(55, 214, 122, 0.16); border-color: rgba(55, 214, 122, 0.65); }
+    .route-token.clarify { background: rgba(255, 209, 92, 0.15); border-color: rgba(255, 209, 92, 0.7); }
+    .route-token.abstain { background: rgba(169, 177, 189, 0.13); border-color: rgba(169, 177, 189, 0.6); }
+    .route-token.escalate { background: rgba(255, 102, 92, 0.14); border-color: rgba(255, 102, 92, 0.7); }
+    .route-token.handoff { background: rgba(187, 140, 255, 0.16); border-color: rgba(187, 140, 255, 0.7); }
+
+    .main {
       display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 10px;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--line-soft);
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    .lamp {
-      width: 15px;
-      height: 15px;
-      border-radius: 50%;
-      background: var(--off);
-      border: 1px solid rgba(246, 241, 221, 0.18);
-      box-shadow: inset 0 0 0 2px rgba(0,0,0,0.24);
-    }
-
-    .lamp.on.green { background: var(--green); box-shadow: 0 0 0 2px #102a1a, 0 0 22px rgba(73,226,141,0.6); }
-    .lamp.on.yellow { background: var(--yellow); box-shadow: 0 0 0 2px #3b2a05, 0 0 22px rgba(255,202,58,0.58); }
-    .lamp.on.red { background: var(--red); box-shadow: 0 0 0 2px #3b0b08, 0 0 22px rgba(255,79,70,0.58); }
-    .lamp.on.blue { background: var(--blue); box-shadow: 0 0 0 2px #162543, 0 0 22px rgba(148,184,255,0.58); }
-    .lamp.on.violet { background: var(--violet); box-shadow: 0 0 0 2px #271a45, 0 0 22px rgba(192,161,255,0.58); }
-
-    .meter b {
-      color: var(--ink-strong);
-      font-weight: 800;
-      font-family: var(--mono);
-      text-align: right;
-      word-break: break-word;
-    }
-
-    .workbench {
-      display: grid;
-      grid-template-columns: 330px minmax(0, 1fr) 360px;
+      grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
       gap: 18px;
-      align-items: start;
+      padding: 20px;
     }
 
     .card {
-      border-radius: 28px;
-      background: rgba(34, 48, 40, 0.92);
-      border: 1px solid rgba(246, 241, 221, 0.16);
-      box-shadow: var(--shadow);
-      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(33, 48, 39, 0.96), rgba(19, 29, 21, 0.98));
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
     }
 
-    .card-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-      padding: 16px 18px;
-      background: rgba(0,0,0,0.22);
-      border-bottom: 1px solid var(--line-soft);
-    }
-
-    .card-head h2 {
-      margin: 0;
-      font-size: 15px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--cream);
-    }
-
-    .tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 26px;
-      padding: 5px 9px;
-      border-radius: 999px;
-      background: rgba(246, 241, 221, 0.10);
-      color: var(--cream);
-      border: 1px solid rgba(246, 241, 221, 0.15);
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .tag.answer { background: rgba(73, 226, 141, 0.14); color: #bfffd7; border-color: rgba(73,226,141,0.34); }
-    .tag.clarify { background: rgba(255, 202, 58, 0.15); color: #ffe499; border-color: rgba(255,202,58,0.38); }
-    .tag.escalate { background: rgba(255, 79, 70, 0.14); color: #ffc1bd; border-color: rgba(255,79,70,0.38); }
-    .tag.abstain { background: rgba(148, 184, 255, 0.14); color: #c7d8ff; border-color: rgba(148,184,255,0.38); }
-    .tag.handoff { background: rgba(192, 161, 255, 0.14); color: #ded1ff; border-color: rgba(192,161,255,0.38); }
-
-    .console {
-      padding: 18px;
+    .controls {
+      padding: 20px;
       display: grid;
       gap: 14px;
+      align-content: start;
     }
 
-    .field {
-      display: grid;
-      gap: 7px;
+    .section-title {
+      margin: 0;
+      color: var(--cream);
+      font-size: 19px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
     }
 
-    label {
+    .field label {
+      display: block;
+      margin-bottom: 8px;
       color: var(--muted);
       font-size: 12px;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      letter-spacing: 0.11em;
-      font-weight: 900;
     }
 
-    select, textarea {
+    select,
+    textarea,
+    button {
       width: 100%;
-      border-radius: 16px;
-      border: 1px solid rgba(246, 241, 221, 0.18);
-      background: #0e140f;
-      color: var(--ink);
-      padding: 12px;
+      font: inherit;
+      border-radius: 14px;
+    }
+
+    select,
+    textarea {
+      color: var(--cream);
+      border: 1px solid rgba(245, 237, 207, 0.25);
+      background: rgba(8, 14, 9, 0.72);
+      padding: 12px 13px;
     }
 
     textarea {
-      min-height: 118px;
+      min-height: 96px;
       resize: vertical;
-      line-height: 1.5;
+      line-height: 1.45;
     }
 
-    .btn {
-      width: 100%;
-      min-height: 44px;
-      border: 0;
-      border-radius: 16px;
+    button {
+      border: 1px solid rgba(245, 237, 207, 0.28);
+      color: var(--cream);
+      background: #111810;
+      padding: 12px 14px;
       cursor: pointer;
-      background: var(--cream);
-      color: var(--black);
       font-weight: 900;
-      letter-spacing: -0.01em;
-      box-shadow: 0 12px 28px rgba(0,0,0,0.25);
+      letter-spacing: 0.035em;
+      text-transform: uppercase;
     }
 
-    .btn:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
-    .btn:disabled { opacity: 0.44; cursor: not-allowed; transform: none; }
+    button:hover:not(:disabled), button:focus-visible {
+      outline: 2px solid rgba(245, 237, 207, 0.36);
+      outline-offset: 2px;
+      background: #1d281f;
+    }
 
-    .btn.secondary {
-      background: #263229;
-      color: var(--ink);
-      border: 1px solid rgba(246, 241, 221, 0.18);
-      box-shadow: none;
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .primary { background: #243623; border-color: rgba(55, 214, 122, 0.48); }
+    .handoff-btn { background: rgba(82, 49, 108, 0.72); border-color: rgba(187, 140, 255, 0.55); }
+    .revoke { background: rgba(92, 38, 34, 0.72); border-color: rgba(255, 102, 92, 0.55); }
+
+    .session-box,
+    .error {
+      border-radius: 16px;
+      padding: 12px;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .session-box {
+      color: var(--muted);
+      background: rgba(245, 237, 207, 0.07);
+      border: 1px solid rgba(245, 237, 207, 0.18);
+      overflow-wrap: anywhere;
+    }
+
+    .error {
+      color: #ffd8d5;
+      border: 1px solid rgba(255, 102, 92, 0.45);
+      background: rgba(255, 102, 92, 0.10);
     }
 
     .scenario-grid {
@@ -309,626 +219,515 @@ DEMO_UI_HTML = """<!doctype html>
     }
 
     .scenario {
-      width: 100%;
       text-align: left;
-      padding: 12px;
-      border-radius: 18px;
-      border: 1px solid rgba(246, 241, 221, 0.15);
-      background: #182119;
-      color: var(--ink);
-      cursor: pointer;
-    }
-
-    .scenario:hover {
-      border-color: rgba(255,202,58,0.50);
-      background: #202c22;
-    }
-
-    .scenario strong {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: center;
-      font-size: 14px;
+      text-transform: none;
+      letter-spacing: 0;
+      border-left-width: 6px;
     }
 
     .scenario small {
       display: block;
-      margin-top: 5px;
       color: var(--muted);
-      line-height: 1.38;
-      font-size: 12px;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-weight: 500;
+      margin-top: 4px;
+      line-height: 1.35;
     }
 
-    .session {
-      padding: 12px;
-      border-radius: 18px;
-      background: rgba(0,0,0,0.22);
-      border: 1px solid var(--line-soft);
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-      word-break: break-word;
-    }
+    .scenario.answer { border-left-color: var(--answer); }
+    .scenario.clarify { border-left-color: var(--clarify); }
+    .scenario.abstain { border-left-color: var(--abstain); }
+    .scenario.escalate { border-left-color: var(--escalate); }
+    .scenario.pt { border-left-color: var(--handoff); }
 
-    .session b { color: var(--cream); }
-
-    .error {
-      color: #ffd0cc;
-      background: rgba(255,79,70,0.12);
-      border: 1px solid rgba(255,79,70,0.35);
-      border-radius: 16px;
-      padding: 12px;
-      font-size: 13px;
-      line-height: 1.42;
-    }
-
-    .signal-panel {
-      position: relative;
-      min-height: 430px;
-      padding: 18px;
-      background:
-        linear-gradient(135deg, rgba(246,241,221,0.08), rgba(246,241,221,0.03)),
-        #c3cbbd;
-      color: #171c17;
-    }
-
-    .panel-top {
+    .workbench {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+    }
+
+    .signal-board {
+      overflow: hidden;
+      padding: 20px;
+      background:
+        linear-gradient(180deg, rgba(224, 229, 211, 0.94), rgba(191, 201, 183, 0.94)),
+        radial-gradient(circle at center, rgba(255,255,255,0.3), transparent 30rem);
+      color: #1e2d25;
+    }
+
+    .signal-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
       gap: 16px;
       align-items: start;
-      margin-bottom: 16px;
+      margin-bottom: 18px;
     }
 
-    .line-title {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .panel-label {
-      padding: 4px 8px;
-      border-radius: 8px;
-      background: #20231f;
-      color: var(--cream);
-      font-weight: 900;
-      letter-spacing: 0.08em;
-      font-size: 12px;
+    .signal-head h2 {
+      margin: 0 0 10px;
+      color: #142016;
+      font-size: clamp(24px, 3vw, 36px);
+      letter-spacing: 0.12em;
       text-transform: uppercase;
     }
 
-    .live-note {
-      color: #3e493d;
-      font-size: 13px;
-      line-height: 1.35;
-      max-width: 70ch;
+    .signal-head p {
+      margin: 0;
+      max-width: 850px;
+      color: #35483f;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.45;
     }
 
-    .track {
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 8px 11px;
+      background: #101610;
+      color: var(--cream);
+      font-weight: 900;
+      letter-spacing: 0.055em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .lines {
+      display: grid;
+      grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+      gap: 16px;
+      align-items: stretch;
+      margin: 22px 0;
+    }
+
+    .line-card {
+      border: 3px solid #1a211b;
+      border-radius: 26px;
+      background: #101610;
+      color: var(--cream);
+      padding: 22px;
+      display: grid;
+      align-content: center;
+      gap: 12px;
+      min-height: 160px;
+    }
+
+    .line-card b {
+      font-size: 27px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .line-card span {
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    .checks {
       position: relative;
       display: grid;
-      grid-template-columns: 120px repeat(8, minmax(64px, 1fr)) 138px;
-      gap: 8px;
-      align-items: center;
-      margin: 18px 0 10px;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 12px;
+      align-items: stretch;
     }
 
-    .track:before {
+    .checks::before {
       content: "";
       position: absolute;
-      left: 50px;
-      right: 70px;
+      left: -22px;
+      right: 8px;
       top: 50%;
-      height: 6px;
-      transform: translateY(-50%);
+      height: 10px;
       border-radius: 999px;
-      background: linear-gradient(90deg, #415047, #20231f);
-      opacity: 0.88;
-    }
-
-    .station, .check, .platform {
-      position: relative;
-      z-index: 1;
-      min-height: 88px;
-      border-radius: 18px;
-      background: #eef0e4;
-      border: 2px solid #6e786b;
-      padding: 10px;
-      display: grid;
-      gap: 6px;
-      align-content: start;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 10px 20px rgba(0,0,0,0.16);
-    }
-
-    .station {
-      border-color: #20231f;
-      background: #20231f;
-      color: var(--cream);
-    }
-
-    .station .big {
-      font-weight: 900;
-      font-family: var(--mono);
-      font-size: 22px;
+      background: rgba(72, 82, 67, 0.45);
+      transform: translateY(-50%);
+      z-index: 0;
     }
 
     .check {
-      color: #182017;
+      position: relative;
+      z-index: 1;
+      min-height: 150px;
+      border: 3px solid rgba(30, 43, 35, 0.42);
+      border-radius: 22px;
+      background: rgba(236, 239, 225, 0.96);
+      padding: 15px 14px;
+      display: grid;
+      gap: 10px;
+      align-content: space-between;
+      color: #26322a;
+      overflow: hidden;
     }
 
-    .check .num {
+    .check.on {
+      border-color: #141a14;
+      box-shadow: 0 0 0 3px rgba(255, 209, 92, 0.25), 0 14px 28px rgba(0, 0, 0, 0.2);
+    }
+
+    .check-head {
       display: flex;
       justify-content: space-between;
-      gap: 6px;
-      align-items: center;
-      font-family: var(--mono);
+      gap: 8px;
+      align-items: start;
+    }
+
+    .check-num {
+      font-size: 22px;
       font-weight: 900;
-      font-size: 13px;
+      color: #566357;
     }
 
-    .check .label {
-      font-size: 11px;
-      line-height: 1.18;
-      color: #394238;
-    }
-
-    .check .state {
-      display: inline-flex;
-      width: max-content;
-      max-width: 100%;
-      padding: 3px 6px;
+    .lamp {
+      width: 30px;
+      height: 30px;
       border-radius: 999px;
-      font-size: 10px;
+      flex: 0 0 auto;
+      border: 4px solid #242a24;
+      background: #596555;
+      box-shadow: inset 0 0 0 5px rgba(0, 0, 0, 0.12);
+    }
+
+    .check.on .lamp { background: var(--clarify); box-shadow: 0 0 20px rgba(255, 209, 92, 0.72); }
+
+    .check-title {
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-weight: 780;
+      font-size: 14px;
+      line-height: 1.22;
+      color: #415044;
+    }
+
+    .check-state {
+      justify-self: start;
+      border-radius: 999px;
+      background: rgba(34, 45, 36, 0.12);
+      padding: 6px 10px;
+      color: #657160;
+      font-size: 13px;
       font-weight: 900;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: #20231f;
-      background: #d4dacd;
     }
 
-    .check.pass .state { background: #c6f6d8; }
-    .check.fire .state { background: #ffd86b; }
-    .check.stop .state { background: #ffaaa5; }
-    .check.off { opacity: 0.57; }
-    .check.off .state { background: #c7ccc0; }
+    .check.on .check-state { color: #161b14; background: rgba(255, 209, 92, 0.65); }
 
-    .mini-lamp {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      display: inline-block;
-      background: #596457;
-      box-shadow: inset 0 0 0 2px rgba(0,0,0,0.24);
+    .platforms {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(130px, 1fr));
+      gap: 12px;
+      margin: 16px 0 0;
     }
-
-    .check.pass .mini-lamp { background: var(--green); box-shadow: 0 0 16px rgba(73,226,141,0.66), inset 0 0 0 2px rgba(0,0,0,0.18); }
-    .check.fire .mini-lamp { background: var(--yellow); box-shadow: 0 0 16px rgba(255,202,58,0.70), inset 0 0 0 2px rgba(0,0,0,0.18); }
-    .check.stop .mini-lamp { background: var(--red); box-shadow: 0 0 16px rgba(255,79,70,0.70), inset 0 0 0 2px rgba(0,0,0,0.18); }
 
     .platform {
-      color: #182017;
-      border-color: #20231f;
-      background: #ece9da;
-      text-align: center;
+      min-height: 145px;
+      border: 3px solid #181e18;
+      border-radius: 26px;
+      background: #f0ecd9;
+      color: #111711;
+      display: grid;
+      justify-items: center;
       align-content: center;
-    }
-
-    .platform .route {
-      font-family: var(--mono);
-      font-size: 16px;
-      font-weight: 900;
-    }
-
-    .platform .aspect {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      margin: 0 auto;
-      background: #596457;
-      box-shadow: inset 0 0 0 3px #20231f;
-    }
-
-    .platform.on.answer .aspect { background: var(--green); box-shadow: 0 0 0 3px #20231f, 0 0 24px rgba(73,226,141,0.7); }
-    .platform.on.clarify .aspect { background: var(--yellow); box-shadow: 0 0 0 3px #20231f, 0 0 24px rgba(255,202,58,0.7); }
-    .platform.on.escalate .aspect { background: var(--red); box-shadow: 0 0 0 3px #20231f, 0 0 24px rgba(255,79,70,0.7); }
-    .platform.on.abstain .aspect { background: var(--blue); box-shadow: 0 0 0 3px #20231f, 0 0 24px rgba(148,184,255,0.7); }
-    .platform.on.handoff .aspect { background: var(--violet); box-shadow: 0 0 0 3px #20231f, 0 0 24px rgba(192,161,255,0.7); }
-
-    .platform-row {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 10px;
-      margin-top: 18px;
+      text-align: center;
+      padding: 12px;
     }
 
-    .platform-row .platform {
-      min-height: 96px;
+    .platform.active {
+      transform: translateY(-2px);
+      box-shadow: 0 0 0 4px rgba(20, 26, 20, 0.12), 0 20px 40px rgba(0,0,0,0.2);
     }
 
-    .panel-footer {
+    .signal-lamp {
+      width: 58px;
+      height: 58px;
+      border-radius: 999px;
+      border: 6px solid #202720;
+      background: #5b6859;
+    }
+
+    .platform.active.answer .signal-lamp { background: var(--answer); box-shadow: 0 0 26px rgba(55, 214, 122, 0.78); }
+    .platform.active.clarify .signal-lamp { background: var(--clarify); box-shadow: 0 0 26px rgba(255, 209, 92, 0.78); }
+    .platform.active.abstain .signal-lamp { background: var(--abstain); box-shadow: 0 0 24px rgba(169, 177, 189, 0.65); }
+    .platform.active.escalate .signal-lamp { background: var(--escalate); box-shadow: 0 0 26px rgba(255, 102, 92, 0.78); }
+    .platform.active.handoff .signal-lamp { background: var(--handoff); box-shadow: 0 0 26px rgba(187, 140, 255, 0.78); }
+
+    .platform b {
+      font-size: 22px;
+      letter-spacing: 0.05em;
+    }
+
+    .platform span {
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.28;
+    }
+
+    .lower-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(260px, 0.45fr);
-      gap: 12px;
-      margin-top: 16px;
+      grid-template-columns: minmax(0, 1.05fr) minmax(310px, 0.95fr);
+      gap: 18px;
     }
 
-    .register, .why {
-      border-radius: 18px;
-      padding: 14px;
-      background: rgba(255,255,255,0.42);
-      border: 1px solid rgba(32,35,31,0.18);
-      color: #20231f;
-    }
-
-    .register h3, .why h3 {
-      margin: 0 0 8px;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: #4f5b4b;
-    }
-
-    .register p, .why p {
-      margin: 0;
-      line-height: 1.42;
-      font-size: 13px;
-    }
-
-    .conversation {
-      display: grid;
-      gap: 14px;
+    .console {
       padding: 18px;
-      background: #111712;
     }
 
-    .message-card {
+    .console h3,
+    .ledger h3 {
+      margin: 0 0 12px;
+      color: var(--cream);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .turns {
       display: grid;
       gap: 12px;
-      border-radius: 22px;
-      border: 1px solid var(--line-soft);
-      background: rgba(246,241,221,0.06);
-      padding: 16px;
     }
 
-    .msg-label {
+    .turn,
+    .why-card,
+    .record {
+      border: 1px solid rgba(245, 237, 207, 0.18);
+      border-radius: 18px;
+      background: rgba(8, 14, 9, 0.58);
+      padding: 14px;
+    }
+
+    .turn-user {
       color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.11em;
-      font-weight: 900;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.45;
+      margin-bottom: 8px;
     }
 
-    .message-card .text {
-      margin: 0;
-      line-height: 1.55;
-      font-size: 15px;
-    }
-
-    .reply {
+    .turn-response {
       color: var(--cream);
-      font-size: 18px;
-      font-weight: 800;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 16px;
+      font-weight: 700;
       line-height: 1.45;
     }
 
-    .evidence-grid {
+    .why-card {
+      color: var(--cream);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.45;
+    }
+
+    .ledger {
+      padding: 18px;
+    }
+
+    .kv {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 9px;
+      margin-bottom: 14px;
+    }
+
+    .kv div {
+      display: grid;
+      grid-template-columns: 125px 1fr;
       gap: 10px;
-    }
-
-    .evidence {
-      border-radius: 16px;
-      padding: 12px;
-      background: rgba(0,0,0,0.22);
-      border: 1px solid var(--line-soft);
-    }
-
-    .evidence span {
-      display: block;
+      border-bottom: 1px solid rgba(245, 237, 207, 0.12);
+      padding-bottom: 8px;
       color: var(--muted);
-      font-size: 11px;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 14px;
+    }
+
+    .kv b { color: var(--cream); overflow-wrap: anywhere; }
+
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 5px 8px;
+      color: var(--cream);
+      background: rgba(245, 237, 207, 0.09);
+      border: 1px solid rgba(245, 237, 207, 0.16);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      font-weight: 900;
-      margin-bottom: 5px;
+      overflow-wrap: anywhere;
     }
 
-    .evidence b {
-      color: var(--cream);
-      font-size: 13px;
-      word-break: break-word;
-    }
-
-    .record-list {
+    .records {
       display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 10px;
-    }
-
-    .record {
-      border: 1px solid var(--line-soft);
-      border-radius: 18px;
-      padding: 12px;
-      background: rgba(0,0,0,0.18);
-    }
-
-    .record strong {
-      display: block;
-      margin-bottom: 8px;
-      color: var(--cream);
+      margin-top: 12px;
     }
 
     .record dl {
       display: grid;
       grid-template-columns: auto 1fr;
       gap: 4px 10px;
-      margin: 0;
+      margin: 8px 0 0;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       font-size: 13px;
     }
 
     .record dt { color: var(--muted); }
-    .record dd { margin: 0; text-align: right; color: var(--ink); }
-
-    .decision {
-      padding: 18px;
-      display: grid;
-      gap: 14px;
-    }
-
-    .route-aspect {
-      display: grid;
-      grid-template-columns: 72px 1fr;
-      gap: 14px;
-      align-items: center;
-      padding: 14px;
-      border-radius: 22px;
-      background: rgba(0,0,0,0.20);
-      border: 1px solid var(--line-soft);
-    }
-
-    .big-aspect {
-      width: 62px;
-      height: 62px;
-      border-radius: 50%;
-      background: var(--off);
-      box-shadow: inset 0 0 0 5px rgba(0,0,0,0.35);
-    }
-
-    .big-aspect.answer { background: var(--green); box-shadow: 0 0 0 5px #0b180f, 0 0 34px rgba(73,226,141,0.62); }
-    .big-aspect.clarify { background: var(--yellow); box-shadow: 0 0 0 5px #251c05, 0 0 34px rgba(255,202,58,0.62); }
-    .big-aspect.escalate { background: var(--red); box-shadow: 0 0 0 5px #250706, 0 0 34px rgba(255,79,70,0.62); }
-    .big-aspect.abstain { background: var(--blue); box-shadow: 0 0 0 5px #0c1528, 0 0 34px rgba(148,184,255,0.62); }
-    .big-aspect.handoff { background: var(--violet); box-shadow: 0 0 0 5px #1c1231, 0 0 34px rgba(192,161,255,0.62); }
-
-    .route-aspect h3 {
-      margin: 0;
-      font-family: var(--mono);
-      font-size: 26px;
-      letter-spacing: -0.04em;
-    }
-
-    .route-aspect p {
-      margin: 4px 0 0;
-      color: var(--muted);
-      line-height: 1.35;
-      font-size: 13px;
-    }
+    .record dd { margin: 0; text-align: right; color: var(--cream); overflow-wrap: anywhere; }
 
     .limits {
       margin-top: 18px;
-      padding: 14px 16px;
-      border-radius: 20px;
-      border: 1px solid rgba(255,202,58,0.32);
-      background: rgba(255,202,58,0.08);
-      color: #ffe7a4;
-      line-height: 1.48;
+      border-top: 1px solid var(--line);
+      padding: 14px 20px 18px;
+      color: var(--muted);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       font-size: 13px;
+      line-height: 1.45;
     }
 
-    .empty {
-      padding: 34px;
-      border-radius: 22px;
-      border: 1px dashed var(--line-soft);
-      color: var(--muted);
-      text-align: center;
-      line-height: 1.5;
-    }
+    .empty { color: var(--muted); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 
     @media (max-width: 1180px) {
-      .masthead, .workbench, .panel-footer { grid-template-columns: 1fr; }
-      .runtime { min-width: 0; }
-      .track { grid-template-columns: 1fr; }
-      .track:before { display: none; }
-      .platform-row { grid-template-columns: 1fr 1fr; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .controls .full { grid-column: 1 / -1; }
     }
 
-    @media (max-width: 720px) {
-      .shell { padding: 14px; }
-      .platform-row { grid-template-columns: 1fr; }
-      .title-mark span { font-size: 32px; }
+    @media (max-width: 980px) {
+      .checks { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+      .platforms { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+      .lower-grid { grid-template-columns: 1fr; }
+      .lines { grid-template-columns: 1fr; }
+      .checks::before { display: none; }
+      .topbar, .signal-head { grid-template-columns: 1fr; }
+      .route-token { justify-self: start; }
+    }
+
+    @media (max-width: 640px) {
+      .page { width: 100%; padding: 0; }
+      .shell { border-radius: 0; }
+      .main { padding: 12px; }
+      .controls { grid-template-columns: 1fr; }
+      .checks, .platforms { grid-template-columns: 1fr; }
+      .kv div { grid-template-columns: 1fr; }
+      .topbar { padding: 18px; }
+      .signal-board { padding: 14px; }
     }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <section class="masthead" aria-label="Proof of One overview">
-      <div class="brand">
-        <div class="title-mark"><span>Proof of One</span></div>
-        <h1>Signal-box routing for bilingual payment support.</h1>
-        <p>
-          A judge-facing visual prototype over the local synthetic API. Spanish and Portuguese messages enter the same fixed check sequence; the backend sets a route to ANSWER, CLARIFY, ABSTAIN, ESCALATE, or HANDOFF.
-        </p>
-      </div>
-
-      <aside class="runtime" aria-label="Runtime status">
-        <h2>Local readiness ledger</h2>
-        <div class="meter"><i class="lamp" id="lamp-ready"></i><span>API status</span><b id="ready-status">checking</b></div>
-        <div class="meter"><i class="lamp" id="lamp-data"></i><span>Data mode</span><b id="data-mode">checking</b></div>
-        <div class="meter"><i class="lamp" id="lamp-bank"></i><span>Bank/runtime</span><b id="bank-runtime">checking</b></div>
-        <div class="meter"><i class="lamp" id="lamp-llm"></i><span>Live LLM</span><b id="llm-connected">checking</b></div>
-      </aside>
-    </section>
-
-    <section class="workbench">
-      <aside class="card">
-        <div class="card-head">
-          <h2>Signal console</h2>
-          <span class="tag">local API</span>
+  <main class="page">
+    <section class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <h1>Proof of One</h1>
+          <p>Railway signal-box prototype for a bounded bilingual payment-support workflow. The lamps are computed from the local synthetic API response, not from static design placeholders.</p>
         </div>
-        <div class="console">
+        <div id="route-token" class="route-token">No route set</div>
+      </header>
+
+      <section class="main">
+        <aside class="card controls" aria-label="demo controls">
+          <h2 class="section-title full">Signal controls</h2>
           <div class="field">
-            <label for="persona">Customer line</label>
+            <label for="persona">Customer</label>
             <select id="persona"></select>
           </div>
-
           <div class="field">
-            <label for="language">Language lever</label>
+            <label for="language">Language</label>
             <select id="language">
-              <option value="">Use persona default</option>
+              <option value="">Persona default</option>
               <option value="es">Spanish</option>
               <option value="pt">Portuguese</option>
             </select>
           </div>
+          <button id="start-session" class="primary full">Start synthetic session</button>
+          <button id="handoff" class="handoff-btn" disabled>Handoff lane</button>
+          <button id="revoke" class="revoke" disabled>Revoke</button>
+          <div id="session-box" class="session-box full">No active synthetic session.</div>
+          <div id="error-box" class="error full" hidden></div>
 
-          <button class="btn" id="start-session">Start synthetic session</button>
-          <button class="btn secondary" id="handoff" disabled>Handoff lane · create support ticket</button>
-          <button class="btn secondary" id="revoke" disabled>Clear session</button>
-
-          <div class="session" id="session-box">No active session.</div>
-          <div class="error" id="error-box" hidden></div>
-
-          <div class="scenario-grid" aria-label="Demo scenarios">
-            <label>Scenario buttons</label>
-            <button class="scenario" data-persona="lucia" data-message="¿Cuál es el estado de la transacción DEMO-ES-1001?">
-              <strong>Known transaction <span class="tag answer">ANSWER</span></strong>
-              <small>Spanish support over one verified synthetic transaction.</small>
-            </button>
-            <button class="scenario" data-persona="lucia" data-message="Quiero consultar una transacción por 54000 COP.">
-              <strong>Two possible matches <span class="tag clarify">CLARIFY</span></strong>
-              <small>The amount maps to two verified candidates; the backend asks for an exact reference.</small>
-            </button>
-            <button class="scenario" data-persona="lucia" data-message="No reconozco la transacción DEMO-ES-1001. Yo no autoricé ese pago.">
-              <strong>Customer-reported unauthorized activity <span class="tag escalate">ESCALATE</span></strong>
-              <small>Routes to human review in the demo. This is not fraud detection.</small>
-            </button>
-            <button class="scenario" data-persona="lucia" data-message="Quiero transferir dinero a otra cuenta.">
-              <strong>Unsupported banking action <span class="tag abstain">ABSTAIN</span></strong>
-              <small>Unsupported intent; the backend refuses to invent an answer.</small>
-            </button>
-            <button class="scenario" data-persona="rafael" data-message="Quero consultar a transação DEMO-PT-2003.">
-              <strong>Portuguese transaction path <span class="tag answer">PT</span></strong>
-              <small>Rafael’s synthetic account, Portuguese output.</small>
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      <section class="card" aria-label="Signal box and conversation">
-        <div class="card-head">
-          <h2>Interlocking panel</h2>
-          <span class="tag" id="active-line">no route set</span>
-        </div>
-        <div class="signal-panel">
-          <div class="panel-top">
-            <div>
-              <div class="line-title">
-                <span class="panel-label" id="line-label">WAITING</span>
-                <span class="panel-label" id="route-label">NO ROUTE</span>
-                <span class="panel-label" id="intent-label">NO INTENT</span>
-              </div>
-              <p class="live-note" id="live-note">Start a synthetic session, choose a scenario, and send the message. Lit lamps are computed from the API response.</p>
-            </div>
-            <span class="panel-label">visual prototype</span>
-          </div>
-
-          <div class="track" id="check-track"></div>
-
-          <div class="platform-row" id="platform-row"></div>
-
-          <div class="panel-footer">
-            <div class="register">
-              <h3>Turn register</h3>
-              <p id="turn-register">No message has been sent yet.</p>
-            </div>
-            <div class="why">
-              <h3>Why this route</h3>
-              <p id="why-route">The route explanation will appear after the backend responds.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="conversation">
-          <div class="field">
+          <div class="field full">
             <label for="message">Customer message</label>
-            <textarea id="message" placeholder="Start a session, choose a scenario, then send…"></textarea>
+            <textarea id="message" placeholder="Choose a scenario, then send to the local API…"></textarea>
           </div>
-          <button class="btn" id="send" disabled>Send through fixed checks</button>
-          <div id="conversation-list" class="empty">No turns yet. The first API response will populate the register and evidence cards.</div>
-        </div>
+          <button id="send" disabled class="primary full">Set route</button>
+
+          <div class="scenario-grid full" aria-label="demo scenarios">
+            <button class="scenario answer" data-persona="lucia" data-message="¿Cuál es el estado de la transacción DEMO-ES-1001?">ANSWER · Known transaction<small>Verified synthetic record lookup.</small></button>
+            <button class="scenario clarify" data-persona="lucia" data-message="Quiero consultar una transacción por 54000 COP.">CLARIFY · Two matches<small>Amount matches more than one synthetic transaction.</small></button>
+            <button class="scenario escalate" data-persona="lucia" data-message="No reconozco la transacción DEMO-ES-1001. Yo no autoricé ese pago.">ESCALATE · Unauthorized report<small>Customer-reported issue; not fraud detection.</small></button>
+            <button class="scenario abstain" data-persona="lucia" data-message="Quiero hacer una transferencia de 10000 COP a otra cuenta.">ABSTAIN · Unsupported action<small>Unsupported banking action request.</small></button>
+            <button class="scenario pt" data-persona="rafael" data-message="Qual é o estado da transação DEMO-PT-2001?">PT · Rafael path<small>Portuguese path over synthetic data.</small></button>
+          </div>
+        </aside>
+
+        <section class="workbench">
+          <section class="card signal-board" aria-label="interlocking panel">
+            <div class="signal-head">
+              <div>
+                <h2>Interlocking panel</h2>
+                <p>Spanish and Portuguese messages enter the same fixed route boundary. Check lamps light only after the API response returns route evidence.</p>
+              </div>
+              <div class="badge-row">
+                <span id="language-line" class="badge">ES/PT line</span>
+                <span id="intent-badge" class="badge">No intent</span>
+                <span class="badge">Visual prototype</span>
+              </div>
+            </div>
+
+            <div class="lines">
+              <div class="line-card"><b id="active-line">No line</b><span>interpreter → fixed checks</span></div>
+              <div id="checks" class="checks"></div>
+            </div>
+
+            <div id="platforms" class="platforms"></div>
+          </section>
+
+          <section class="lower-grid">
+            <section class="card console">
+              <h3>Turn register</h3>
+              <div id="turns" class="turns"><div class="empty">No message has been sent yet.</div></div>
+            </section>
+            <section class="card ledger">
+              <h3>Why this route</h3>
+              <div id="why" class="why-card">Waiting for backend response.</div>
+              <div id="evidence" class="kv"></div>
+              <div id="reason-pills" class="pill-row"></div>
+              <div id="records" class="records"></div>
+            </section>
+          </section>
+        </section>
       </section>
 
-      <aside class="card">
-        <div class="card-head">
-          <h2>Decision evidence</h2>
-          <span class="tag">API fields</span>
-        </div>
-        <div class="decision">
-          <div class="route-aspect">
-            <span class="big-aspect" id="big-aspect"></span>
-            <div>
-              <h3 id="decision-route">NO ROUTE</h3>
-              <p id="decision-summary">Waiting for backend response.</p>
-            </div>
-          </div>
-
-          <div class="evidence-grid" id="evidence-grid"></div>
-
-          <div class="limits">
-            <strong>Boundaries:</strong> synthetic local demo only · visual prototype over existing API · no production or pilot readiness claim · no live-provider claim · no held-out validation claim · no final submission/go-live approval · IPA-M1 remains open.
-          </div>
-        </div>
-      </aside>
+      <footer class="limits">
+        Boundary: synthetic demo data only · local API visual prototype · no production or pilot readiness claim · no live-provider readiness claim · no fraud determination · no final submission/go-live claim · IPA-M1 remains open.
+      </footer>
     </section>
   </main>
 
   <script>
-    const CHECKS = [
-      {n: 1, label: 'Customer-reported unauthorized activity?', reasons: ['unauthorized_activity_reported'], route: 'ESCALATE'},
-      {n: 2, label: 'Possible unauthorized activity fail-safe?', reasons: ['possible_unauthorized_activity'], route: 'ESCALATE'},
-      {n: 3, label: 'Interpreter unavailable?', reasons: ['interpretation_unavailable', 'interpreter_unavailable'], route: 'ESCALATE'},
-      {n: 4, label: 'Conflict, excluded relationship, or unsafe record?', reasons: ['data_conflict', 'relationship_excluded', 'cross_customer_non_disclosure'], route: 'ESCALATE'},
-      {n: 5, label: 'Decline explanation request?', reasons: ['decline_reason_unavailable'], route: 'ABSTAIN'},
-      {n: 6, label: 'Prohibited banking action?', reasons: ['prohibited_action'], route: 'ABSTAIN'},
-      {n: 7, label: 'Unsupported intent?', reasons: ['unsupported_intent'], route: 'ABSTAIN'},
-      {n: 8, label: 'Ambiguous, missing, or incomplete reference?', reasons: ['ambiguous_transaction_match', 'missing_required_parameter', 'unverified_record'], route: 'CLARIFY'}
+    const checks = [
+      ['unauthorized_activity_reported', 'Customer-reported unauthorized activity?'],
+      ['possible_unauthorized_activity', 'Possible unauthorized activity failsafe?'],
+      ['interpreter_unavailable', 'Interpreter unavailable?'],
+      ['unsafe_or_excluded_record', 'Conflict, excluded relationship, or unsafe record?'],
+      ['decline_explanation_request', 'Decline explanation request?'],
+      ['prohibited_banking_action', 'Prohibited banking action?'],
+      ['unsupported_intent', 'Unsupported intent?'],
+      ['ambiguous_transaction_match', 'Multiple verified matches?']
     ];
 
-    const ROUTES = [
-      {route: 'ANSWER', className: 'answer', sub: 'Verified answer'},
-      {route: 'CLARIFY', className: 'clarify', sub: 'Needs exact reference'},
-      {route: 'ABSTAIN', className: 'abstain', sub: 'Unsupported / unsafe'},
-      {route: 'ESCALATE', className: 'escalate', sub: 'Human review'},
-      {route: 'HANDOFF', className: 'handoff', sub: 'Support ticket'}
+    const platforms = [
+      ['ANSWER', 'Verified answer', 'answer'],
+      ['CLARIFY', 'Needs exact reference', 'clarify'],
+      ['ABSTAIN', 'Unsupported / unsafe', 'abstain'],
+      ['ESCALATE', 'Human review', 'escalate'],
+      ['HANDOFF', 'Support ticket', 'handoff']
     ];
 
-    const state = {
-      personas: [],
-      session: null,
-      turns: [],
-      latest: null
-    };
+    const state = {personas: [], session: null, turns: [], lastResponse: null};
 
     const els = {
-      readyStatus: document.getElementById('ready-status'),
-      dataMode: document.getElementById('data-mode'),
-      bankRuntime: document.getElementById('bank-runtime'),
-      llmConnected: document.getElementById('llm-connected'),
-      lampReady: document.getElementById('lamp-ready'),
-      lampData: document.getElementById('lamp-data'),
-      lampBank: document.getElementById('lamp-bank'),
-      lampLlm: document.getElementById('lamp-llm'),
+      routeToken: document.getElementById('route-token'),
       persona: document.getElementById('persona'),
       language: document.getElementById('language'),
       start: document.getElementById('start-session'),
@@ -938,20 +737,16 @@ DEMO_UI_HTML = """<!doctype html>
       error: document.getElementById('error-box'),
       message: document.getElementById('message'),
       send: document.getElementById('send'),
-      checkTrack: document.getElementById('check-track'),
-      platformRow: document.getElementById('platform-row'),
-      lineLabel: document.getElementById('line-label'),
-      routeLabel: document.getElementById('route-label'),
-      intentLabel: document.getElementById('intent-label'),
+      checks: document.getElementById('checks'),
+      platforms: document.getElementById('platforms'),
+      turns: document.getElementById('turns'),
+      why: document.getElementById('why'),
+      evidence: document.getElementById('evidence'),
+      reasonPills: document.getElementById('reason-pills'),
+      records: document.getElementById('records'),
       activeLine: document.getElementById('active-line'),
-      liveNote: document.getElementById('live-note'),
-      turnRegister: document.getElementById('turn-register'),
-      whyRoute: document.getElementById('why-route'),
-      conversationList: document.getElementById('conversation-list'),
-      bigAspect: document.getElementById('big-aspect'),
-      decisionRoute: document.getElementById('decision-route'),
-      decisionSummary: document.getElementById('decision-summary'),
-      evidenceGrid: document.getElementById('evidence-grid')
+      languageLine: document.getElementById('language-line'),
+      intentBadge: document.getElementById('intent-badge')
     };
 
     function escapeHtml(value) {
@@ -963,13 +758,14 @@ DEMO_UI_HTML = """<!doctype html>
         .replaceAll("'", '&#39;');
     }
 
+    function routeClass(route) {
+      const r = String(route || '').toLowerCase();
+      return ['answer', 'clarify', 'abstain', 'escalate', 'handoff'].includes(r) ? r : '';
+    }
+
     function setError(message) {
       els.error.hidden = !message;
       els.error.textContent = message || '';
-    }
-
-    function setLamp(el, on, className) {
-      el.className = `lamp${on ? ' on ' + className : ''}`;
     }
 
     async function api(path, options = {}) {
@@ -990,78 +786,13 @@ DEMO_UI_HTML = """<!doctype html>
       return body;
     }
 
-    function currentLanguage() {
-      if (state.session?.language) return state.session.language;
-      const selected = state.personas.find((p) => p.persona_id === els.persona.value);
-      return els.language.value || selected?.default_language || 'es';
-    }
-
-    function routeClass(route) {
-      const value = String(route || '').toLowerCase();
-      if (['answer', 'clarify', 'abstain', 'escalate', 'handoff'].includes(value)) return value;
-      return '';
-    }
-
-    function firedCheck(response) {
-      if (!response || response.route === 'HANDOFF') return null;
-      const reasons = response.reason_codes || [];
-      for (const check of CHECKS) {
-        if (check.reasons.some((reason) => reasons.includes(reason))) return check;
-      }
-      return null;
-    }
-
-    function checkState(check, response) {
-      if (!response || response.route === 'HANDOFF') return 'off';
-      const fired = firedCheck(response);
-      if (!fired) return response.route === 'ANSWER' ? 'pass' : 'off';
-      if (check.n < fired.n) return 'pass';
-      if (check.n === fired.n) return fired.route === 'ESCALATE' ? 'stop' : 'fire';
-      return 'off';
-    }
-
-    function routeSummary(response) {
-      if (!response) return 'Waiting for backend response.';
-      const route = response.route;
-      const reasons = response.reason_codes || [];
-      if (route === 'ANSWER') return 'Verified synthetic records supported a bounded answer.';
-      if (route === 'CLARIFY') return 'More than one verified candidate matched; the system asks for an exact reference.';
-      if (route === 'ABSTAIN') return 'The request is unsupported or unsafe for this demo, so no answer is invented.';
-      if (route === 'ESCALATE') {
-        if (reasons.includes('unauthorized_activity_reported') || reasons.includes('possible_unauthorized_activity')) {
-          return 'The customer reported unauthorized activity, so the demo routes to human review. This is not fraud detection.';
-        }
-        return 'A safety check routed the request to human review instead of answering automatically.';
-      }
-      if (route === 'HANDOFF') return 'The explicit support handoff endpoint created a ticket and returned persistence evidence.';
-      return 'Backend response received.';
-    }
-
-    function routeMeaning(route) {
-      if (route === 'ANSWER') return 'answer returned';
-      if (route === 'CLARIFY') return 'clarification required';
-      if (route === 'ABSTAIN') return 'unsupported request';
-      if (route === 'ESCALATE') return 'human review in demo';
-      if (route === 'HANDOFF') return 'support ticket created';
-      return 'no route set';
-    }
-
-    function localeForCurrency(currency) {
-      if (currency === 'COP') return 'es-CO';
-      if (currency === 'BRL') return 'pt-BR';
-      return undefined;
-    }
-
     function formatMoney(value, currency) {
       if (value === undefined || value === null) return '—';
       const numeric = Number(value);
       if (Number.isNaN(numeric)) return `${value} ${currency || ''}`.trim();
       try {
-        return new Intl.NumberFormat(localeForCurrency(currency), {
-          style: 'currency',
-          currency: currency || 'USD',
-          currencyDisplay: 'code'
-        }).format(numeric).replace(/\u00a0/g, ' ');
+        const locale = currency === 'BRL' ? 'pt-BR' : currency === 'COP' ? 'es-CO' : undefined;
+        return new Intl.NumberFormat(locale, {style: 'currency', currency: currency || 'USD', currencyDisplay: 'code'}).format(numeric).replace(/\u00a0/g, ' ');
       } catch (error) {
         return `${numeric.toLocaleString()} ${currency || ''}`.trim();
       }
@@ -1072,213 +803,127 @@ DEMO_UI_HTML = """<!doctype html>
       return String(value).replace('T', ' ').slice(0, 16);
     }
 
-    function renderCheckTrack(response) {
-      const lang = currentLanguage();
-      const route = response?.route || '';
-      const stationLabel = route === 'HANDOFF'
-        ? 'HANDOFF'
-        : (lang === 'pt' ? 'PT LINE' : 'ES LINE');
-      const stationSub = route === 'HANDOFF'
-        ? 'separate support lane'
-        : 'interpreter → fixed checks';
+    function computeWhy(response) {
+      const route = response?.route;
+      const reasons = response?.reason_codes || [];
+      if (route === 'ANSWER') return 'The backend found a supported request over verified synthetic records for this session.';
+      if (route === 'CLARIFY') return 'The backend found more than one verified possibility and refused to guess.';
+      if (route === 'ESCALATE') return 'The customer reported unauthorized activity; the demo routes to human review. This is not a fraud determination.';
+      if (route === 'ABSTAIN') return 'The request is outside the supported or safe demo boundary, so the system abstains.';
+      if (route === 'HANDOFF') return 'The separate handoff endpoint created support-ticket evidence with persisted/verified flags.';
+      if (reasons.length) return `Backend returned reason code(s): ${reasons.join(', ')}.`;
+      return 'Waiting for backend response.';
+    }
 
-      const station = `
-        <div class="station">
-          <span class="big">${escapeHtml(stationLabel)}</span>
-          <span>${escapeHtml(stationSub)}</span>
-        </div>`;
-
-      const checks = CHECKS.map((check) => {
-        const stateName = checkState(check, response);
-        const label = stateName === 'pass' ? 'PASS' : stateName === 'fire' ? 'FIRES' : stateName === 'stop' ? 'STOP' : 'OFF';
-        return `
-          <div class="check ${stateName}">
-            <div class="num"><span>${check.n}</span><span class="mini-lamp"></span></div>
-            <div class="label">${escapeHtml(check.label)}</div>
-            <span class="state">${label}</span>
-          </div>`;
+    function renderChecks(response) {
+      const reasons = response?.reason_codes || [];
+      els.checks.innerHTML = checks.map(([code, label], index) => {
+        const on = reasons.includes(code);
+        return `<article class="check ${on ? 'on' : ''}">
+          <div class="check-head"><span class="check-num">${index + 1}</span><span class="lamp" aria-hidden="true"></span></div>
+          <div class="check-title">${escapeHtml(label)}</div>
+          <div class="check-state">${on ? 'ON' : 'OFF'}</div>
+        </article>`;
       }).join('');
-
-      const platform = `
-        <div class="platform ${route ? 'on ' + routeClass(route) : ''}">
-          <div class="aspect"></div>
-          <div class="route">${escapeHtml(route || 'WAIT')}</div>
-          <small>${escapeHtml(routeMeaning(route))}</small>
-        </div>`;
-
-      els.checkTrack.innerHTML = station + checks + platform;
     }
 
-    function renderPlatforms(response) {
-      const route = response?.route || '';
-      els.platformRow.innerHTML = ROUTES.map((entry) => `
-        <div class="platform ${route === entry.route ? 'on ' + entry.className : ''}">
-          <div class="aspect"></div>
-          <div class="route">${escapeHtml(entry.route)}</div>
-          <small>${escapeHtml(entry.sub)}</small>
-        </div>`).join('');
-    }
-
-    function renderPanel(response) {
-      const route = response?.route || 'NO ROUTE';
-      const lang = currentLanguage().toUpperCase();
-      const intent = response?.intent && response.intent !== 'unknown' ? response.intent : (response?.route === 'HANDOFF' ? 'support_handoff' : 'NO INTENT');
-
-      els.lineLabel.textContent = response?.route === 'HANDOFF' ? 'HANDOFF LANE' : `${lang} LINE`;
-      els.routeLabel.textContent = route;
-      els.intentLabel.textContent = intent;
-      els.activeLine.textContent = response ? `${route} set` : 'no route set';
-      els.liveNote.textContent = response
-        ? 'Lit lamps are derived from the latest API response. Gray checks did not fire for this message.'
-        : 'Start a synthetic session, choose a scenario, and send the message. Lit lamps are computed from the API response.';
-      els.turnRegister.textContent = response
-        ? `${response.route || 'HANDOFF'} · ${response.intent || 'support_handoff'} · ${(response.reason_codes || []).join(', ') || 'no reason code'}`
-        : 'No message has been sent yet.';
-      els.whyRoute.textContent = routeSummary(response);
-
-      renderCheckTrack(response);
-      renderPlatforms(response);
-      renderDecision(response);
-    }
-
-    function renderDecision(response) {
-      const route = response?.route || 'NO ROUTE';
-      const cls = routeClass(route);
-      els.bigAspect.className = `big-aspect ${cls}`;
-      els.decisionRoute.textContent = route;
-      els.decisionSummary.textContent = routeSummary(response);
-
-      if (!response) {
-        els.evidenceGrid.innerHTML = `
-          <div class="evidence"><span>Status</span><b>Waiting</b></div>
-          <div class="evidence"><span>Source</span><b>Local synthetic API</b></div>`;
-        return;
-      }
-
-      const fields = [
-        ['Route', response.route],
-        ['Intent', response.intent || 'support_handoff'],
-        ['Reason codes', (response.reason_codes || []).join(', ') || 'none returned'],
-        ['Synthetic data', response.synthetic_data === true ? 'true' : 'not returned'],
-      ];
-
-      if (response.escalation_ticket_id) fields.push(['Ticket ID', response.escalation_ticket_id]);
-      if (response.ticket_id) fields.push(['Ticket ID', response.ticket_id]);
-      if (response.persisted !== undefined) fields.push(['Persisted', String(response.persisted)]);
-      if (response.verified !== undefined) fields.push(['Verified', String(response.verified)]);
-      if (response.handoff_available !== undefined) fields.push(['Handoff available', String(response.handoff_available)]);
-      if (response.clarification_transaction_ids?.length) fields.push(['Candidates', response.clarification_transaction_ids.join(', ')]);
-
-      els.evidenceGrid.innerHTML = fields.map(([label, value]) => `
-        <div class="evidence"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`).join('');
+    function renderPlatforms(route) {
+      els.platforms.innerHTML = platforms.map(([name, sub, klass]) => {
+        const active = route === name;
+        return `<article class="platform ${klass} ${active ? 'active' : ''}">
+          <span class="signal-lamp" aria-hidden="true"></span>
+          <b>${name}</b>
+          <span>${sub}</span>
+        </article>`;
+      }).join('');
     }
 
     function renderRecord(record) {
-      return `
-        <div class="record">
-          <strong>${escapeHtml(record.transaction_id || record.product_id || 'Record')}</strong>
-          <dl>
-            ${record.occurred_at ? `<dt>Date</dt><dd>${escapeHtml(formatTimestamp(record.occurred_at))}</dd>` : ''}
-            ${record.transaction_type ? `<dt>Type</dt><dd>${escapeHtml(record.transaction_type)}</dd>` : ''}
-            ${record.status ? `<dt>Status</dt><dd>${escapeHtml(record.status)}</dd>` : ''}
-            ${record.amount !== undefined ? `<dt>Amount</dt><dd>${escapeHtml(formatMoney(record.amount, record.currency))}</dd>` : ''}
-            ${record.merchant_name ? `<dt>Merchant</dt><dd>${escapeHtml(record.merchant_name)}</dd>` : ''}
-            ${record.product_type ? `<dt>Product</dt><dd>${escapeHtml(record.product_type)}</dd>` : ''}
-            ${record.current_balance !== undefined ? `<dt>Balance</dt><dd>${escapeHtml(formatMoney(record.current_balance, record.currency))}</dd>` : ''}
-          </dl>
-        </div>`;
+      return `<article class="record">
+        <strong>${escapeHtml(record.transaction_id || record.product_id || 'Record')}</strong>
+        <dl>
+          ${record.occurred_at ? `<dt>Date</dt><dd>${escapeHtml(formatTimestamp(record.occurred_at))}</dd>` : ''}
+          ${record.transaction_type ? `<dt>Type</dt><dd>${escapeHtml(record.transaction_type)}</dd>` : ''}
+          ${record.status ? `<dt>Status</dt><dd>${escapeHtml(record.status)}</dd>` : ''}
+          ${record.amount !== undefined ? `<dt>Amount</dt><dd>${escapeHtml(formatMoney(record.amount, record.currency))}</dd>` : ''}
+          ${record.merchant_name ? `<dt>Merchant</dt><dd>${escapeHtml(record.merchant_name)}</dd>` : ''}
+          ${record.product_type ? `<dt>Product</dt><dd>${escapeHtml(record.product_type)}</dd>` : ''}
+          ${record.current_balance !== undefined ? `<dt>Balance</dt><dd>${escapeHtml(formatMoney(record.current_balance, record.currency))}</dd>` : ''}
+        </dl>
+      </article>`;
     }
 
-    function renderConversation() {
+    function renderEvidence(response) {
+      const route = response?.route || 'NO ROUTE';
+      const klass = routeClass(route);
+      els.routeToken.textContent = route === 'NO ROUTE' ? 'No route set' : route;
+      els.routeToken.className = `route-token ${klass}`;
+      els.activeLine.textContent = state.session?.language ? `${state.session.language.toUpperCase()} line` : 'No line';
+      els.languageLine.textContent = state.session?.language ? `${state.session.language.toUpperCase()} line` : 'ES/PT line';
+      els.intentBadge.textContent = response?.intent && response.intent !== 'unknown' ? response.intent : 'No intent';
+      els.why.textContent = computeWhy(response);
+      const kv = [];
+      kv.push(['Route', route]);
+      if (response?.intent && response.intent !== 'unknown') kv.push(['Intent', response.intent]);
+      if (response?.synthetic_data !== undefined) kv.push(['Synthetic', String(response.synthetic_data)]);
+      if (response?.escalation_ticket_id) kv.push(['Ticket', response.escalation_ticket_id]);
+      if (response?.ticket_id) kv.push(['Ticket', response.ticket_id]);
+      if (response?.persisted !== undefined) kv.push(['Persisted', String(response.persisted)]);
+      if (response?.verified !== undefined) kv.push(['Verified', String(response.verified)]);
+      els.evidence.innerHTML = kv.map(([k, v]) => `<div><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join('');
+      const reasons = response?.reason_codes || [];
+      els.reasonPills.innerHTML = reasons.map((reason) => `<span class="pill">${escapeHtml(reason)}</span>`).join('');
+      const records = [...(response?.products || []), ...(response?.transactions || [])];
+      const candidates = response?.clarification_transaction_ids || [];
+      els.records.innerHTML = `${candidates.length ? `<article class="record"><strong>Clarification candidates</strong><div>${candidates.map(escapeHtml).join(', ')}</div></article>` : ''}${records.map(renderRecord).join('')}`;
+      renderChecks(response);
+      renderPlatforms(route);
+    }
+
+    function renderTurns() {
       if (!state.turns.length) {
-        els.conversationList.className = 'empty';
-        els.conversationList.textContent = 'No turns yet. The first API response will populate the register and evidence cards.';
+        els.turns.innerHTML = '<div class="empty">No message has been sent yet.</div>';
         return;
       }
-      els.conversationList.className = 'record-list';
-      els.conversationList.innerHTML = state.turns.map((turn) => {
-        const response = turn.response || {};
-        const records = [...(response.products || []), ...(response.transactions || [])];
-        const candidates = response.clarification_transaction_ids || [];
-        return `
-          <article class="message-card">
-            <div>
-              <div class="msg-label">Customer</div>
-              <p class="text">${escapeHtml(turn.message || 'Explicit support handoff requested')}</p>
-            </div>
-            <div>
-              <div class="msg-label">System response</div>
-              <p class="text reply">${escapeHtml(response.response_text || turn.text || '')}</p>
-            </div>
-            <div class="tag ${routeClass(response.route)}">${escapeHtml(response.route || 'EVENT')}</div>
-            <p class="text">${escapeHtml(routeSummary(response))}</p>
-            ${response.reason_codes?.length ? `<div>${response.reason_codes.map((code) => `<span class="tag">${escapeHtml(code)}</span>`).join(' ')}</div>` : ''}
-            ${candidates.length ? `<div class="record"><strong>Clarification candidates</strong><p class="text">${candidates.map(escapeHtml).join(', ')}</p></div>` : ''}
-            ${records.length ? `<div class="record-list">${records.map(renderRecord).join('')}</div>` : ''}
-          </article>`;
-      }).join('');
+      els.turns.innerHTML = state.turns.map((turn) => `<article class="turn">
+        ${turn.message ? `<div class="turn-user"><strong>Customer:</strong> ${escapeHtml(turn.message)}</div>` : ''}
+        <div class="turn-response">${escapeHtml(turn.response?.response_text || turn.text || '')}</div>
+      </article>`).join('');
     }
 
     function renderSession() {
       if (!state.session) {
-        els.sessionBox.textContent = 'No active session.';
+        els.sessionBox.textContent = 'No active synthetic session.';
         els.send.disabled = true;
         els.handoff.disabled = true;
         els.revoke.disabled = true;
         return;
       }
-      els.sessionBox.innerHTML = `
-        <b>${escapeHtml(state.session.display_name)}</b><br>
+      els.sessionBox.innerHTML = `<strong>${escapeHtml(state.session.display_name)}</strong><br>
         Session: ${escapeHtml(state.session.session_id)}<br>
-        Tenant: ${escapeHtml(state.session.tenant_id)}<br>
         Role: ${escapeHtml(state.session.role)}<br>
         Language: ${escapeHtml(state.session.language)}<br>
-        Synthetic data: ${escapeHtml(state.session.synthetic_data)}`;
+        Synthetic: ${escapeHtml(state.session.synthetic_data)}`;
       els.send.disabled = false;
       els.handoff.disabled = false;
       els.revoke.disabled = false;
     }
 
-    async function loadReady() {
-      try {
-        const ready = await api('/ready', {headers: {}});
-        els.readyStatus.textContent = ready.status;
-        els.dataMode.textContent = ready.data_mode || 'unknown';
-        els.bankRuntime.textContent = `${ready.bank_ready}/${ready.runtime_ready}`;
-        els.llmConnected.textContent = String(ready.llm_connected);
-        setLamp(els.lampReady, ready.status === 'ready', 'green');
-        setLamp(els.lampData, ready.synthetic_data === true, 'green');
-        setLamp(els.lampBank, ready.bank_ready && ready.runtime_ready, 'green');
-        setLamp(els.lampLlm, ready.llm_connected === false, 'yellow');
-      } catch (error) {
-        els.readyStatus.textContent = 'not_ready';
-        els.dataMode.textContent = 'unknown';
-        els.bankRuntime.textContent = 'false/false';
-        setLamp(els.lampReady, false, 'red');
-      }
-    }
-
     async function loadPersonas() {
       state.personas = await api('/api/demo/personas', {headers: {}});
-      els.persona.innerHTML = state.personas.map((persona) => (
-        `<option value="${escapeHtml(persona.persona_id)}">${escapeHtml(persona.display_name)} · ${escapeHtml(persona.default_language.toUpperCase())}</option>`
-      )).join('');
+      els.persona.innerHTML = state.personas.map((persona) => `<option value="${escapeHtml(persona.persona_id)}">${escapeHtml(persona.display_name)} · ${escapeHtml(persona.default_language.toUpperCase())}</option>`).join('');
     }
 
     async function startSession() {
       setError('');
       const body = {persona_id: els.persona.value};
       if (els.language.value) body.language = els.language.value;
-      state.session = await api('/api/demo/sessions', {
-        method: 'POST',
-        headers: {},
-        body: JSON.stringify(body)
-      });
+      state.session = await api('/api/demo/sessions', {method: 'POST', headers: {}, body: JSON.stringify(body)});
       state.turns = [];
-      state.latest = null;
+      state.lastResponse = null;
       renderSession();
-      renderConversation();
-      renderPanel(null);
+      renderTurns();
+      renderEvidence(null);
     }
 
     async function sendTurn() {
@@ -1286,40 +931,27 @@ DEMO_UI_HTML = """<!doctype html>
       const message = els.message.value.trim();
       if (!message) return;
       if (state.session && els.persona.value !== state.session.persona_id) {
-        setError('The selected customer line differs from the active session. Start a new synthetic session before sending.');
+        setError('The selected customer differs from the active session. Start a new session first.');
         return;
       }
-      const response = await api('/api/customer/turn', {
-        method: 'POST',
-        body: JSON.stringify({message})
-      });
-      state.latest = response;
+      const response = await api('/api/customer/turn', {method: 'POST', body: JSON.stringify({message})});
+      state.lastResponse = response;
       state.turns.unshift({message, response});
-      renderPanel(response);
-      renderConversation();
+      renderTurns();
+      renderEvidence(response);
     }
 
     async function requestHandoff() {
       setError('');
       const response = await api('/api/customer/handoff', {method: 'POST', body: '{}'});
-      const handoffText = response.persisted && response.verified
+      const text = response.persisted && response.verified
         ? `Support ticket created and verified. Ticket: ${response.ticket_id}`
         : `Support ticket response received. Ticket: ${response.ticket_id || 'not returned'}`;
-      const wrapped = {
-        route: 'HANDOFF',
-        intent: 'customer_requested_support_handoff',
-        response_text: handoffText,
-        reason_codes: [],
-        synthetic_data: state.session?.synthetic_data === true,
-        ticket_id: response.ticket_id,
-        persisted: response.persisted,
-        verified: response.verified,
-        session_id: response.session_id
-      };
-      state.latest = wrapped;
-      state.turns.unshift({message: 'Explicit support handoff requested', text: handoffText, response: wrapped});
-      renderPanel(wrapped);
-      renderConversation();
+      const mapped = {route: 'HANDOFF', intent: 'customer_requested_support_handoff', response_text: text, ticket_id: response.ticket_id, persisted: response.persisted, verified: response.verified, synthetic_data: state.session?.synthetic_data === true};
+      state.lastResponse = mapped;
+      state.turns.unshift({kind: 'HANDOFF', text, response: mapped});
+      renderTurns();
+      renderEvidence(mapped);
     }
 
     async function revokeSession() {
@@ -1327,35 +959,32 @@ DEMO_UI_HTML = """<!doctype html>
       await api('/api/demo/session', {method: 'DELETE', body: '{}'});
       state.session = null;
       state.turns = [];
-      state.latest = null;
+      state.lastResponse = null;
       renderSession();
-      renderConversation();
-      renderPanel(null);
+      renderTurns();
+      renderEvidence(null);
     }
 
     els.start.addEventListener('click', () => startSession().catch((error) => setError(error.message)));
     els.send.addEventListener('click', () => sendTurn().catch((error) => setError(error.message)));
     els.handoff.addEventListener('click', () => requestHandoff().catch((error) => setError(error.message)));
     els.revoke.addEventListener('click', () => revokeSession().catch((error) => setError(error.message)));
-
     document.querySelectorAll('.scenario').forEach((button) => {
       button.addEventListener('click', () => {
         els.message.value = button.dataset.message || '';
-        if (button.dataset.persona) {
-          els.persona.value = button.dataset.persona;
-          const persona = state.personas.find((p) => p.persona_id === button.dataset.persona);
-          if (persona) els.language.value = '';
-        }
+        if (button.dataset.persona) els.persona.value = button.dataset.persona;
       });
     });
 
-    Promise.all([loadReady(), loadPersonas()]).catch((error) => setError(error.message));
+    loadPersonas().catch((error) => setError(error.message));
+    renderChecks(null);
+    renderPlatforms(null);
     renderSession();
-    renderPanel(null);
+    renderEvidence(null);
   </script>
 </body>
 </html>
-"""
+'''
 
 
 def render_demo_ui() -> str:
