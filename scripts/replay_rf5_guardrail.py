@@ -2,12 +2,13 @@
 
 This script uses public/non-held-out development surfaces only. It produces
 machine-readable evidence for RF5 no-regression checks, measured-baseline
-attribution, and replay-plan coverage tables without touching held-out case
-content, live providers, semantic providers, hosted CI, or production data.
+attribution, FTP-2 limitations, and replay-plan coverage tables without touching
+held-out case content, live providers, semantic providers, hosted CI, or
+production data.
 
-Default behavior evaluates the current checkout. When --baseline-json is supplied,
-the script classifies measured outcome changes by case_id. That measured baseline
-comparison is the only source of route-level RF5-gain attribution.
+Route-level RF5-gain attribution is measured only with --baseline-json. Static
+case labels are used for expectation checks and coverage, not for claiming a
+route-level RF5 gain.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -51,6 +52,7 @@ CaseBucket = Literal[
     "rf5_gain_control",
     "rf5_component_control",
     "ftp2_control",
+    "ftp2_limitation",
 ]
 Family = Literal["m1", "m2", "m4", "ftp2", "legacy"]
 
@@ -70,9 +72,9 @@ class ReplayCase:
     rationale: str
 
 
-# Case sources are public/non-held-out tests and synthetic component controls.
-# RF5 route-gain attribution is measured only with --baseline-json; it is not
-# inferred from expected_main_escalates labels.
+# Case sources are public/non-held-out tests and bounded synthetic component
+# controls. The FTP-2 limitation row is intentionally not a passing FTP-2
+# control: it documents an unwired positive-loss gap found during validation.
 REPLAY_CASES: tuple[ReplayCase, ...] = (
     ReplayCase(
         case_id="rf1u-positive-fraud-characterization-es-001",
@@ -99,6 +101,19 @@ REPLAY_CASES: tuple[ReplayCase, ...] = (
         expected_rf5_families=(),
         expected_ftp2_cleanup_candidate=False,
         rationale="Existing RF1U non-recognition positive must not be lost.",
+    ),
+    ReplayCase(
+        case_id="rf1u-positive-third-party-es-001",
+        bucket="positive_preserve",
+        family="legacy",
+        language="es",
+        source="tests/test_rf1u_product_repair.py::_FAMILY_POSITIVES",
+        message="Ese pago lo realizó alguien más, y no yo.",
+        expected_main_escalates=True,
+        expected_current_escalates=True,
+        expected_rf5_families=(),
+        expected_ftp2_cleanup_candidate=False,
+        rationale="Existing RF1U third-party-authorship positive must not be lost.",
     ),
     ReplayCase(
         case_id="rf5-benign-resolved-fraud-es-001",
@@ -153,19 +168,6 @@ REPLAY_CASES: tuple[ReplayCase, ...] = (
         rationale="Lawful tax-authority withholding must remain benign.",
     ),
     ReplayCase(
-        case_id="rf1u-benign-status-es-001",
-        bucket="benign_preserve",
-        family="legacy",
-        language="es",
-        source="tests/test_rf1u_product_repair.py::_BENIGN",
-        message="¿Cuál es el estado de mi pago de ayer?",
-        expected_main_escalates=False,
-        expected_current_escalates=False,
-        expected_rf5_families=(),
-        expected_ftp2_cleanup_candidate=False,
-        rationale="Ordinary payment-status request must remain benign.",
-    ),
-    ReplayCase(
         case_id="rf1u-benign-authorized-transfer-es-001",
         bucket="benign_preserve",
         family="legacy",
@@ -183,15 +185,15 @@ REPLAY_CASES: tuple[ReplayCase, ...] = (
         bucket="rf5_gain_control",
         family="m4",
         language="es",
-        source="RF5 public synthetic M4 component-gain control",
-        message="Me engañaron en una llamada y luego hicieron un pago desde mi cuenta.",
+        source="RF5 D1-D3 non-held-out synthetic component control",
+        message="Me engañaron por mensaje y apareció un avance en la cuenta.",
         expected_main_escalates=None,
         expected_current_escalates=True,
         expected_rf5_families=("m4_scam_social_engineering_activity",),
         expected_ftp2_cleanup_candidate=False,
         rationale=(
-            "RF5 M4 should add a route-level raise only when the authoritative "
-            "detector and RF4 floor are silent; measured baseline decides attribution."
+            "M4 RF5 route-gain control. The authoritative detector and RF4 "
+            "floor must be silent; measured baseline decides attribution."
         ),
     ),
     ReplayCase(
@@ -206,7 +208,7 @@ REPLAY_CASES: tuple[ReplayCase, ...] = (
         expected_rf5_families=("m1_no_authorization_activity",),
         expected_ftp2_cleanup_candidate=False,
         rationale=(
-            "M1 component coverage. This is not labeled as a route gain because "
+            "M1 component coverage. This is not labeled as route gain because "
             "the authoritative detector may already escalate it."
         ),
     ),
@@ -247,8 +249,8 @@ REPLAY_CASES: tuple[ReplayCase, ...] = (
         bucket="ftp2_control",
         family="ftp2",
         language="es",
-        source="RF5 public synthetic FTP-2 cleanup-candidate control",
-        message="No pude pagar la cuota del préstamo.",
+        source="tests/test_rf5_stage1.py::test_ordinary_failure_to_pay_is_cleanup_candidate_not_raise",
+        message="Se me olvidó pagar la cuota del préstamo.",
         expected_main_escalates=False,
         expected_current_escalates=False,
         expected_rf5_families=(),
@@ -260,15 +262,30 @@ REPLAY_CASES: tuple[ReplayCase, ...] = (
         bucket="ftp2_control",
         family="ftp2",
         language="es",
-        source="RF5 public synthetic FTP-2 positive-loss guard control",
+        source="tests/test_rf5_stage1.py::test_failure_to_pay_with_positive_guard_is_not_cleanup_candidate",
+        message="No reconozco este cargo por 120 pesos y no pagué la cuota.",
+        expected_main_escalates=True,
+        expected_current_escalates=True,
+        expected_rf5_families=("m2_money_reference_disowning",),
+        expected_ftp2_cleanup_candidate=False,
+        rationale=(
+            "FTP-2 must not mark a positive unauthorized case as cleanup-removable."
+        ),
+    ),
+    ReplayCase(
+        case_id="rf5-ftp2-gap-no-la-autorice-es-001",
+        bucket="ftp2_limitation",
+        family="ftp2",
+        language="es",
+        source="Continuity PR #617 failed-validation finding",
         message="No pagué esta cuota porque no la autoricé.",
         expected_main_escalates=True,
         expected_current_escalates=True,
         expected_rf5_families=(),
-        expected_ftp2_cleanup_candidate=False,
+        expected_ftp2_cleanup_candidate=None,
         rationale=(
-            "A positive-loss guard should prevent FTP-2 cleanup candidacy and "
-            "the positive report must remain escalated."
+            "Known FTP-2 positive-loss guard gap. This is reported as a limitation "
+            "with hypothetical_positive_loss_if_wired, not as a passing FTP-2 control."
         ),
     ),
 )
@@ -339,6 +356,11 @@ def evaluate_case(case: ReplayCase) -> dict[str, Any]:
         rf5_component_raise and not unauthorized and not rf4_floor
     )
     ftp2 = _ftp2_detail(case.message)
+    hypothetical_positive_loss_if_wired = bool(
+        case.bucket == "ftp2_limitation"
+        and would_escalate
+        and ftp2["ftp2_cleanup_candidate"]
+    )
 
     return {
         "case_id": case.case_id,
@@ -360,6 +382,7 @@ def evaluate_case(case: ReplayCase) -> dict[str, Any]:
         "failsafe_floor": failsafe_floor,
         "would_escalate": would_escalate,
         "route_policy_would_escalate": would_escalate,
+        "hypothetical_positive_loss_if_wired": hypothetical_positive_loss_if_wired,
         **ftp2,
     }
 
@@ -397,7 +420,7 @@ def _plan_tables(
     results: list[dict[str, Any]],
     baseline_results: dict[str, bool],
 ) -> dict[str, Any]:
-    rows: list[dict[str, Any]] = []
+    per_family_rows: list[dict[str, Any]] = []
     for family in ("m1", "m2", "m4"):
         for language in ("es", "pt"):
             family_cases = [
@@ -407,97 +430,91 @@ def _plan_tables(
             ]
             if not family_cases:
                 continue
-            newly_escalated = 0
-            already_escalated = 0
-            lowered_positive = 0
-            ordinary_benign_overescalation = 0
-            ambiguous_or_non_discriminating = 0
-            measured_count = 0
+            classifications = []
             for result in family_cases:
-                case_id = str(result["case_id"])
-                baseline = baseline_results.get(case_id)
-                current = bool(result["would_escalate"])
-                if baseline is None:
-                    ambiguous_or_non_discriminating += 1
-                    continue
-                measured_count += 1
-                if not baseline and current:
-                    if result["bucket"] == "benign_preserve":
-                        ordinary_benign_overescalation += 1
-                    elif bool(result["rf5_only_component_gain"]):
-                        newly_escalated += 1
-                    else:
-                        ambiguous_or_non_discriminating += 1
-                elif baseline and current:
-                    already_escalated += 1
-                elif baseline and not current:
-                    lowered_positive += 1
-
-            rows.append(
+                baseline = baseline_results.get(str(result["case_id"]))
+                if baseline is not None:
+                    classifications.append(_classify_change(result, baseline))
+            per_family_rows.append(
                 {
                     "family": family,
                     "language": language,
                     "case_count": len(family_cases),
-                    "measured_baseline_case_count": measured_count,
-                    "component_raise_count": sum(
-                        bool(result["rf5_component_raise"])
+                    "newly_escalated_count": classifications.count(
+                        "rf5_only_component_gain"
+                    ),
+                    "already_escalated_count": sum(
+                        bool(result["would_escalate"])
+                        and (
+                            baseline_results.get(str(result["case_id"])) is True
+                            or str(result["case_id"]) not in baseline_results
+                        )
                         for result in family_cases
                     ),
-                    "rf5_only_component_gain_count": sum(
-                        bool(result["rf5_only_component_gain"])
+                    "lowered_positive_count": classifications.count("positive_loss"),
+                    "ordinary_benign_overescalation_count": sum(
+                        result["bucket"] == "benign_preserve"
+                        and bool(result["would_escalate"])
                         for result in family_cases
                     ),
-                    "newly_escalated_count": newly_escalated,
-                    "already_escalated_count": already_escalated,
-                    "lowered_positive_count": lowered_positive,
-                    "ordinary_benign_overescalation_count": ordinary_benign_overescalation,
-                    "ambiguous_or_non_discriminating_count": ambiguous_or_non_discriminating,
+                    "rf5_component_raise_count": sum(
+                        bool(result["rf5_component_raise"]) for result in family_cases
+                    ),
+                    "case_ids": [str(result["case_id"]) for result in family_cases],
                 }
             )
 
     ftp2_cases = [result for result in results if result["family"] == "ftp2"]
-    ftp2_cleanup_candidates = [
+    ftp2_cleanup_rows = [
         {
             "case_id": result["case_id"],
-            "language": result["language"],
+            "bucket": result["bucket"],
+            "expected_ftp2_cleanup_candidate": result[
+                "expected_ftp2_cleanup_candidate"
+            ],
             "ftp2_cleanup_candidate": result["ftp2_cleanup_candidate"],
             "ftp2_blocked_by": result["ftp2_blocked_by"],
             "would_escalate": result["would_escalate"],
-            "expected_current_escalates": result["expected_current_escalates"],
-            "expected_ftp2_cleanup_candidate": result[
-                "expected_ftp2_cleanup_candidate"
+            "hypothetical_positive_loss_if_wired": result[
+                "hypothetical_positive_loss_if_wired"
             ],
         }
         for result in ftp2_cases
     ]
-    ftp2_no_removal = [
+    ftp2_no_removal_rows = [
         {
             "case_id": result["case_id"],
-            "baseline_would_escalate": baseline_results.get(str(result["case_id"])),
-            "current_would_escalate": result["would_escalate"],
-            "positive_preserved": bool(result["would_escalate"]),
+            "positive_preserved": bool(result["would_escalate"])
+            == bool(result["expected_current_escalates"]),
+            "would_escalate": result["would_escalate"],
             "ftp2_cleanup_candidate": result["ftp2_cleanup_candidate"],
-            "ftp2_blocked_by": result["ftp2_blocked_by"],
+            "hypothetical_positive_loss_if_wired": result[
+                "hypothetical_positive_loss_if_wired"
+            ],
+            "note": (
+                "Known limitation, not a passing cleanup control."
+                if result["bucket"] == "ftp2_limitation"
+                else "FTP-2 is unwired; no removal occurs."
+            ),
         }
         for result in ftp2_cases
-        if result["expected_current_escalates"] is True
     ]
 
     return {
-        "per_family_replay_coverage": rows,
-        "ftp2_cleanup_candidate_cases": ftp2_cleanup_candidates,
-        "ftp2_non_escalation_no_removal_evidence": ftp2_no_removal,
-        "residual_active_route_limitations": {
-            "interpret_to_route_policy_replay": False,
-            "reason": (
-                "The minimal harness evaluates the deterministic predicate stack "
-                "used by the route floor. It does not instantiate the full "
-                "HTTP/demo turn interpreter and route_policy replay surface."
-            ),
-            "route_policy_would_escalate_field": (
-                "Alias of unauthorized-or-failsafe deterministic route predicate."
-            ),
-        },
+        "per_family_replay_coverage": per_family_rows,
+        "ftp2_cleanup_candidate_cases": ftp2_cleanup_rows,
+        "ftp2_non_escalation_no_removal": ftp2_no_removal_rows,
+        "residual_active_route_limitations": [
+            {
+                "surface": "interpret_to_route_policy",
+                "implemented": False,
+                "reason": (
+                    "The minimal harness evaluates the deterministic predicate used "
+                    "for route escalation; full interpret() -> route_policy replay "
+                    "remains outside this bounded harness-only repair."
+                ),
+            }
+        ],
     }
 
 
@@ -512,7 +529,7 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
     rf5_family_expectation_failures: list[str] = []
     ftp2_expectation_failures: list[str] = []
     changed_from_baseline_json: list[dict[str, Any]] = []
-    attribution_case_ids: dict[str, list[str]] = {
+    measured_attribution_case_ids: dict[str, list[str]] = {
         "rf5_only_component_gain": [],
         "rf4_floor_gain": [],
         "authoritative_detector_gain": [],
@@ -528,13 +545,12 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
         if current != case.expected_current_escalates:
             current_expectation_failures.append(case.case_id)
 
-        expected_families = sorted(case.expected_rf5_families)
-        observed_families = sorted(str(family) for family in result["rf5_raise_families"])
-        if observed_families != expected_families:
+        if set(result["rf5_raise_families"]) != set(case.expected_rf5_families):
             rf5_family_expectation_failures.append(case.case_id)
 
-        if case.expected_ftp2_cleanup_candidate is not None and (
-            bool(result["ftp2_cleanup_candidate"])
+        if (
+            case.expected_ftp2_cleanup_candidate is not None
+            and bool(result["ftp2_cleanup_candidate"])
             != case.expected_ftp2_cleanup_candidate
         ):
             ftp2_expectation_failures.append(case.case_id)
@@ -551,8 +567,8 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
 
         if case.case_id in baseline_results:
             baseline_current = baseline_results[case.case_id]
-            classification = _classify_change(result, baseline_current)
-            if classification != "unchanged":
+            if baseline_current != current:
+                classification = _classify_change(result, baseline_current)
                 changed_from_baseline_json.append(
                     {
                         "case_id": case.case_id,
@@ -562,12 +578,13 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
                         "classification": classification,
                     }
                 )
-                attribution_case_ids.setdefault(classification, []).append(case.case_id)
+                if classification in measured_attribution_case_ids:
+                    measured_attribution_case_ids[classification].append(case.case_id)
 
-    attribution_counts = {
-        key: len(value)
-        for key, value in sorted(attribution_case_ids.items())
+    measured_attribution_counts = {
+        key: len(value) for key, value in measured_attribution_case_ids.items()
     }
+    plan_tables = _plan_tables(results=results, baseline_results=baseline_results)
     summary = {
         "case_count": len(results),
         "positive_preserve_count": sum(
@@ -582,7 +599,12 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
         "rf5_component_control_count": sum(
             case.bucket == "rf5_component_control" for case in REPLAY_CASES
         ),
-        "ftp2_control_count": sum(case.bucket == "ftp2_control" for case in REPLAY_CASES),
+        "ftp2_control_count": sum(
+            case.bucket == "ftp2_control" for case in REPLAY_CASES
+        ),
+        "ftp2_limitation_count": sum(
+            case.bucket == "ftp2_limitation" for case in REPLAY_CASES
+        ),
         "positive_loss_count": len(positive_loss),
         "benign_removal_regression_count": len(benign_removal_regression),
         "current_expectation_failure_count": len(current_expectation_failures),
@@ -591,18 +613,17 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
         "rf5_only_component_gain_count": sum(
             bool(result["rf5_only_component_gain"]) for result in results
         ),
+        "measured_rf5_only_gain_count": measured_attribution_counts[
+            "rf5_only_component_gain"
+        ],
         "changed_from_baseline_json_count": len(changed_from_baseline_json),
-        "measured_rf5_only_gain_count": attribution_counts.get(
-            "rf5_only_component_gain", 0
+        "hypothetical_positive_loss_if_wired_count": sum(
+            bool(result["hypothetical_positive_loss_if_wired"])
+            for result in results
         ),
-        "measured_rf4_floor_gain_count": attribution_counts.get("rf4_floor_gain", 0),
-        "measured_authoritative_detector_gain_count": attribution_counts.get(
-            "authoritative_detector_gain", 0
-        ),
-        "measured_ambiguous_gain_count": attribution_counts.get("ambiguous_gain", 0),
     }
     return {
-        "schema_version": "rf5-replay-guardrail-v3",
+        "schema_version": "rf5-replay-guardrail-v4",
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "git_sha": _git_sha(),
         "baseline_json": str(baseline_json) if baseline_json is not None else None,
@@ -613,17 +634,17 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
         "rf5_family_expectation_failure_case_ids": rf5_family_expectation_failures,
         "ftp2_expectation_failure_case_ids": ftp2_expectation_failures,
         "changed_from_baseline_json": changed_from_baseline_json,
-        "measured_attribution_case_ids": attribution_case_ids,
-        "measured_attribution_counts": attribution_counts,
-        "plan_tables": _plan_tables(results=results, baseline_results=baseline_results),
+        "measured_attribution_counts": measured_attribution_counts,
+        "measured_attribution_case_ids": measured_attribution_case_ids,
+        "plan_tables": plan_tables,
         "replay_surfaces": {
-            "deterministic_predicate_stack": True,
-            "file_path_invocation": True,
-            "module_invocation": True,
+            "deterministic_predicate": True,
             "interpret_to_route_policy": False,
-            "hosted_ci": False,
-            "held_out_material": False,
-            "live_provider": False,
+            "interpret_to_route_policy_blocker": (
+                "Full interpret() -> route_policy replay remains outside the "
+                "minimal harness-only repair; route_policy_would_escalate is an "
+                "alias of the deterministic predicate."
+            ),
         },
         "cases": results,
     }
@@ -673,6 +694,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"rf5_only_component_gain: {summary['rf5_only_component_gain_count']}")
     print(f"measured_rf5_only_gain: {summary['measured_rf5_only_gain_count']}")
     print(f"changed_from_baseline_json: {summary['changed_from_baseline_json_count']}")
+    print(
+        "hypothetical_positive_loss_if_wired: "
+        f"{summary['hypothetical_positive_loss_if_wired_count']}"
+    )
 
     failed = bool(
         summary["positive_loss_count"]
