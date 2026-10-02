@@ -42,6 +42,8 @@ def test_rf5_replay_guardrail_passes_current_checkout() -> None:
     assert summary["current_expectation_failure_count"] == 0
     assert summary["rf5_family_expectation_failure_count"] == 0
     assert summary["ftp2_expectation_failure_count"] == 0
+    assert summary["full_path_expectation_failure_count"] == 0
+    assert summary["predicate_full_path_disagreement_count"] == 0
     assert summary["hypothetical_positive_loss_if_wired_count"] == 1
 
     gain_case = next(
@@ -53,6 +55,13 @@ def test_rf5_replay_guardrail_passes_current_checkout() -> None:
     assert gain_case["unauthorized_activity_asserted"] is False
     assert gain_case["rf4_floor"] is False
     assert gain_case["rf5_only_component_gain"] is True
+    assert gain_case["full_path_interpretation_status"] == "verified"
+    assert gain_case["full_path_route"] == "ESCALATE"
+    assert gain_case["full_path_escalates"] is True
+    assert gain_case["route_policy_would_escalate"] is True
+    assert gain_case["full_path_reason_codes"] == [
+        "possible_unauthorized_activity"
+    ]
 
     family_rows = report["plan_tables"]["per_family_replay_coverage"]
     assert {"m1", "m2", "m4"}.issubset({row["family"] for row in family_rows})
@@ -61,7 +70,22 @@ def test_rf5_replay_guardrail_passes_current_checkout() -> None:
     assert any(row["ftp2_cleanup_candidate"] for row in ftp2_rows)
     assert any("positive_loss_guard" in row["ftp2_blocked_by"] for row in ftp2_rows)
     assert any(row["hypothetical_positive_loss_if_wired"] for row in ftp2_rows)
-    assert report["replay_surfaces"]["interpret_to_route_policy"] is False
+    assert report["replay_surfaces"]["interpret_to_route_policy"] is True
+    assert (
+        report["replay_surfaces"]["interpretation_provider"]
+        == "DeterministicDemoInterpretationProvider"
+    )
+    assert report["replay_surfaces"]["synthetic_bank"] is True
+    assert report["replay_surfaces"]["held_out_material"] is False
+    assert report["replay_surfaces"]["live_provider"] is False
+
+    benign = next(
+        case
+        for case in report["cases"]
+        if case["case_id"] == "rf5-benign-prevention-question-es-001"
+    )
+    assert benign["full_path_route"] != "ESCALATE"
+    assert benign["full_path_escalates"] is False
 
 
 def test_rf5_replay_guardrail_writes_json_output(tmp_path) -> None:
@@ -70,12 +94,14 @@ def test_rf5_replay_guardrail_writes_json_output(tmp_path) -> None:
     assert main(["--json-output", str(output)]) == 0
 
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == "rf5-replay-guardrail-v4"
+    assert payload["schema_version"] == "rf5-replay-guardrail-v5"
     assert payload["summary"]["case_count"] == len(REPLAY_CASES)
     assert payload["summary"]["positive_loss_count"] == 0
     assert payload["summary"]["benign_removal_regression_count"] == 0
     assert payload["summary"]["current_expectation_failure_count"] == 0
     assert payload["summary"]["ftp2_expectation_failure_count"] == 0
+    assert payload["summary"]["full_path_expectation_failure_count"] == 0
+    assert payload["summary"]["predicate_full_path_disagreement_count"] == 0
     assert payload["summary"]["hypothetical_positive_loss_if_wired_count"] == 1
     assert "plan_tables" in payload
     assert "measured_attribution_counts" in payload
@@ -97,7 +123,7 @@ def test_rf5_replay_guardrail_file_path_invocation_from_other_cwd(tmp_path) -> N
     assert completed.returncode == 0, completed.stderr
     assert "guardrail: PASS" in completed.stdout
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == "rf5-replay-guardrail-v4"
+    assert payload["schema_version"] == "rf5-replay-guardrail-v5"
 
 
 def test_rf5_replay_guardrail_measured_baseline_attribution(tmp_path) -> None:
@@ -129,3 +155,46 @@ def test_rf5_replay_guardrail_measured_baseline_attribution(tmp_path) -> None:
             "classification": "rf5_only_component_gain",
         }
     ]
+
+
+def test_rf5_replay_guardrail_records_full_interpret_to_policy_evidence() -> None:
+    report = build_report()
+
+    assert report["replay_surfaces"]["interpret_to_route_policy"] is True
+    assert report["summary"]["full_path_expectation_failure_count"] == 0
+    assert report["summary"]["predicate_full_path_disagreement_count"] == 0
+
+    assert len(report["cases"]) == len(REPLAY_CASES)
+    for case in report["cases"]:
+        assert case["full_path_interpretation_status"] in {
+            "verified",
+            "safe_fallback",
+        }
+        assert case["full_path_route"] in {
+            "ANSWER",
+            "CLARIFY",
+            "ABSTAIN",
+            "ESCALATE",
+        }
+        assert isinstance(case["full_path_reason_codes"], list)
+        assert (
+            case["route_policy_would_escalate"]
+            is case["full_path_escalates"]
+        )
+
+
+def test_rf5_replay_guardrail_keeps_ftp2_unwired_in_full_path() -> None:
+    report = build_report()
+    limitation = next(
+        case
+        for case in report["cases"]
+        if case["case_id"] == "rf5-ftp2-gap-no-la-autorice-es-001"
+    )
+
+    assert limitation["hypothetical_positive_loss_if_wired"] is True
+    assert limitation["full_path_route"] == "ESCALATE"
+    assert limitation["full_path_escalates"] is True
+
+    residuals = report["plan_tables"]["residual_active_route_limitations"]
+    ftp2 = next(row for row in residuals if row["surface"] == "ftp2_cleanup_activation")
+    assert ftp2["implemented"] is False
