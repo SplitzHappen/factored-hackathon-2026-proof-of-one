@@ -20,7 +20,10 @@ DEMO_UI_HTML = r'''<!doctype html>
       --line: rgba(246, 237, 207, 0.22);
       --answer: #34d477;
       --clarify: #ffd15c;
-      --abstain: #a9b1bd;
+      --abstain: #3f8cff;
+      --clear: #1b7f4a;
+      --waiting: #6d776b;
+      --na: #8b9188;
       --escalate: #ff665c;
       --handoff: #bb8cff;
       --shadow: 0 26px 70px rgba(0, 0, 0, 0.36);
@@ -342,19 +345,6 @@ DEMO_UI_HTML = r'''<!doctype html>
       align-items: stretch;
     }
 
-    .checks::before {
-      content: "";
-      position: absolute;
-      left: -22px;
-      right: 8px;
-      top: 50%;
-      z-index: 0;
-      height: 10px;
-      border-radius: 999px;
-      background: rgba(72, 82, 67, 0.45);
-      transform: translateY(-50%);
-    }
-
     .check {
       position: relative;
       z-index: 1;
@@ -370,9 +360,18 @@ DEMO_UI_HTML = r'''<!doctype html>
       padding: 15px 14px;
     }
 
+    .check.waiting { opacity: 0.72; }
+    .check.clear {
+      border-color: rgba(27, 127, 74, 0.72);
+      background: rgba(231, 242, 226, 0.98);
+    }
     .check.on {
       border-color: #141a14;
       box-shadow: 0 0 0 3px rgba(255, 209, 92, 0.25), 0 14px 28px rgba(0, 0, 0, 0.20);
+    }
+    .check.na {
+      opacity: 0.58;
+      border-style: dashed;
     }
 
     .check-head { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
@@ -388,7 +387,10 @@ DEMO_UI_HTML = r'''<!doctype html>
       box-shadow: inset 0 0 0 5px rgba(0, 0, 0, 0.12);
     }
 
+    .check.waiting .lamp { background: var(--waiting); }
+    .check.clear .lamp { background: var(--clear); box-shadow: 0 0 0 4px rgba(27, 127, 74, 0.16); }
     .check.on .lamp { background: var(--clarify); box-shadow: 0 0 20px rgba(255, 209, 92, 0.72); }
+    .check.na .lamp { background: var(--na); box-shadow: none; }
 
     .check-title {
       color: #415044;
@@ -410,7 +412,10 @@ DEMO_UI_HTML = r'''<!doctype html>
       text-transform: uppercase;
     }
 
-    .check.on .check-state { color: #161b14; background: rgba(255, 209, 92, 0.65); }
+    .check.waiting .check-state { color: #293129; background: rgba(109, 119, 107, 0.24); }
+    .check.clear .check-state { color: #0d4d2b; background: rgba(52, 212, 119, 0.24); }
+    .check.on .check-state { color: #161b14; background: rgba(255, 209, 92, 0.72); }
+    .check.na .check-state { color: #4f574f; background: rgba(139, 145, 136, 0.24); }
 
     .platforms {
       display: grid;
@@ -433,7 +438,12 @@ DEMO_UI_HTML = r'''<!doctype html>
       text-align: center;
     }
 
-    .platform.active { transform: translateY(-2px); box-shadow: 0 0 0 4px rgba(20, 26, 20, 0.12), 0 20px 40px rgba(0, 0, 0, 0.20); }
+    .platform.active {
+      transform: translateY(-2px);
+      background: #121b14;
+      color: var(--cream);
+      box-shadow: 0 0 0 4px rgba(20, 26, 20, 0.18), 0 20px 40px rgba(0, 0, 0, 0.24);
+    }
 
     .signal-lamp {
       width: 58px;
@@ -451,6 +461,50 @@ DEMO_UI_HTML = r'''<!doctype html>
 
     .platform b { font-size: 22px; letter-spacing: 0.05em; }
     .platform span { font-family: Inter, ui-sans-serif, system-ui, sans-serif; line-height: 1.28; }
+    .route-set {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: var(--cream);
+      color: #121b14;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .boundary-strip {
+      margin-top: 14px;
+      border: 2px solid rgba(20, 32, 22, 0.32);
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: rgba(16, 22, 16, 0.90);
+      color: var(--cream);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      text-align: center;
+    }
+
+    .line-summary {
+      display: grid;
+      gap: 7px;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .line-summary strong { color: var(--cream); }
+    .line-boundary {
+      margin-top: 2px;
+      border-top: 1px solid rgba(246, 237, 207, 0.20);
+      padding-top: 8px;
+      color: #f7d7b3;
+      font-weight: 800;
+    }
 
     .lower-grid {
       display: grid;
@@ -642,7 +696,7 @@ DEMO_UI_HTML = r'''<!doctype html>
           </div>
           <button id="start-session" class="primary full">Start synthetic session</button>
           <button id="handoff" class="handoff-btn" disabled>Handoff lane</button>
-          <button id="revoke" class="revoke" disabled>Revoke</button>
+          <button id="revoke" class="revoke" disabled>Revoke session</button>
           <div id="session-box" class="session-box full">No active synthetic session.</div>
           <div id="error-box" class="error full" hidden></div>
 
@@ -650,13 +704,13 @@ DEMO_UI_HTML = r'''<!doctype html>
             <label for="message">Customer message</label>
             <textarea id="message" placeholder="Choose a scenario, then send to the local API…"></textarea>
           </div>
-          <button id="send" disabled class="primary full">Set route</button>
+          <button id="send" disabled class="primary full">Set route · send message</button>
 
           <div class="scenario-grid full" aria-label="demo scenarios">
-            <button class="scenario answer" data-persona="lucia" data-message="¿Cuál es el estado de la transacción DEMO-ES-1001?">ANSWER · Known transaction<small>Verified synthetic record lookup.</small></button>
+            <button class="scenario answer" data-persona="lucia" data-message="¿Cuál es el estado de la transacción DEMO-ES-1001?">ANSWER · Known transaction<small>Synthetic record lookup.</small></button>
             <button class="scenario clarify" data-persona="lucia" data-message="Quiero consultar una transacción por 54000 COP.">CLARIFY · Two matches<small>Amount matches more than one synthetic transaction.</small></button>
             <button class="scenario escalate" data-persona="lucia" data-message="No reconozco la transacción DEMO-ES-1001. Yo no autoricé ese pago.">ESCALATE · Unauthorized report<small>Customer-reported issue; not fraud detection.</small></button>
-            <button class="scenario abstain" data-persona="lucia" data-message="Quiero hacer una transferencia de 10000 COP a otra cuenta.">ABSTAIN · Unsupported action<small>Unsupported banking action request.</small></button>
+            <button class="scenario abstain" data-persona="lucia" data-message="Quiero hacer una transferencia de 10000 COP a otra cuenta.">ABSTAIN · Out-of-scope request<small>Unsupported intent stays outside the bounded workflow.</small></button>
             <button class="scenario pt" data-persona="rafael" data-message="Qual é o estado da transação DEMO-PT-2001?">PT · Rafael path<small>Portuguese path over synthetic data.</small></button>
           </div>
         </aside>
@@ -665,22 +719,31 @@ DEMO_UI_HTML = r'''<!doctype html>
           <section class="card signal-board" aria-label="interlocking panel">
             <div class="signal-head">
               <div class="signal-copy">
-                <h2>Interlocking panel</h2>
-                <p>Spanish and Portuguese messages enter the same fixed route boundary. Check lamps light only after the API response returns route evidence.</p>
+                <h2>Interlocking · 8 fixed checks</h2>
+                <p>Spanish and Portuguese messages pass through the same ordered deterministic guardrail. The first check that fires sets the bounded route.</p>
               </div>
               <div class="badge-row">
                 <span id="language-line" class="badge">ES/PT line</span>
                 <span id="intent-badge" class="badge intent">No intent</span>
-                <span class="badge">Visual prototype</span>
+                <span class="badge">Local prototype · synthetic</span>
               </div>
             </div>
 
             <div class="lines">
-              <div class="line-card"><b id="active-line">No line</b><span>interpreter → fixed checks</span></div>
+              <div class="line-card">
+                <b id="active-line">No line</b>
+                <div class="line-summary">
+                  <span id="line-interpreter"><strong>Interpreter:</strong> awaiting message</span>
+                  <span id="line-decision"><strong>Checks:</strong> not evaluated</span>
+                  <span id="line-route"><strong>Route:</strong> not set</span>
+                  <span id="line-boundary" class="line-boundary">No live LLM · Not fraud detection</span>
+                </div>
+              </div>
               <div id="checks" class="checks"></div>
             </div>
 
             <div id="platforms" class="platforms"></div>
+            <div class="boundary-strip">Synthetic data · local API · no live LLM · not fraud detection · not production/pilot-ready</div>
           </section>
 
           <section class="lower-grid">
@@ -700,7 +763,7 @@ DEMO_UI_HTML = r'''<!doctype html>
       </section>
 
       <footer class="limits">
-        Boundary: synthetic demo data only · local API visual prototype · no production or pilot readiness claim · no live-provider readiness claim · no fraud determination · no final submission/go-live claim · IPA-M1 remains open.
+        Boundary: synthetic demo data only · local API prototype · no production or pilot readiness claim · no live-provider readiness claim · not fraud detection · no final submission/go-live claim.
       </footer>
     </section>
   </main>
@@ -708,17 +771,17 @@ DEMO_UI_HTML = r'''<!doctype html>
   <script>
     const checks = [
       ['unauthorized_activity_reported', 'Customer-reported unauthorized activity?'],
-      ['possible_unauthorized_activity', 'Possible unauthorized activity failsafe?'],
+      ['possible_unauthorized_activity', 'Message may report unauthorized activity?'],
       ['interpreter_unavailable', 'Interpreter unavailable?'],
-      ['unsafe_or_excluded_record', 'Conflict, excluded relationship, or unsafe record?'],
-      ['decline_explanation_request', 'Decline explanation request?'],
+      ['unsafe_or_excluded_record', 'Record conflict, excluded account link, or unsafe record?'],
+      ['decline_explanation_request', 'Asks why a payment was declined?'],
       ['prohibited_banking_action', 'Prohibited banking action?'],
       ['unsupported_intent', 'Unsupported intent?'],
       ['ambiguous_transaction_match', 'Multiple verified matches?']
     ];
 
     const platforms = [
-      ['ANSWER', 'Verified answer', 'answer'],
+      ['ANSWER', 'Record-backed answer', 'answer'],
       ['CLARIFY', 'Needs exact reference', 'clarify'],
       ['ABSTAIN', 'Unsupported / unsafe', 'abstain'],
       ['ESCALATE', 'Human review', 'escalate'],
@@ -747,7 +810,11 @@ DEMO_UI_HTML = r'''<!doctype html>
       records: document.getElementById('records'),
       activeLine: document.getElementById('active-line'),
       languageLine: document.getElementById('language-line'),
-      intentBadge: document.getElementById('intent-badge')
+      intentBadge: document.getElementById('intent-badge'),
+      lineInterpreter: document.getElementById('line-interpreter'),
+      lineDecision: document.getElementById('line-decision'),
+      lineRoute: document.getElementById('line-route'),
+      lineBoundary: document.getElementById('line-boundary')
     };
 
     function escapeHtml(value) {
@@ -766,7 +833,7 @@ DEMO_UI_HTML = r'''<!doctype html>
 
     function displayIntent(intent) {
       const raw = String(intent || '').toLowerCase();
-      if (!raw || raw === 'unknown') return 'NO INTENT';
+      if (!raw || raw === 'unknown') return 'AWAITING MESSAGE';
       const labels = {
         transaction_status: 'TX STATUS',
         transaction_lookup: 'TX LOOKUP',
@@ -823,9 +890,9 @@ DEMO_UI_HTML = r'''<!doctype html>
     function computeWhy(response) {
       const route = response?.route;
       const reasons = response?.reason_codes || [];
-      if (route === 'ANSWER') return 'The backend found a supported request over verified synthetic records for this session.';
-      if (route === 'CLARIFY') return 'The backend found more than one verified possibility and refused to guess.';
-      if (route === 'ESCALATE') return 'The customer reported unauthorized activity; the demo routes to human review. This is not a fraud determination.';
+      if (route === 'ANSWER') return 'The backend found a supported request over matched synthetic records for this session.';
+      if (route === 'CLARIFY') return 'The backend found more than one matched synthetic record and refused to guess.';
+      if (route === 'ESCALATE') return 'The customer reported unauthorized activity; the demo routes to human review. Not fraud detection.';
       if (route === 'ABSTAIN') return 'The request is outside the supported or safe demo boundary, so the system abstains.';
       if (route === 'HANDOFF') return 'The separate handoff endpoint created support-ticket evidence with persisted/verified flags.';
       if (reasons.length) return `Backend returned reason code(s): ${reasons.join(', ')}.`;
@@ -833,13 +900,40 @@ DEMO_UI_HTML = r'''<!doctype html>
     }
 
     function renderChecks(response) {
+      const route = response?.route;
       const reasons = response?.reason_codes || [];
+      const firedIndex = checks.findIndex(([code]) => reasons.includes(code));
+
       els.checks.innerHTML = checks.map(([code, label], index) => {
-        const on = reasons.includes(code);
-        return `<article class="check ${on ? 'on' : ''}">
+        let stateName = 'waiting';
+        let stateLabel = 'WAITING';
+
+        if (route === 'HANDOFF') {
+          stateName = 'na';
+          stateLabel = 'N/A';
+        } else if (route === 'ANSWER') {
+          stateName = 'clear';
+          stateLabel = 'CLEAR';
+        } else if (route && firedIndex >= 0) {
+          if (index < firedIndex) {
+            stateName = 'clear';
+            stateLabel = 'CLEAR';
+          } else if (index === firedIndex) {
+            stateName = 'on';
+            stateLabel = 'ON';
+          } else {
+            stateName = 'na';
+            stateLabel = 'N/A';
+          }
+        } else if (route) {
+          stateName = 'na';
+          stateLabel = 'N/A';
+        }
+
+        return `<article class="check ${stateName}">
           <div class="check-head"><span class="check-num">${index + 1}</span><span class="lamp" aria-hidden="true"></span></div>
           <div class="check-title">${escapeHtml(label)}</div>
-          <div class="check-state">${on ? 'ON' : 'OFF'}</div>
+          <div class="check-state">${stateLabel}</div>
         </article>`;
       }).join('');
     }
@@ -851,8 +945,43 @@ DEMO_UI_HTML = r'''<!doctype html>
           <span class="signal-lamp" aria-hidden="true"></span>
           <b>${name}</b>
           <span>${sub}</span>
+          ${active ? '<span class="route-set">▶ Route set</span>' : ''}
         </article>`;
       }).join('');
+    }
+
+    function renderLineSummary(response) {
+      const route = response?.route;
+      const intent = response?.intent && response.intent !== 'unknown' ? response.intent : null;
+      const reasons = response?.reason_codes || [];
+      const firedIndex = checks.findIndex(([code]) => reasons.includes(code));
+
+      if (!response) {
+        els.lineInterpreter.innerHTML = '<strong>Interpreter:</strong> awaiting message';
+        els.lineDecision.innerHTML = '<strong>Checks:</strong> not evaluated';
+        els.lineRoute.innerHTML = '<strong>Route:</strong> not set';
+        els.lineBoundary.textContent = 'No live LLM · Not fraud detection';
+        return;
+      }
+
+      if (route === 'HANDOFF') {
+        els.lineInterpreter.innerHTML = '<strong>Endpoint:</strong> separate support handoff';
+        els.lineDecision.innerHTML = `<strong>Evidence:</strong> persisted ${escapeHtml(response.persisted)} · read-back verified ${escapeHtml(response.verified)} · synthetic ${escapeHtml(response.synthetic_data)}`;
+        els.lineRoute.innerHTML = '<strong>Checks:</strong> N/A · separate endpoint → HANDOFF';
+        els.lineBoundary.textContent = 'No live LLM · Not fraud detection';
+        return;
+      }
+
+      els.lineInterpreter.innerHTML = `<strong>Interpreter:</strong> deterministic provider · no live LLM${intent ? ` · intent ${escapeHtml(intent)}` : ''}`;
+      if (route === 'ANSWER') {
+        els.lineDecision.innerHTML = '<strong>Checks:</strong> 1–8 CLEAR';
+      } else if (firedIndex >= 0) {
+        els.lineDecision.innerHTML = `<strong>First fired:</strong> check ${firedIndex + 1} · ${escapeHtml(reasons[firedIndex] || reasons[0])}`;
+      } else {
+        els.lineDecision.innerHTML = '<strong>Checks:</strong> route returned without a mapped demo check';
+      }
+      els.lineRoute.innerHTML = `<strong>Route:</strong> ${escapeHtml(route || 'not set')}`;
+      els.lineBoundary.textContent = 'Deterministic checks override intent · Not fraud detection';
     }
 
     function renderRecord(record) {
@@ -878,8 +1007,9 @@ DEMO_UI_HTML = r'''<!doctype html>
       els.activeLine.textContent = state.session?.language ? `${state.session.language.toUpperCase()} line` : 'No line';
       els.languageLine.textContent = state.session?.language ? `${state.session.language.toUpperCase()} line` : 'ES/PT line';
       els.intentBadge.textContent = displayIntent(response?.intent);
-      els.intentBadge.title = response?.intent || 'No intent';
+      els.intentBadge.title = response?.intent || 'Awaiting message';
       els.why.textContent = computeWhy(response);
+      renderLineSummary(response);
 
       const kv = [];
       kv.push(['Route', route]);
@@ -888,7 +1018,7 @@ DEMO_UI_HTML = r'''<!doctype html>
       if (response?.escalation_ticket_id) kv.push(['Ticket', response.escalation_ticket_id]);
       if (response?.ticket_id) kv.push(['Ticket', response.ticket_id]);
       if (response?.persisted !== undefined) kv.push(['Persisted', String(response.persisted)]);
-      if (response?.verified !== undefined) kv.push(['Verified', String(response.verified)]);
+      if (response?.verified !== undefined) kv.push(['Read-back verified', String(response.verified)]);
       els.evidence.innerHTML = kv.map(([k, v]) => `<div><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join('');
 
       const reasons = response?.reason_codes || [];
@@ -965,7 +1095,7 @@ DEMO_UI_HTML = r'''<!doctype html>
       setError('');
       const response = await api('/api/customer/handoff', {method: 'POST', body: '{}'});
       const text = response.persisted && response.verified
-        ? `Support ticket created and verified. Ticket: ${response.ticket_id}`
+        ? `Support ticket persisted and read-back verified. Ticket: ${response.ticket_id}`
         : `Support ticket response received. Ticket: ${response.ticket_id || 'not returned'}`;
       const mapped = {
         route: 'HANDOFF',
