@@ -38,7 +38,7 @@ def test_ordinary_failure_to_pay_is_cleanup_candidate_not_raise() -> None:
 
 
 def test_failure_to_pay_with_positive_guard_is_not_cleanup_candidate() -> None:
-    text = "No reconozco el cargo y tampoco pagué la cuota."
+    text = "No reconozco este cargo por 120 pesos y no pagué la cuota."
 
     assert rf5_stage1_should_raise(text)
     assert not rf5_stage1_failure_to_pay_cleanup_candidate(text)
