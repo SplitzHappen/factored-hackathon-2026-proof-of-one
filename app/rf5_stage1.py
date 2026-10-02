@@ -119,23 +119,23 @@ _POSITIVE_LOSS_GUARD_RX = _rx(r"\b(?:" + _POSITIVE_LOSS_GUARD + r")\b")
 # intentionally provider-free and suppress only RF5's added recall floor; they do
 # not alter the authoritative unauthorized detector or RF4 itself.
 _RF5_HYPOTHETICAL_OR_PROCEDURAL_GUARD = _rx(
-    r"\b(?:si|en caso de|caso|supongamos|imaginemos)\b(?:\s+\S+){0,12}?\b(?:" + _NO_AUTH + r"|" + _SCAM + r")\b"
-    r"|\b(?:se|caso)\b(?:\s+\S+){0,6}?\b(?:alguem|alguien|um terceiro|un tercero)\b"
+    r"\b(?:en caso de|supongamos|imaginemos)\b(?:\s+\S+){0,12}?\s+\b(?:" + _NO_AUTH + r"|" + _SCAM + r")\b"
+    r"|\b(?:si|se|caso)\b(?:\s+\S+){0,8}?\s+\b(?:alguem|alguien|um terceiro|un tercero|tercero|terceiro)\b"
     r"|\b(?:que hago si|que hacer si|que debo hacer si|o que faco se|o que fazer se|o que faco caso|o que fazer caso)\b"
 )
 _RF5_PREVENTION_QUESTION_GUARD = _rx(
     r"\b(?:como|como puedo|como puedo saber|como faço para|como saber|como detectar|como identificar)\b"
-    r"(?:\s+\S+){0,10}?\b(?:" + _SCAM + r"|" + _NO_AUTH + r")\b"
+    r"(?:\s+\S+){0,10}?\s+\b(?:" + _SCAM + r"|" + _NO_AUTH + r")\b"
     r"|\b(?:prevenir|evitar|detectar|identificar|protegerme|me proteger)\b"
-    r"(?:\s+\S+){0,10}?\b(?:" + _SCAM + r"|" + _NO_AUTH + r")\b"
+    r"(?:\s+\S+){0,10}?\s+\b(?:" + _SCAM + r"|" + _NO_AUTH + r")\b"
 )
 _RF5_RESOLVED_GUARD = _rx(
-    r"\b(?:ya|ja)\b(?:\s+\S+){0,8}?\b(?:reversaron|revirtieron|revertieron|reversaram|estornaron|estornaram|devolvieron|devolveram|reembolsaron|reembolsaram|resolvieron|resolveram|solucionaron|solucionaram)\b"
+    r"\b(?:ya|ja)\b(?:\s+\S+){0,8}?\s+\b(?:reversaron|revirtieron|revertieron|reversaram|estornaron|estornaram|devolvieron|devolveram|reembolsaron|reembolsaram|resolvieron|resolveram|solucionaron|solucionaram)\b"
     r"|\b(?:reversado|revertido|estornado|devuelto|devolvido|reembolsado|resuelto|resolvido|solucionado)\b"
 )
 _RF5_LAWFUL_CAUSE_GUARD = _rx(
     r"\b(?:dian|receita federal|autoridad tributaria|autoridade tributaria|fisco|hacienda|juzgado|juez|tribunal)\b"
-    r"|\b(?:impuesto|impuestos|imposto|impostos|tributo|tributos|embargo|embargaron|embargado|embargaram|penhora|penhorado|retencion|retencao|retuvo|retuvieron|reteve|reteram|bloqueo|bloqueou|bloquearon|bloquearam)\b"
+    r"|\b(?:impuesto|impuestos|imposto|impostos|tributo|tributos|embargo|embargado|penhora|penhorado|retencion|retencao)\b"
 )
 _RF5_RAISE_GUARDS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("hypothetical_or_procedural", _RF5_HYPOTHETICAL_OR_PROCEDURAL_GUARD),
