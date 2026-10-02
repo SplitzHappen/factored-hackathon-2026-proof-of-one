@@ -6,7 +6,7 @@ DEMO_UI_HTML = """<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Proof of One — Judge Demo Shell</title>
+  <title>Proof of One — Local Synthetic Demo</title>
   <style>
     :root {
       color-scheme: light;
@@ -78,197 +78,264 @@ DEMO_UI_HTML = """<!doctype html>
     }
 
     .lead {
-      max-width: 780px;
-      margin: 0;
+      max-width: 760px;
       color: var(--muted);
       font-size: 18px;
       line-height: 1.55;
+      margin: 0 0 22px;
     }
 
     .claim-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
-      margin-top: 24px;
     }
 
     .claim {
       border: 1px solid var(--line);
       border-radius: 16px;
       padding: 14px;
-      background: #fbfcff;
+      background: #ffffff;
     }
 
-    .claim strong {
+    .claim strong,
+    .runtime-card strong {
       display: block;
-      font-size: 14px;
-      margin-bottom: 4px;
+      margin-bottom: 5px;
+      font-size: 15px;
     }
 
-    .claim span {
+    .claim span,
+    .runtime-card span {
       color: var(--muted);
-      font-size: 12px;
-      line-height: 1.35;
+      font-size: 14px;
+      line-height: 1.45;
     }
 
-    .status-card {
+    .runtime-card {
       padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .status-grid {
       display: grid;
-      gap: 16px;
-      align-content: start;
+      gap: 12px;
+      margin-top: 16px;
     }
 
     .status-line {
       display: flex;
       justify-content: space-between;
-      gap: 16px;
-      padding: 12px 0;
+      gap: 12px;
       border-bottom: 1px solid var(--line);
-      font-size: 14px;
+      padding-bottom: 10px;
+      color: var(--muted);
     }
 
-    .status-line:last-child { border-bottom: 0; }
-    .status-line span:first-child { color: var(--muted); }
-    .status-line span:last-child { font-weight: 700; text-align: right; }
+    .status-line b { color: var(--ink); }
+
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: #f8fafc;
+      padding: 14px 16px;
+      border-radius: 14px;
+      margin-top: 18px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
 
     .main-grid {
       display: grid;
-      grid-template-columns: 340px minmax(0, 1fr);
+      grid-template-columns: 360px minmax(0, 1fr);
       gap: 22px;
       align-items: start;
     }
 
-    .sidebar, .workbench { padding: 22px; }
-    h2 { margin: 0 0 14px; font-size: 22px; letter-spacing: -0.02em; }
-    h3 { margin: 0 0 10px; font-size: 16px; }
+    .sidebar,
+    .workbench { padding: 22px; }
 
-    label {
-      display: block;
-      margin: 14px 0 6px;
+    h2 {
+      margin: 0 0 16px;
+      letter-spacing: -0.025em;
+    }
+
+    h3 {
+      margin: 20px 0 10px;
+      font-size: 14px;
       color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
 
-    select, textarea, button {
+    label {
+      display: block;
+      font-weight: 700;
+      font-size: 13px;
+      margin: 14px 0 6px;
+    }
+
+    select,
+    textarea,
+    button {
       width: 100%;
       border-radius: 14px;
       border: 1px solid var(--line);
       font: inherit;
     }
 
-    select, textarea {
-      background: #fff;
+    select,
+    textarea {
+      background: #ffffff;
       color: var(--ink);
-      padding: 12px 14px;
+      padding: 12px;
     }
 
     textarea {
-      min-height: 110px;
+      min-height: 118px;
       resize: vertical;
-      line-height: 1.45;
+      line-height: 1.5;
     }
 
     button {
-      margin-top: 12px;
-      padding: 12px 14px;
+      margin-top: 10px;
+      border: 0;
       background: var(--accent);
-      color: white;
-      border-color: var(--accent);
+      color: #ffffff;
       font-weight: 800;
+      padding: 12px 14px;
       cursor: pointer;
-      transition: transform 120ms ease, background 120ms ease;
     }
 
-    button:hover { background: var(--accent-dark); transform: translateY(-1px); }
-    button.secondary { background: #fff; color: var(--accent-dark); border-color: #b9c3ff; }
-    button.secondary:hover { background: #f5f7ff; }
-    button.danger { background: #fff; color: var(--danger); border-color: #fecaca; }
-    button.danger:hover { background: #fff5f5; }
-    button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+    button:hover:not(:disabled) { background: var(--accent-dark); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    .scenario-list {
-      display: grid;
-      gap: 10px;
-      margin-top: 16px;
+    button.secondary {
+      background: #eef2ff;
+      color: var(--accent-dark);
+      border: 1px solid #c7d2fe;
     }
+
+    button.danger { background: #fee2e2; color: var(--danger); }
 
     .scenario {
       text-align: left;
-      background: #fff;
+      background: #ffffff;
       color: var(--ink);
-      border-color: var(--line);
-      font-weight: 700;
-      margin: 0;
+      border: 1px solid var(--line);
+      font-weight: 800;
     }
 
     .scenario small {
       display: block;
-      margin-top: 4px;
       color: var(--muted);
       font-weight: 500;
+      margin-top: 4px;
       line-height: 1.35;
+    }
+
+    .session-box,
+    .error {
+      margin-top: 14px;
+      border-radius: 14px;
+      padding: 12px;
+      line-height: 1.45;
+      font-size: 13px;
+    }
+
+    .session-box {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      word-break: break-word;
+    }
+
+    .error {
+      color: var(--danger);
+      background: #fef2f2;
+      border: 1px solid #fecaca;
     }
 
     .conversation {
       display: grid;
       gap: 14px;
-      min-height: 360px;
+      margin-top: 18px;
     }
 
     .empty {
-      padding: 32px;
+      color: var(--muted);
       border: 1px dashed var(--line);
       border-radius: 18px;
-      color: var(--muted);
+      padding: 32px;
       text-align: center;
-      background: #fbfcff;
     }
 
     .turn {
       border: 1px solid var(--line);
-      border-radius: 18px;
+      border-radius: 20px;
       overflow: hidden;
-      background: #fff;
+      background: #ffffff;
     }
 
     .turn-header {
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
       justify-content: space-between;
-      padding: 12px 14px;
-      background: #f8faff;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      background: #f8fafc;
       border-bottom: 1px solid var(--line);
     }
 
-    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
     .pill {
       display: inline-flex;
       align-items: center;
       border-radius: 999px;
-      padding: 5px 9px;
-      font-size: 12px;
-      font-weight: 800;
+      padding: 4px 9px;
       background: #eef2ff;
       color: var(--accent-dark);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
     }
 
     .pill.answer { background: #dcfce7; color: var(--good); }
     .pill.clarify { background: #fef3c7; color: var(--warn); }
     .pill.escalate { background: #fee2e2; color: var(--danger); }
-    .pill.abstain { background: #e5e7eb; color: #374151; }
+    .pill.abstain { background: #f1f5f9; color: #334155; }
+    .pill.handoff { background: #fee2e2; color: var(--danger); }
 
-    .turn-body { padding: 14px; display: grid; gap: 14px; }
-    .user-text { color: var(--muted); font-size: 14px; }
-    .answer-text { font-size: 16px; line-height: 1.55; }
+    .turn-body {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .user-text,
+    .answer-text {
+      line-height: 1.55;
+    }
+
+    .user-text {
+      color: var(--muted);
+    }
+
+    .answer-text {
+      font-size: 17px;
+      font-weight: 650;
+    }
 
     .data-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
       gap: 10px;
     }
 
@@ -276,57 +343,25 @@ DEMO_UI_HTML = """<!doctype html>
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 12px;
-      background: #fbfcff;
+      background: #fcfcfd;
+    }
+
+    .record dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 10px;
+      margin: 8px 0 0;
       font-size: 13px;
     }
 
-    .record strong { display: block; margin-bottom: 5px; }
-    .record dl { margin: 0; display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 4px 8px; }
     .record dt { color: var(--muted); }
-    .record dd { margin: 0; overflow-wrap: anywhere; }
-
-    .callout {
-      margin-top: 16px;
-      padding: 14px;
-      border: 1px solid #bfdbfe;
-      border-radius: 16px;
-      background: #eff6ff;
-      color: #1e3a8a;
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
-    .session-box {
-      margin-top: 14px;
-      padding: 12px;
-      border-radius: 14px;
-      background: #fbfcff;
-      border: 1px solid var(--line);
-      font-size: 12px;
-      color: var(--muted);
-      overflow-wrap: anywhere;
-    }
-
-    .error {
-      margin-top: 12px;
-      padding: 12px;
-      border-radius: 14px;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      color: var(--danger);
-      font-size: 13px;
-      line-height: 1.4;
-    }
+    .record dd { margin: 0; text-align: right; }
 
     @media (max-width: 920px) {
-      .hero, .main-grid { grid-template-columns: 1fr; }
-      .claim-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-
-    @media (max-width: 560px) {
-      .shell { padding: 16px; }
-      .hero-copy, .status-card, .sidebar, .workbench { padding: 18px; }
+      .hero,
+      .main-grid,
       .claim-grid { grid-template-columns: 1fr; }
+      .shell { padding: 18px; }
     }
   </style>
 </head>
@@ -334,28 +369,44 @@ DEMO_UI_HTML = """<!doctype html>
   <main class="shell">
     <section class="hero">
       <div class="panel hero-copy">
-        <div class="eyebrow">Proof of One · local judge shell</div>
-        <h1>Bounded support decisions over verified banking facts.</h1>
+        <div class="eyebrow">Proof of One · local synthetic demo</div>
+        <h1>Bounded support decisions over verified synthetic account records.</h1>
         <p class="lead">
-          This shell is a screenshot-ready interface over the existing local FastAPI demo API.
-          It shows the allowed demo flows without adding model authority, live-provider wiring,
-          production claims, or hidden customer identity controls.
+          A local demo of the Proof of One support API, running on fictional customers and transactions.
+          Every route below is decided by deterministic backend rules; no language model is connected in this demo.
         </p>
-        <div class="claim-grid" aria-label="claim limits">
-          <div class="claim"><strong>Server-issued session</strong><span>The browser receives a demo session; it never submits customer_id.</span></div>
-          <div class="claim"><strong>Synthetic facts only</strong><span>Displayed personas and records come from the public synthetic artifact.</span></div>
-          <div class="claim"><strong>Deterministic routing</strong><span>ANSWER, CLARIFY, ABSTAIN, and ESCALATE remain backend decisions.</span></div>
-          <div class="claim"><strong>Human handoff path</strong><span>Escalations show persisted ticket evidence where the API provides it.</span></div>
+        <div class="claim-grid">
+          <div class="claim">
+            <strong>Server-controlled identity</strong>
+            <span>The browser never chooses which customer it sees; the server assigns it.</span>
+          </div>
+          <div class="claim">
+            <strong>Synthetic data only</strong>
+            <span>All customers and transactions shown are fictional demo records.</span>
+          </div>
+          <div class="claim">
+            <strong>Deterministic route boundary</strong>
+            <span>ANSWER, CLARIFY, ABSTAIN, and ESCALATE are backend decisions, not UI labels.</span>
+          </div>
+          <div class="claim">
+            <strong>Support ticket on escalation</strong>
+            <span>Escalations create a stored support ticket for follow-up. No live agent is connected in this demo.</span>
+          </div>
+        </div>
+        <div class="callout">
+          <strong>Demo limits:</strong> synthetic data only · runs locally · no language model connected · not a production system.
         </div>
       </div>
-      <aside class="panel status-card" aria-label="runtime status">
-        <h2>Runtime boundary</h2>
-        <div class="status-line"><span>API readiness</span><span id="ready-status">checking…</span></div>
-        <div class="status-line"><span>Data mode</span><span id="data-mode">unknown</span></div>
-        <div class="status-line"><span>LLM connected</span><span id="llm-connected">false</span></div>
-        <div class="status-line"><span>Scope</span><span>local synthetic demo</span></div>
-        <div class="callout">
-          Claim limit: this interface demonstrates the existing local API flow. It does not claim production readiness, live-provider readiness, or final judge submission approval.
+
+      <aside class="panel runtime-card">
+        <div>
+          <h2>Runtime boundary</h2>
+          <span>Live state from the local API readiness endpoint.</span>
+        </div>
+        <div class="status-grid">
+          <div class="status-line"><span>Readiness</span><b id="ready-status">checking…</b></div>
+          <div class="status-line"><span>Data mode</span><b id="data-mode">checking…</b></div>
+          <div class="status-line"><span>LLM connected</span><b id="llm-connected">checking…</b></div>
         </div>
       </aside>
     </section>
@@ -381,21 +432,21 @@ DEMO_UI_HTML = """<!doctype html>
 
         <div class="scenario-list" aria-label="preset scenarios">
           <h3>Preset judge flows</h3>
-          <button class="scenario" data-message="Muéstrame mis últimos movimientos.">
+          <button class="scenario" data-persona="lucia" data-message="Muéstrame mis últimos movimientos.">
             ANSWER · Recent movements
-            <small>Supported request over verified synthetic transaction facts.</small>
+            <small>Supported request over verified synthetic transaction facts. (Lucía)</small>
           </button>
-          <button class="scenario" data-message="¿Cuál fue el pago de 54.000 COP?">
+          <button class="scenario" data-persona="lucia" data-message="Busca las transacciones de 54.000 COP.">
             CLARIFY · Ambiguous payment
-            <small>Two matching demo transactions require a customer clarification.</small>
+            <small>Two verified transactions match this amount, so the system asks which one the customer means. (Lucía)</small>
           </button>
-          <button class="scenario" data-message="No reconozco este pago y no autoricé esta actividad en mi cuenta.">
+          <button class="scenario" data-persona="lucia" data-message="No reconozco este pago y no autoricé esta actividad en mi cuenta.">
             ESCALATE · Unauthorized activity
-            <small>Safety precedence routes reported unauthorized activity to human review.</small>
+            <small>When the customer reports activity they did not authorize, a deterministic rule opens a support ticket. This is not fraud detection.</small>
           </button>
-          <button class="scenario" data-message="Quero ver meus pagamentos recentes.">
-            PT · Portuguese support
-            <small>Uses the same bounded API path for the Portuguese demo persona.</small>
+          <button class="scenario" data-persona="rafael" data-message="Quero ver meus pagamentos recentes.">
+            PT · Portuguese support (select Rafael)
+            <small>Same deterministic path, answered in Portuguese over Rafael's synthetic records.</small>
           </button>
         </div>
       </aside>
@@ -435,6 +486,15 @@ DEMO_UI_HTML = """<!doctype html>
       conversation: document.getElementById('conversation')
     };
 
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
     function setError(message) {
       if (!message) {
         els.error.hidden = true;
@@ -470,6 +530,7 @@ DEMO_UI_HTML = """<!doctype html>
       if (route === 'CLARIFY') return 'clarify';
       if (route === 'ESCALATE') return 'escalate';
       if (route === 'ABSTAIN') return 'abstain';
+      if (route === 'HANDOFF') return 'handoff';
       return '';
     }
 
@@ -483,15 +544,15 @@ DEMO_UI_HTML = """<!doctype html>
     function renderRecord(record) {
       return `
         <div class="record">
-          <strong>${record.transaction_id || record.product_id || 'Record'}</strong>
+          <strong>${escapeHtml(record.transaction_id || record.product_id || 'Record')}</strong>
           <dl>
-            ${record.occurred_at ? `<dt>Date</dt><dd>${record.occurred_at}</dd>` : ''}
-            ${record.transaction_type ? `<dt>Type</dt><dd>${record.transaction_type}</dd>` : ''}
-            ${record.status ? `<dt>Status</dt><dd>${record.status}</dd>` : ''}
-            ${record.amount !== undefined ? `<dt>Amount</dt><dd>${formatMoney(record.amount, record.currency)}</dd>` : ''}
-            ${record.merchant_name ? `<dt>Merchant</dt><dd>${record.merchant_name}</dd>` : ''}
-            ${record.product_type ? `<dt>Product</dt><dd>${record.product_type}</dd>` : ''}
-            ${record.current_balance !== undefined ? `<dt>Balance</dt><dd>${formatMoney(record.current_balance, record.currency)}</dd>` : ''}
+            ${record.occurred_at ? `<dt>Date</dt><dd>${escapeHtml(record.occurred_at)}</dd>` : ''}
+            ${record.transaction_type ? `<dt>Type</dt><dd>${escapeHtml(record.transaction_type)}</dd>` : ''}
+            ${record.status ? `<dt>Status</dt><dd>${escapeHtml(record.status)}</dd>` : ''}
+            ${record.amount !== undefined ? `<dt>Amount</dt><dd>${escapeHtml(formatMoney(record.amount, record.currency))}</dd>` : ''}
+            ${record.merchant_name ? `<dt>Merchant</dt><dd>${escapeHtml(record.merchant_name)}</dd>` : ''}
+            ${record.product_type ? `<dt>Product</dt><dd>${escapeHtml(record.product_type)}</dd>` : ''}
+            ${record.current_balance !== undefined ? `<dt>Balance</dt><dd>${escapeHtml(formatMoney(record.current_balance, record.currency))}</dd>` : ''}
           </dl>
         </div>`;
     }
@@ -509,21 +570,22 @@ DEMO_UI_HTML = """<!doctype html>
           ...(response.transactions || [])
         ];
         const candidates = response.clarification_transaction_ids || [];
+        const intent = response.intent && response.intent !== 'unknown' ? response.intent : '';
         return `
           <article class="turn">
             <header class="turn-header">
               <div class="pill-row">
-                <span class="pill ${routeClass(route)}">${route}</span>
-                ${response.intent ? `<span class="pill">${response.intent}</span>` : ''}
+                <span class="pill ${routeClass(route)}">${escapeHtml(route)}</span>
+                ${intent ? `<span class="pill">${escapeHtml(intent)}</span>` : ''}
                 ${response.synthetic_data ? '<span class="pill">synthetic data</span>' : ''}
               </div>
-              ${response.escalation_ticket_id ? `<span class="pill escalate">ticket ${response.escalation_ticket_id}</span>` : ''}
+              ${response.escalation_ticket_id ? `<span class="pill escalate">ticket ${escapeHtml(response.escalation_ticket_id)}</span>` : ''}
             </header>
             <div class="turn-body">
-              ${turn.message ? `<div class="user-text"><strong>Customer:</strong> ${turn.message}</div>` : ''}
-              <div class="answer-text">${response.response_text || turn.text || ''}</div>
-              ${response.reason_codes?.length ? `<div class="pill-row">${response.reason_codes.map((reason) => `<span class="pill">${reason}</span>`).join('')}</div>` : ''}
-              ${candidates.length ? `<div class="record"><strong>Clarification candidates</strong><div>${candidates.join(', ')}</div></div>` : ''}
+              ${turn.message ? `<div class="user-text"><strong>Customer:</strong> ${escapeHtml(turn.message)}</div>` : ''}
+              <div class="answer-text">${escapeHtml(response.response_text || turn.text || '')}</div>
+              ${response.reason_codes?.length ? `<div class="pill-row">${response.reason_codes.map((reason) => `<span class="pill">${escapeHtml(reason)}</span>`).join('')}</div>` : ''}
+              ${candidates.length ? `<div class="record"><strong>Clarification candidates</strong><div>${candidates.map(escapeHtml).join(', ')}</div></div>` : ''}
               ${records.length ? `<div class="data-grid">${records.map(renderRecord).join('')}</div>` : ''}
             </div>
           </article>`;
@@ -539,12 +601,12 @@ DEMO_UI_HTML = """<!doctype html>
         return;
       }
       els.sessionBox.innerHTML = `
-        <strong>${state.session.display_name}</strong><br>
-        Session: ${state.session.session_id}<br>
-        Tenant: ${state.session.tenant_id}<br>
-        Role: ${state.session.role}<br>
-        Language: ${state.session.language}<br>
-        Synthetic data: ${state.session.synthetic_data}`;
+        <strong>${escapeHtml(state.session.display_name)}</strong><br>
+        Session: ${escapeHtml(state.session.session_id)}<br>
+        Tenant: ${escapeHtml(state.session.tenant_id)}<br>
+        Role: ${escapeHtml(state.session.role)}<br>
+        Language: ${escapeHtml(state.session.language)}<br>
+        Synthetic data: ${escapeHtml(state.session.synthetic_data)}`;
       els.send.disabled = false;
       els.handoff.disabled = false;
       els.revoke.disabled = false;
@@ -565,7 +627,7 @@ DEMO_UI_HTML = """<!doctype html>
     async function loadPersonas() {
       state.personas = await api('/api/demo/personas', {headers: {}});
       els.persona.innerHTML = state.personas.map((persona) => (
-        `<option value="${persona.persona_id}">${persona.display_name} · ${persona.default_language.toUpperCase()}</option>`
+        `<option value="${escapeHtml(persona.persona_id)}">${escapeHtml(persona.display_name)} · ${escapeHtml(persona.default_language.toUpperCase())}</option>`
       )).join('');
     }
 
@@ -599,12 +661,12 @@ DEMO_UI_HTML = """<!doctype html>
       setError('');
       const response = await api('/api/customer/handoff', {method: 'POST', body: '{}'});
       state.turns.unshift({
-        kind: 'ESCALATE',
-        text: `Support handoff persisted and verified. Ticket: ${response.ticket_id}`,
+        kind: 'HANDOFF',
+        text: `Support ticket created (persisted: ${response.persisted}, verified: ${response.verified}). Ticket: ${response.ticket_id}`,
         response: {
-          route: 'ESCALATE',
+          route: 'HANDOFF',
           intent: 'customer_requested_support_handoff',
-          response_text: `Support handoff persisted and verified. Ticket: ${response.ticket_id}`,
+          response_text: `Support ticket created (persisted: ${response.persisted}, verified: ${response.verified}). Ticket: ${response.ticket_id}`,
           reason_codes: ['customer_requested_support_handoff'],
           escalation_ticket_id: response.ticket_id,
           synthetic_data: true
@@ -629,6 +691,12 @@ DEMO_UI_HTML = """<!doctype html>
     document.querySelectorAll('.scenario').forEach((button) => {
       button.addEventListener('click', () => {
         els.message.value = button.dataset.message || '';
+        if (button.dataset.persona) {
+          els.persona.value = button.dataset.persona;
+        }
+        if (button.dataset.persona === 'rafael') {
+          els.language.value = '';
+        }
       });
     });
 
