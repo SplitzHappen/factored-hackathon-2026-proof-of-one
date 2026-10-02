@@ -277,7 +277,7 @@ def test_final_abstain_preset_stays_outside_supported_workflow(tmp_path) -> None
     assert response.status_code == 200
     body = response.json()
     assert body["route"] == "ABSTAIN"
-    assert body["reason_codes"] == ["prohibited_banking_action"]
+    assert body["reason_codes"] == ["unsupported_intent"]
     assert body["escalation_ticket_id"] is None
     assert body["handoff_available"] is True
 
