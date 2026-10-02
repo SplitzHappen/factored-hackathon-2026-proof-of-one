@@ -1,67 +1,96 @@
-# Judge-facing UI shell
+# Judge-facing local UI shell
 
-This document records the narrow demo UI shell added for the Factored hackathon judge-facing walkthrough.
+This document is the public, consolidated reference for the R3F judge-facing local UI shell.
 
-## Purpose
+The shell is a thin browser interface over the existing local synthetic FastAPI demo API. It is intended to support screenshot and short-video capture for the final demo package without requiring judges to interpret Swagger screens as the main product surface.
 
-The shell gives reviewers a product-shaped surface over the existing local FastAPI demo API. It is intended to replace Swagger-heavy screenshots in the judge deck while preserving the same backend claim limits.
+## What the shell does
 
-## Local use
+- Serves a dependency-free HTML/CSS/JavaScript interface at `/demo` and `/`.
+- Uses only existing local synthetic API endpoints:
+  - `GET /ready`
+  - `GET /api/demo/personas`
+  - `POST /api/demo/sessions`
+  - `POST /api/customer/turn`
+  - `POST /api/customer/handoff`
+  - `DELETE /api/demo/session`
+- Presents four bounded judge flows:
+  - `ANSWER` over verified synthetic transaction records;
+  - `CLARIFY` when two synthetic transactions match the same customer request;
+  - `ESCALATE` when the customer reports unauthorized activity;
+  - support handoff through a stored ticket response.
+- Shows the runtime boundary from `/ready`, including synthetic data mode and `llm_connected=false`.
 
-Start the existing service normally:
+## What the shell does not do
+
+- It does not change backend policy logic.
+- It does not change retrieval logic.
+- It does not change session authority or customer identity controls.
+- It does not change escalation persistence.
+- It does not add live-provider wiring.
+- It does not run held-out evaluation.
+- It does not imply production, pilot, final submission, or judge go-live readiness.
+
+## Claim limits
+
+Permitted claims:
+
+- The local UI shell demonstrates the existing synthetic API through a judge-facing browser surface.
+- The browser does not choose or submit the authoritative customer identity; sessions are server-issued.
+- Demo data is synthetic and fictional.
+- The UI displays backend route decisions rather than inventing route labels.
+- The demonstrated flows include supported answers, ambiguous-transaction clarification, customer-reported unauthorized-activity escalation, and explicit support handoff.
+- Escalation and handoff create stored support-ticket records for follow-up.
+
+Prohibited claims:
+
+- Production readiness.
+- Pilot readiness.
+- Live language-model integration.
+- Comprehensive Spanish/Portuguese natural-language coverage.
+- Fraud detection.
+- Human-agent staffing or live human review.
+- Final public submission or judge go-live approval.
+- Any baseline-vs-LLM uplift claim.
+
+## Preset capture sequence
+
+Use a local run of the product app:
 
 ```powershell
+python -m pytest tests/test_demo_ui_shell.py -q
 uvicorn app.main:app --reload
 ```
 
-Then open:
+Open:
 
 ```text
 http://127.0.0.1:8000/demo
 ```
 
-The root path also serves the same shell for local convenience:
+Capture after the Claude-identified UI-shell repairs are present:
 
-```text
-http://127.0.0.1:8000/
-```
+1. **Overview** — hero, claim-limit cards, and runtime boundary showing `ready`, synthetic mode, and `llm_connected=false`.
+2. **ANSWER / Lucía** — `Muéstrame mis últimos movimientos.` returning `ANSWER` and transaction cards.
+3. **CLARIFY / Lucía** — `Busca las transacciones de 54.000 COP.` returning `CLARIFY` with candidates `DEMO-ES-1003` and `DEMO-ES-1004`.
+4. **ESCALATE / Lucía** — unauthorized-activity report returning `ESCALATE` and a support-ticket ID.
+5. **HANDOFF / Lucía** — explicit support handoff showing the returned ticket plus API `persisted` and `verified` fields.
+6. **Portuguese / Rafael** — `Quero ver meus pagamentos recentes.` returning a Portuguese answer over Rafael's synthetic records.
 
-## API surface used
+For main deck screenshots, crop or avoid overemphasizing session and tenant identifiers. Keep those details for appendix evidence only.
 
-The UI calls only the already-existing local demo endpoints:
+## Appendix-only evidence
 
-- `GET /ready`
-- `GET /api/demo/personas`
-- `POST /api/demo/sessions`
-- `POST /api/customer/turn`
-- `POST /api/customer/handoff`
-- `DELETE /api/demo/session`
+Keep the following as technical backup rather than main judge-facing visuals:
 
-The browser receives the server-issued `session_id` and sends it back only through the `X-Demo-Session` header. The UI does not ask for, store, or submit a `customer_id`.
+- Swagger `/docs` screenshots.
+- Raw JSON for `/ready`, session creation, customer turns, and handoff responses.
+- Session/tenant IDs.
+- Reason-code lists.
+- OpenAPI-hidden route test evidence.
+- Local test results.
+- The identity-control explanation that the client never supplies `customer_id`.
 
-## Judge-visible flows
+## Review status
 
-The shell includes preset messages for the current deck/script flow:
-
-1. `ANSWER` — supported recent-transaction request over verified synthetic records.
-2. `CLARIFY` — ambiguous transaction reference requiring customer clarification.
-3. `ESCALATE` — customer-reported unauthorized activity routed to human review.
-4. Explicit support handoff — direct customer support request producing persisted ticket evidence.
-
-## Claim limits
-
-This UI shell demonstrates the existing local synthetic API flow only. It does not claim:
-
-- live-provider/model readiness;
-- production or pilot readiness;
-- held-out evaluation completion;
-- final judge submission approval;
-- fraud detection authority;
-- customer identity control by the browser or model;
-- any change to the backend policy, retrieval, session, or escalation authority.
-
-Swagger/API screenshots may still be used as technical appendix evidence, but the judge-facing visual flow should use this shell after local screenshot or short-video recapture.
-
-## Next audit step
-
-After screenshot or video capture, refresh the deck captions and speaker script around the actual UI-backed flow, then run the final demo-claims audit before external use.
+This shell remains a local synthetic demo surface until separately approved for any final deck/script/audit use. It should be locally validated and recaptured before the demo deck is refreshed.
