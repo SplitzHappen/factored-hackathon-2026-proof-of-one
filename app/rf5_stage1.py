@@ -137,9 +137,10 @@ def rf5_stage1_findings(text: str) -> tuple[RF5Stage1Finding, ...]:
                 )
             )
 
+    message_has_positive_guard = _POSITIVE_LOSS_GUARD_RX.search(normalized) is not None
     for match in _FTP2_CLEANUP_CANDIDATE.finditer(normalized):
         cue = match.group(0)
-        blocked = "positive_loss_guard" if _POSITIVE_LOSS_GUARD_RX.search(cue) else None
+        blocked = "positive_loss_guard" if message_has_positive_guard else None
         findings.append(
             RF5Stage1Finding(
                 family="ftp2_failure_to_pay_cleanup_candidate",
