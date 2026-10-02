@@ -211,6 +211,14 @@ DEMO_UI_HTML = r'''<!doctype html>
       background: rgba(255, 102, 92, 0.10);
     }
 
+    .preset-heading {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
     .scenario-grid { display: grid; gap: 10px; }
 
     .scenario {
@@ -712,6 +720,7 @@ DEMO_UI_HTML = r'''<!doctype html>
           </div>
           <button id="send" disabled class="primary full">Set route · send message</button>
 
+          <div class="full"><div class="preset-heading">Scenario presets</div></div>
           <div class="scenario-grid full" aria-label="demo scenarios">
             <button class="scenario answer" data-persona="lucia" data-message="¿Cuál es el estado de la transacción DEMO-ES-1001?">ANSWER · Known transaction<small>Synthetic record lookup.</small></button>
             <button class="scenario clarify" data-persona="lucia" data-message="Quiero consultar una transacción por 54000 COP.">CLARIFY · Two matches<small>Amount matches more than one synthetic transaction.</small></button>
@@ -837,8 +846,9 @@ DEMO_UI_HTML = r'''<!doctype html>
       return ['answer', 'clarify', 'abstain', 'escalate', 'handoff'].includes(r) ? r : '';
     }
 
-    function displayIntent(intent) {
+    function displayIntent(intent, reasonCodes = []) {
       const raw = String(intent || '').toLowerCase();
+      if ((!raw || raw === 'unknown') && reasonCodes.includes('unsupported_intent')) return 'UNSUPPORTED INTENT';
       if (!raw || raw === 'unknown') return 'AWAITING MESSAGE';
       const labels = {
         transaction_status: 'TX STATUS',
@@ -1012,7 +1022,7 @@ DEMO_UI_HTML = r'''<!doctype html>
       els.routeToken.className = `route-token ${klass}`;
       els.activeLine.textContent = state.session?.language ? `${state.session.language.toUpperCase()} line` : 'No line';
       els.languageLine.textContent = state.session?.language ? `${state.session.language.toUpperCase()} line` : 'ES/PT line';
-      els.intentBadge.textContent = displayIntent(response?.intent);
+      els.intentBadge.textContent = displayIntent(response?.intent, response?.reason_codes || []);
       els.intentBadge.title = response?.intent || 'Awaiting message';
       els.why.textContent = computeWhy(response);
       renderLineSummary(response);
@@ -1099,6 +1109,7 @@ DEMO_UI_HTML = r'''<!doctype html>
 
     async function requestHandoff() {
       setError('');
+      els.message.value = '';
       const response = await api('/api/customer/handoff', {method: 'POST', body: '{}'});
       const text = response.persisted && response.verified
         ? `Support ticket persisted and read-back verified. Ticket: ${response.ticket_id}`
