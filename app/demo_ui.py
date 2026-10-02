@@ -304,6 +304,12 @@ DEMO_UI_HTML = r'''<!doctype html>
     }
 
     .badge.intent { max-width: 180px; }
+    .badge.prototype {
+      max-width: none;
+      overflow: visible;
+      text-overflow: clip;
+      white-space: nowrap;
+    }
 
     .lines {
       display: grid;
@@ -725,7 +731,7 @@ DEMO_UI_HTML = r'''<!doctype html>
               <div class="badge-row">
                 <span id="language-line" class="badge">ES/PT line</span>
                 <span id="intent-badge" class="badge intent">No intent</span>
-                <span class="badge">Local prototype · synthetic</span>
+                <span class="badge prototype">Local prototype · synthetic</span>
               </div>
             </div>
 
