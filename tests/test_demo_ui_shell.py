@@ -28,6 +28,10 @@ def _session(client: TestClient, persona_id: str, language: str | None = None) -
     return response.json()
 
 
+def _compact(text: str) -> str:
+    return "".join(text.split())
+
+
 def test_demo_shell_is_available_at_demo_and_root(tmp_path) -> None:
     client = _client(tmp_path)
 
@@ -52,6 +56,7 @@ def test_demo_shell_references_only_existing_public_demo_api_paths(tmp_path) -> 
 
     assert response.status_code == 200
     html = response.text
+    compact_html = _compact(html)
     assert "/ready" in html
     assert "/api/demo/personas" in html
     assert "/api/demo/sessions" in html
@@ -61,12 +66,15 @@ def test_demo_shell_references_only_existing_public_demo_api_paths(tmp_path) -> 
     assert 'data-persona="rafael"' in html
     assert "Busca las transacciones de 54.000 COP." in html
     assert "No live agent is connected in this demo" in html
-    assert "justify-content:flex-start" in html
-    assert "gap:16px" in html
-    assert "state.session&&els.persona.value!==state.session.persona_id" in html
+    assert "Demo scenarios" in html
+    assert "Preset judge flows" not in html
+    assert "More than one verified record matched; the customer is asked to choose." in html
+    assert "justify-content:flex-start;" in compact_html
+    assert "gap:16px;" in compact_html
+    assert "state.session&&els.persona.value!==state.session.persona_id" in compact_html
     assert "The selected persona differs from the active session" in html
-    assert "state.session?.synthetic_data===true" in html
-    assert "reason_codes: ['customer_requested_support_handoff']" not in html
+    assert "state.session?.synthetic_data===true" in compact_html
+    assert "reason_codes:['customer_requested_support_handoff']" not in compact_html
     assert "_render_demo_shell_html" not in html
 
 
@@ -137,6 +145,23 @@ def test_demo_shell_clarify_preset_returns_expected_candidates(tmp_path) -> None
         "DEMO-ES-1003",
         "DEMO-ES-1004",
     ]
+
+
+def test_demo_shell_clarify_follow_up_resolves_to_answer(tmp_path) -> None:
+    client = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Quiero la transacción DEMO-ES-1003."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "ANSWER"
+    assert body["transactions"]
+    assert body["transactions"][0]["transaction_id"] == "DEMO-ES-1003"
 
 
 def test_demo_shell_handoff_api_returns_persisted_verified_ticket(tmp_path) -> None:

@@ -85,6 +85,7 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={"detail": detail},
         )
+
     if context is not None:
         # Preserve deterministic injected-context unit tests even when they do not
         # enter TestClient's lifespan context manager.
