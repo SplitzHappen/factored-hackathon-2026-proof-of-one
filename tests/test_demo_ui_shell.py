@@ -32,7 +32,7 @@ def _compact(text: str) -> str:
     return "".join(text.split())
 
 
-def test_demo_shell_is_available_at_demo_and_root(tmp_path) -> None:
+def test_signal_box_shell_is_available_at_demo_and_root(tmp_path) -> None:
     client = _client(tmp_path)
 
     demo_response = client.get("/demo")
@@ -42,43 +42,114 @@ def test_demo_shell_is_available_at_demo_and_root(tmp_path) -> None:
     assert root_response.status_code == 200
     assert demo_response.headers["content-type"].startswith("text/html")
     assert root_response.headers["content-type"].startswith("text/html")
-    assert "Proof of One" in demo_response.text
-    assert "Local Synthetic Demo" in demo_response.text
-    assert "local synthetic demo" in demo_response.text
-    assert "verified synthetic account records" in demo_response.text
-    assert "no language model connected" in demo_response.text
+
+    html = demo_response.text
+    assert "Proof of One — Signal Box Demo" in html
+    assert "Proof of One" in html
+    assert "Interlocking · 8 fixed checks" in html
+    assert "Scenario presets" in html
+    assert "Local prototype · synthetic" in html
+    assert "No live LLM · Not fraud detection" in html
+    assert (
+        "Synthetic data · local API · no live LLM · not fraud detection · "
+        "not production/pilot-ready"
+    ) in html
 
 
-def test_demo_shell_references_only_existing_public_demo_api_paths(tmp_path) -> None:
+def test_signal_box_shell_references_only_final_public_demo_api_paths(tmp_path) -> None:
     client = _client(tmp_path)
 
     response = client.get("/demo")
 
     assert response.status_code == 200
     html = response.text
-    compact_html = _compact(html)
-    assert "/ready" in html
-    assert "/api/demo/personas" in html
-    assert "/api/demo/sessions" in html
-    assert "/api/customer/turn" in html
-    assert "/api/customer/handoff" in html
-    assert "/api/demo/session" in html
-    assert 'data-persona="rafael"' in html
-    assert "Busca las transacciones de 54.000 COP." in html
-    assert "No live agent is connected in this demo" in html
-    assert "Demo scenarios" in html
-    assert "Preset judge flows" not in html
-    assert "More than one verified record matched; the customer is asked to choose." in html
-    assert "could not be linked to one verified record" in html
-    assert "A conservative rule routed this message" in html
-    assert "routeExplanation(route,response.reason_codes||[])" in compact_html
-    assert "justify-content:flex-start;" in compact_html
-    assert "gap:16px;" in compact_html
-    assert "state.session&&els.persona.value!==state.session.persona_id" in compact_html
-    assert "The selected persona differs from the active session" in html
-    assert "state.session?.synthetic_data===true" in compact_html
-    assert "reason_codes:['customer_requested_support_handoff']" not in compact_html
+
+    for path in (
+        "/api/demo/personas",
+        "/api/demo/sessions",
+        "/api/customer/turn",
+        "/api/customer/handoff",
+        "/api/demo/session",
+    ):
+        assert path in html
+
+    assert "/ready" not in html
     assert "_render_demo_shell_html" not in html
+
+
+def test_signal_box_shell_contains_final_claim_safe_route_copy(tmp_path) -> None:
+    client = _client(tmp_path)
+
+    html = client.get("/demo").text
+
+    assert "Customer-reported unauthorized activity?" in html
+    assert "Message may report unauthorized activity?" in html
+    assert "Record-backed answer" in html
+    assert "Needs exact reference" in html
+    assert "Unsupported / unsafe" in html
+    assert "Human review" in html
+    assert "Support ticket" in html
+    assert "Not fraud detection" in html
+    assert "fraud determination" not in html.casefold()
+    assert "production ready" not in html.casefold()
+    assert "pilot ready" not in html.casefold()
+
+
+def test_signal_box_shell_contains_audited_state_and_handoff_ui_logic(tmp_path) -> None:
+    client = _client(tmp_path)
+
+    html = client.get("/demo").text
+    compact_html = _compact(html)
+
+    for state in ("WAITING", "CLEAR", "ON", "N/A"):
+        assert state in html
+
+    assert "▶ Route set" in html
+    assert "UNSUPPORTED INTENT" in html
+    assert "customer_requested_support_handoff" in html
+    assert "persisted ${escapeHtml(response.persisted)}" in html
+    assert "read-back verified ${escapeHtml(response.verified)}" in html
+    assert "synthetic ${escapeHtml(response.synthetic_data)}" in html
+    assert "els.message.value='';" in compact_html
+
+
+def test_signal_box_shell_contains_exact_final_judge_presets(tmp_path) -> None:
+    client = _client(tmp_path)
+
+    html = client.get("/demo").text
+
+    expected_presets = (
+        (
+            "lucia",
+            "¿Cuál es el estado de la transacción DEMO-ES-1001?",
+            "ANSWER · Known transaction",
+        ),
+        (
+            "lucia",
+            "Quiero consultar una transacción por 54000 COP.",
+            "CLARIFY · Two matches",
+        ),
+        (
+            "lucia",
+            "No reconozco la transacción DEMO-ES-1001. Yo no autoricé ese pago.",
+            "ESCALATE · Unauthorized report",
+        ),
+        (
+            "lucia",
+            "Quiero hacer una transferencia de 10000 COP a otra cuenta.",
+            "ABSTAIN · Out-of-scope request",
+        ),
+        (
+            "rafael",
+            "Qual é o estado da transação DEMO-PT-2001?",
+            "PT · Rafael path",
+        ),
+    )
+
+    for persona_id, message, label in expected_presets:
+        assert f'data-persona="{persona_id}"' in html
+        assert f'data-message="{message}"' in html
+        assert label in html
 
 
 def test_demo_shell_routes_are_hidden_from_openapi_schema(tmp_path) -> None:
@@ -96,17 +167,34 @@ def test_demo_shell_routes_are_hidden_from_openapi_schema(tmp_path) -> None:
 @pytest.mark.parametrize(
     ("persona_id", "message", "expected_route"),
     [
-        ("lucia", "Muéstrame mis últimos movimientos.", "ANSWER"),
-        ("lucia", "Busca las transacciones de 54.000 COP.", "CLARIFY"),
         (
             "lucia",
-            "No reconozco este pago y no autoricé esta actividad en mi cuenta.",
+            "¿Cuál es el estado de la transacción DEMO-ES-1001?",
+            "ANSWER",
+        ),
+        (
+            "lucia",
+            "Quiero consultar una transacción por 54000 COP.",
+            "CLARIFY",
+        ),
+        (
+            "lucia",
+            "No reconozco la transacción DEMO-ES-1001. Yo no autoricé ese pago.",
             "ESCALATE",
         ),
-        ("rafael", "Quero ver meus pagamentos recentes.", "ANSWER"),
+        (
+            "lucia",
+            "Quiero hacer una transferencia de 10000 COP a otra cuenta.",
+            "ABSTAIN",
+        ),
+        (
+            "rafael",
+            "Qual é o estado da transação DEMO-PT-2001?",
+            "ANSWER",
+        ),
     ],
 )
-def test_demo_shell_preset_messages_match_expected_routes(
+def test_final_judge_preset_messages_match_expected_routes(
     tmp_path,
     persona_id: str,
     message: str,
@@ -126,28 +214,72 @@ def test_demo_shell_preset_messages_match_expected_routes(
     assert body["synthetic_data"] is True
     assert body["session_id"] == session["session_id"]
     assert body["route"] == expected_route
+
     if persona_id == "rafael":
         assert body["transactions"]
-        assert body["transactions"][0]["transaction_id"].startswith("DEMO-PT-")
+        assert body["transactions"][0]["transaction_id"] == "DEMO-PT-2001"
 
 
-def test_demo_shell_clarify_preset_returns_expected_candidates(tmp_path) -> None:
+def test_final_clarify_preset_returns_expected_candidates(tmp_path) -> None:
     client = _client(tmp_path)
     session = _session(client, "lucia")
 
     response = client.post(
         "/api/customer/turn",
         headers={"X-Demo-Session": session["session_id"]},
-        json={"message": "Busca las transacciones de 54.000 COP."},
+        json={"message": "Quiero consultar una transacción por 54000 COP."},
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["route"] == "CLARIFY"
+    assert body["reason_codes"] == ["ambiguous_transaction_match"]
     assert body["clarification_transaction_ids"] == [
         "DEMO-ES-1003",
         "DEMO-ES-1004",
     ]
+
+
+def test_final_escalate_preset_creates_human_review_ticket_without_fraud_claim(tmp_path) -> None:
+    client = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={
+            "message": (
+                "No reconozco la transacción DEMO-ES-1001. "
+                "Yo no autoricé ese pago."
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "ESCALATE"
+    assert body["reason_codes"] == ["unauthorized_activity_reported"]
+    assert body["escalation_ticket_id"]
+    assert body["handoff_available"] is False
+    assert "fraud" not in body["response_text"].casefold()
+
+
+def test_final_abstain_preset_stays_outside_supported_workflow(tmp_path) -> None:
+    client = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Quiero hacer una transferencia de 10000 COP a otra cuenta."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "ABSTAIN"
+    assert body["reason_codes"] == ["prohibited_banking_action"]
+    assert body["escalation_ticket_id"] is None
+    assert body["handoff_available"] is True
 
 
 def test_demo_shell_clarify_follow_up_resolves_to_answer(tmp_path) -> None:
@@ -184,7 +316,7 @@ def test_demo_shell_missing_id_clarify_is_not_ambiguity(tmp_path) -> None:
     assert body["clarification_transaction_ids"] == []
 
 
-def test_demo_shell_handoff_api_returns_persisted_verified_ticket(tmp_path) -> None:
+def test_demo_shell_handoff_api_returns_persisted_readback_verified_ticket(tmp_path) -> None:
     client = _client(tmp_path)
     session = _session(client, "lucia")
 
