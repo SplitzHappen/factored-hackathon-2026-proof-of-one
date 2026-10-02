@@ -31,6 +31,58 @@ from app.schemas import (
 )
 
 
+def _render_demo_shell_html() -> str:
+    """Return the local demo shell with final capture-safety polish applied."""
+
+    html = render_demo_ui()
+    html = html.replace(
+        "      justify-content: space-between;\n",
+        "      justify-content: flex-start;\n      gap: 16px;\n",
+        1,
+    )
+    html = html.replace(
+        "      if (!message) return;\n"
+        "      const response = await api('/api/customer/turn', {",
+        "      if (!message) return;\n"
+        "      if (state.session && els.persona.value !== state.session.persona_id) {\n"
+        "        setError('The selected persona differs from the active session. Click \"Start new demo session\" before sending.');\n"
+        "        return;\n"
+        "      }\n"
+        "      const response = await api('/api/customer/turn', {",
+        1,
+    )
+    html = html.replace(
+        "      state.turns.unshift({\n"
+        "        kind: 'HANDOFF',\n"
+        "        text: `Support ticket created (persisted: ${response.persisted}, verified: ${response.verified}). Ticket: ${response.ticket_id}`,\n"
+        "        response: {\n"
+        "          route: 'HANDOFF',\n"
+        "          intent: 'customer_requested_support_handoff',\n"
+        "          response_text: `Support ticket created (persisted: ${response.persisted}, verified: ${response.verified}). Ticket: ${response.ticket_id}`,\n"
+        "          reason_codes: ['customer_requested_support_handoff'],\n"
+        "          escalation_ticket_id: response.ticket_id,\n"
+        "          synthetic_data: true\n"
+        "        }\n"
+        "      });",
+        "      const handoffText = response.persisted && response.verified\n"
+        "        ? `Support ticket created (persisted: ${response.persisted}, verified: ${response.verified}). Ticket: ${response.ticket_id}`\n"
+        "        : `Handoff response received (persisted: ${response.persisted}, verified: ${response.verified}).${response.ticket_id ? ` Ticket: ${response.ticket_id}` : ''}`;\n"
+        "      state.turns.unshift({\n"
+        "        kind: 'HANDOFF',\n"
+        "        text: handoffText,\n"
+        "        response: {\n"
+        "          route: 'HANDOFF',\n"
+        "          intent: 'customer_requested_support_handoff',\n"
+        "          response_text: handoffText,\n"
+        "          escalation_ticket_id: response.ticket_id,\n"
+        "          synthetic_data: state.session?.synthetic_data === true\n"
+        "        }\n"
+        "      });",
+        1,
+    )
+    return html
+
+
 def create_app(context: AppContext | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -205,11 +257,11 @@ def create_app(context: AppContext | None = None) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def demo_shell_root() -> HTMLResponse:
-        return HTMLResponse(render_demo_ui())
+        return HTMLResponse(_render_demo_shell_html())
 
     @app.get("/demo", response_class=HTMLResponse, include_in_schema=False)
     def demo_shell() -> HTMLResponse:
-        return HTMLResponse(render_demo_ui())
+        return HTMLResponse(_render_demo_shell_html())
 
     @app.get(
         "/api/demo/personas",

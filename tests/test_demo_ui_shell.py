@@ -61,6 +61,7 @@ def test_demo_shell_references_only_existing_public_demo_api_paths(tmp_path) -> 
     assert "data-persona=\"rafael\"" in html
     assert "Busca las transacciones de 54.000 COP." in html
     assert "No live agent is connected in this demo" in html
+    assert "selected persona differs from the active session" in html
 
 
 def test_demo_shell_routes_are_hidden_from_openapi_schema(tmp_path) -> None:
@@ -108,6 +109,9 @@ def test_demo_shell_preset_messages_match_expected_routes(
     assert body["synthetic_data"] is True
     assert body["session_id"] == session["session_id"]
     assert body["route"] == expected_route
+    if persona_id == "rafael":
+        assert body["transactions"]
+        assert body["transactions"][0]["transaction_id"].startswith("DEMO-PT-")
 
 
 def test_demo_shell_clarify_preset_returns_expected_candidates(tmp_path) -> None:
