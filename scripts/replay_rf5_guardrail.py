@@ -18,9 +18,11 @@ import json
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Literal
+from uuid import uuid4
 
 # File-path invocation puts scripts/ on sys.path. Add the repository root before
 # importing app modules so both
@@ -32,8 +34,21 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from app.bootstrap import build_app_context
 from app.failsafe_escalation import is_failsafe_escalation
 from app.interpretation import InterpretationService
+from app.policy import route_policy
+from app.schemas import (
+    AuthenticatedSession,
+    InterpretationStatus,
+    PolicyInput,
+    PolicyIntent,
+    RouteDecision,
+    SessionRole,
+    SupportedLanguage,
+    TransactionReferenceStatus,
+)
+from app.settings import Settings
 from app.unauthorized_signals import is_explicit_unauthorized_assertion
 
 try:  # RF5 does not exist on older/main checkouts.
@@ -342,6 +357,116 @@ def _ftp2_detail(message: str) -> dict[str, Any]:
     }
 
 
+_FULL_PATH_REFERENCE_DATE = date(2026, 10, 2)
+
+
+def _evaluate_interpret_to_route_policy_cases() -> dict[str, dict[str, Any]]:
+    """Replay public RF5 cases through the real deterministic interpreter and router.
+
+    This surface uses only the repository's synthetic demo bank and deterministic
+    provider. It intentionally stops at route_policy(): response generation,
+    ticket persistence, live providers, and held-out material remain out of scope.
+    """
+
+    results: dict[str, dict[str, Any]] = {}
+    with TemporaryDirectory(prefix="rf5-full-path-replay-") as temp_dir:
+        root = Path(temp_dir)
+        context = build_app_context(
+            Settings(
+                bank_db_path=root / "synthetic-demo.duckdb",
+                runtime_db_path=root / "runtime.sqlite",
+                data_mode="synthetic",
+            )
+        )
+
+        for case in REPLAY_CASES:
+            persona_id = "rafael" if case.language == "pt" else "lucia"
+            persona = context.personas[persona_id]
+            language = SupportedLanguage(case.language)
+            session = AuthenticatedSession(
+                session_id=uuid4(),
+                tenant_id=f"rf5-replay-{uuid4().hex}",
+                role=SessionRole.CUSTOMER,
+                demo_persona_id=persona.persona_id,
+                customer_id=persona.customer_id,
+                language=language,
+            )
+            context.store.save_authenticated_session(session)
+
+            interpretation = context.customer_service.interpreter.interpret(
+                session=session,
+                message=case.message,
+                reference_date=_FULL_PATH_REFERENCE_DATE,
+                previous_intent=None,
+            )
+
+            reference_status = interpretation.transaction_reference_status
+            missing_or_unowned = (
+                reference_status
+                is TransactionReferenceStatus.NOT_FOUND_OR_NOT_OWNED
+            )
+            account_products = (
+                context.bank.list_customer_products(session.customer_id)
+                if interpretation.intent is PolicyIntent.ACCOUNT_PRODUCT_INFO
+                else []
+            )
+            trusted_record_missing = (
+                missing_or_unowned
+                or (
+                    interpretation.intent is PolicyIntent.ACCOUNT_PRODUCT_INFO
+                    and not account_products
+                )
+            )
+
+            policy = route_policy(
+                PolicyInput(
+                    intent=interpretation.intent,
+                    unauthorized_activity_asserted=(
+                        interpretation.unauthorized_activity_asserted
+                    ),
+                    possible_unauthorized_activity=(
+                        interpretation.possible_unauthorized_activity
+                    ),
+                    ownership_verified=not missing_or_unowned,
+                    trusted_record_found=not trusted_record_missing,
+                    trusted_data_conflict=False,
+                    excluded_relationship_required=False,
+                    interpretation_unavailable=(
+                        interpretation.status is InterpretationStatus.SAFE_FALLBACK
+                        and interpretation.requires_human_fallback
+                    ),
+                    ambiguous_transaction_match=(
+                        reference_status is TransactionReferenceStatus.AMBIGUOUS
+                    ),
+                    required_parameters_missing=(
+                        reference_status
+                        is TransactionReferenceStatus.REQUIRED_MISSING
+                    ),
+                )
+            )
+
+            results[case.case_id] = {
+                "full_path_interpretation_status": interpretation.status.value,
+                "full_path_intent": interpretation.intent.value,
+                "full_path_unauthorized_activity_asserted": (
+                    interpretation.unauthorized_activity_asserted
+                ),
+                "full_path_possible_unauthorized_activity": (
+                    interpretation.possible_unauthorized_activity
+                ),
+                "full_path_transaction_reference_status": reference_status.value,
+                "full_path_route": policy.route.value,
+                "full_path_reason_codes": [
+                    reason.value for reason in policy.reason_codes
+                ],
+                "full_path_safe_to_answer": policy.safe_to_answer,
+                "full_path_mandatory_escalation": policy.mandatory_escalation,
+                "full_path_escalates": policy.route is RouteDecision.ESCALATE,
+            }
+
+    return results
+
+
 def evaluate_case(case: ReplayCase) -> dict[str, Any]:
     unauthorized = is_explicit_unauthorized_assertion(case.message)
     rf4_floor = is_failsafe_escalation(case.message)
@@ -506,14 +631,21 @@ def _plan_tables(
         "ftp2_non_escalation_no_removal": ftp2_no_removal_rows,
         "residual_active_route_limitations": [
             {
-                "surface": "interpret_to_route_policy",
+                "surface": "ftp2_cleanup_activation",
                 "implemented": False,
                 "reason": (
-                    "The minimal harness evaluates the deterministic predicate used "
-                    "for route escalation; full interpret() -> route_policy replay "
-                    "remains outside this bounded harness-only repair."
+                    "FTP-2 remains intentionally unwired because the known "
+                    "positive-loss limitation is still present."
                 ),
-            }
+            },
+            {
+                "surface": "customer_response_generation",
+                "implemented": False,
+                "reason": (
+                    "This bounded evidence pass stops at route_policy(); response "
+                    "copy and ticket persistence are covered by separate product tests."
+                ),
+            },
         ],
     }
 
@@ -521,13 +653,23 @@ def _plan_tables(
 def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
     baseline_results = _baseline_by_case_id(baseline_json)
     case_by_id = {case.case_id: case for case in REPLAY_CASES}
-    results = [evaluate_case(case) for case in REPLAY_CASES]
+    full_path_results = _evaluate_interpret_to_route_policy_cases()
+    results = []
+    for case in REPLAY_CASES:
+        result = evaluate_case(case)
+        result.update(full_path_results[case.case_id])
+        # Retain the historical field name, but v5 now backs it with the real
+        # interpret() -> route_policy() result instead of a predicate alias.
+        result["route_policy_would_escalate"] = result["full_path_escalates"]
+        results.append(result)
 
     positive_loss: list[str] = []
     benign_removal_regression: list[str] = []
     current_expectation_failures: list[str] = []
     rf5_family_expectation_failures: list[str] = []
     ftp2_expectation_failures: list[str] = []
+    full_path_expectation_failures: list[str] = []
+    predicate_full_path_disagreements: list[str] = []
     changed_from_baseline_json: list[dict[str, Any]] = []
     measured_attribution_case_ids: dict[str, list[str]] = {
         "rf5_only_component_gain": [],
@@ -554,6 +696,11 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
             != case.expected_ftp2_cleanup_candidate
         ):
             ftp2_expectation_failures.append(case.case_id)
+
+        if bool(result["full_path_escalates"]) != case.expected_current_escalates:
+            full_path_expectation_failures.append(case.case_id)
+        if bool(result["full_path_escalates"]) != current:
+            predicate_full_path_disagreements.append(case.case_id)
 
         baseline_expected = case.expected_main_escalates
         if baseline_expected is True and current is False:
@@ -610,6 +757,10 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
         "current_expectation_failure_count": len(current_expectation_failures),
         "rf5_family_expectation_failure_count": len(rf5_family_expectation_failures),
         "ftp2_expectation_failure_count": len(ftp2_expectation_failures),
+        "full_path_expectation_failure_count": len(full_path_expectation_failures),
+        "predicate_full_path_disagreement_count": len(
+            predicate_full_path_disagreements
+        ),
         "rf5_only_component_gain_count": sum(
             bool(result["rf5_only_component_gain"]) for result in results
         ),
@@ -623,7 +774,7 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
         ),
     }
     return {
-        "schema_version": "rf5-replay-guardrail-v4",
+        "schema_version": "rf5-replay-guardrail-v5",
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "git_sha": _git_sha(),
         "baseline_json": str(baseline_json) if baseline_json is not None else None,
@@ -633,18 +784,22 @@ def build_report(*, baseline_json: Path | None = None) -> dict[str, Any]:
         "current_expectation_failure_case_ids": current_expectation_failures,
         "rf5_family_expectation_failure_case_ids": rf5_family_expectation_failures,
         "ftp2_expectation_failure_case_ids": ftp2_expectation_failures,
+        "full_path_expectation_failure_case_ids": full_path_expectation_failures,
+        "predicate_full_path_disagreement_case_ids": (
+            predicate_full_path_disagreements
+        ),
         "changed_from_baseline_json": changed_from_baseline_json,
         "measured_attribution_counts": measured_attribution_counts,
         "measured_attribution_case_ids": measured_attribution_case_ids,
         "plan_tables": plan_tables,
         "replay_surfaces": {
             "deterministic_predicate": True,
-            "interpret_to_route_policy": False,
-            "interpret_to_route_policy_blocker": (
-                "Full interpret() -> route_policy replay remains outside the "
-                "minimal harness-only repair; route_policy_would_escalate is an "
-                "alias of the deterministic predicate."
-            ),
+            "interpret_to_route_policy": True,
+            "interpretation_provider": "DeterministicDemoInterpretationProvider",
+            "synthetic_bank": True,
+            "held_out_material": False,
+            "customer_response_generation": False,
+            "live_provider": False,
         },
         "cases": results,
     }
@@ -691,6 +846,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"current_expectation_failures: {summary['current_expectation_failure_count']}")
     print(f"rf5_family_expectation_failures: {summary['rf5_family_expectation_failure_count']}")
     print(f"ftp2_expectation_failures: {summary['ftp2_expectation_failure_count']}")
+    print(
+        "full_path_expectation_failures: "
+        f"{summary['full_path_expectation_failure_count']}"
+    )
+    print(
+        "predicate_full_path_disagreements: "
+        f"{summary['predicate_full_path_disagreement_count']}"
+    )
     print(f"rf5_only_component_gain: {summary['rf5_only_component_gain_count']}")
     print(f"measured_rf5_only_gain: {summary['measured_rf5_only_gain_count']}")
     print(f"changed_from_baseline_json: {summary['changed_from_baseline_json_count']}")
@@ -705,6 +868,8 @@ def main(argv: list[str] | None = None) -> int:
         or summary["current_expectation_failure_count"]
         or summary["rf5_family_expectation_failure_count"]
         or summary["ftp2_expectation_failure_count"]
+        or summary["full_path_expectation_failure_count"]
+        or summary["predicate_full_path_disagreement_count"]
     )
     if failed:
         print("guardrail: FAIL")
