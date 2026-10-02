@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import build_app_context
@@ -18,6 +19,15 @@ def _client(tmp_path) -> TestClient:
     return TestClient(create_app(context))
 
 
+def _session(client: TestClient, persona_id: str, language: str | None = None) -> dict:
+    payload = {"persona_id": persona_id}
+    if language is not None:
+        payload["language"] = language
+    response = client.post("/api/demo/sessions", json=payload)
+    assert response.status_code == 201
+    return response.json()
+
+
 def test_demo_shell_is_available_at_demo_and_root(tmp_path) -> None:
     client = _client(tmp_path)
 
@@ -29,9 +39,10 @@ def test_demo_shell_is_available_at_demo_and_root(tmp_path) -> None:
     assert demo_response.headers["content-type"].startswith("text/html")
     assert root_response.headers["content-type"].startswith("text/html")
     assert "Proof of One" in demo_response.text
-    assert "Judge Demo Shell" in demo_response.text
+    assert "Local Synthetic Demo" in demo_response.text
     assert "local synthetic demo" in demo_response.text
-    assert "live-provider readiness" in demo_response.text
+    assert "verified synthetic account records" in demo_response.text
+    assert "no language model connected" in demo_response.text
 
 
 def test_demo_shell_references_only_existing_public_demo_api_paths(tmp_path) -> None:
@@ -47,8 +58,9 @@ def test_demo_shell_references_only_existing_public_demo_api_paths(tmp_path) -> 
     assert "/api/customer/turn" in html
     assert "/api/customer/handoff" in html
     assert "/api/demo/session" in html
-    assert "/api/customer" in html
-    assert "/api/customer_id" not in html
+    assert "data-persona=\"rafael\"" in html
+    assert "Busca las transacciones de 54.000 COP." in html
+    assert "No live agent is connected in this demo" in html
 
 
 def test_demo_shell_routes_are_hidden_from_openapi_schema(tmp_path) -> None:
@@ -63,24 +75,72 @@ def test_demo_shell_routes_are_hidden_from_openapi_schema(tmp_path) -> None:
     assert "/api/customer/turn" in paths
 
 
-def test_demo_shell_preserves_existing_api_flow(tmp_path) -> None:
+@pytest.mark.parametrize(
+    ("persona_id", "message", "expected_route"),
+    [
+        ("lucia", "Muéstrame mis últimos movimientos.", "ANSWER"),
+        ("lucia", "Busca las transacciones de 54.000 COP.", "CLARIFY"),
+        (
+            "lucia",
+            "No reconozco este pago y no autoricé esta actividad en mi cuenta.",
+            "ESCALATE",
+        ),
+        ("rafael", "Quero ver meus pagamentos recentes.", "ANSWER"),
+    ],
+)
+def test_demo_shell_preset_messages_match_expected_routes(
+    tmp_path,
+    persona_id: str,
+    message: str,
+    expected_route: str,
+) -> None:
     client = _client(tmp_path)
+    session = _session(client, persona_id)
 
-    session_response = client.post(
-        "/api/demo/sessions",
-        json={"persona_id": "lucia"},
-    )
-    assert session_response.status_code == 201
-    session = session_response.json()
-
-    turn_response = client.post(
+    response = client.post(
         "/api/customer/turn",
         headers={"X-Demo-Session": session["session_id"]},
-        json={"message": "Muéstrame mis últimos movimientos."},
+        json={"message": message},
     )
 
-    assert turn_response.status_code == 200
-    body = turn_response.json()
+    assert response.status_code == 200
+    body = response.json()
     assert body["synthetic_data"] is True
     assert body["session_id"] == session["session_id"]
-    assert body["route"] in {"ANSWER", "CLARIFY", "ABSTAIN", "ESCALATE"}
+    assert body["route"] == expected_route
+
+
+def test_demo_shell_clarify_preset_returns_expected_candidates(tmp_path) -> None:
+    client = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Busca las transacciones de 54.000 COP."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "CLARIFY"
+    assert body["clarification_transaction_ids"] == [
+        "DEMO-ES-1003",
+        "DEMO-ES-1004",
+    ]
+
+
+def test_demo_shell_handoff_api_returns_persisted_verified_ticket(tmp_path) -> None:
+    client = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    response = client.post(
+        "/api/customer/handoff",
+        headers={"X-Demo-Session": session["session_id"]},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["session_id"] == session["session_id"]
+    assert body["persisted"] is True
+    assert body["verified"] is True
+    assert body["ticket_id"]
