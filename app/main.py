@@ -9,10 +9,11 @@ from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.artifact_identity import identify_bank_artifact_mode
 from app.bootstrap import AppContext, build_app_context
+from app.demo_ui import render_demo_ui
 from app.http_safety import RequestBodyLimitMiddleware
 from app.runtime import RateLimitExceededError, TicketLimitExceededError
 from app.schemas import (
@@ -201,6 +202,14 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 content=payload.model_dump(mode="json"),
             )
         return payload
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def demo_shell_root() -> HTMLResponse:
+        return HTMLResponse(render_demo_ui())
+
+    @app.get("/demo", response_class=HTMLResponse, include_in_schema=False)
+    def demo_shell() -> HTMLResponse:
+        return HTMLResponse(render_demo_ui())
 
     @app.get(
         "/api/demo/personas",
