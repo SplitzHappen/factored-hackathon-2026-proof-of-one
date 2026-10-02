@@ -10,21 +10,20 @@ DEMO_UI_HTML = r'''<!doctype html>
   <style>
     :root {
       color-scheme: dark;
-      --bg: #101710;
-      --panel: #172319;
-      --panel-2: #213027;
-      --cream: #f5edcf;
+      --bg: #0c130d;
+      --panel: #152018;
+      --panel-2: #203026;
+      --cream: #f6edcf;
       --cream-2: #e7ddbd;
-      --ink: #101410;
-      --muted: #aeb7a7;
-      --line: rgba(245, 237, 207, 0.24);
-      --rail: #485243;
-      --answer: #37d67a;
+      --ink: #101610;
+      --muted: #adb7a7;
+      --line: rgba(246, 237, 207, 0.22);
+      --answer: #34d477;
       --clarify: #ffd15c;
       --abstain: #a9b1bd;
       --escalate: #ff665c;
       --handoff: #bb8cff;
-      --shadow: 0 26px 70px rgba(0, 0, 0, 0.35);
+      --shadow: 0 26px 70px rgba(0, 0, 0, 0.36);
       font-family: "IBM Plex Mono", "Cascadia Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
     }
 
@@ -32,12 +31,12 @@ DEMO_UI_HTML = r'''<!doctype html>
 
     body {
       margin: 0;
+      min-height: 100vh;
       color: var(--cream);
       background:
-        radial-gradient(circle at 15% 0%, rgba(80, 114, 82, 0.35), transparent 28rem),
-        radial-gradient(circle at 90% 8%, rgba(122, 95, 49, 0.28), transparent 24rem),
-        linear-gradient(145deg, #0b120d 0%, #111a13 54%, #161f17 100%);
-      min-height: 100vh;
+        radial-gradient(circle at 12% 0%, rgba(66, 105, 71, 0.38), transparent 30rem),
+        radial-gradient(circle at 88% 4%, rgba(116, 83, 41, 0.30), transparent 25rem),
+        linear-gradient(145deg, #08100a 0%, #111a13 54%, #172017 100%);
     }
 
     .page {
@@ -47,41 +46,38 @@ DEMO_UI_HTML = r'''<!doctype html>
     }
 
     .shell {
-      border: 1px solid rgba(245, 237, 207, 0.28);
-      border-radius: 28px;
       overflow: hidden;
-      background: rgba(17, 25, 18, 0.92);
+      border: 1px solid rgba(246, 237, 207, 0.28);
+      border-radius: 28px;
+      background: rgba(17, 25, 18, 0.93);
       box-shadow: var(--shadow);
     }
 
     .topbar {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 18px;
       align-items: center;
       padding: 24px 28px;
       border-bottom: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(15, 27, 16, 0.98), rgba(18, 28, 20, 0.92));
+      background: linear-gradient(180deg, rgba(14, 27, 16, 0.98), rgba(18, 28, 20, 0.92));
     }
 
-    .brand {
-      display: grid;
-      gap: 8px;
-    }
+    .brand { display: grid; gap: 8px; min-width: 0; }
 
     .brand h1 {
       margin: 0;
+      color: var(--cream);
       font-size: clamp(24px, 4vw, 44px);
-      line-height: 0.96;
+      line-height: 0.98;
       letter-spacing: 0.11em;
       text-transform: uppercase;
-      color: var(--cream);
-      text-shadow: 0 0 20px rgba(245, 237, 207, 0.18);
+      text-shadow: 0 0 20px rgba(246, 237, 207, 0.18);
     }
 
     .brand p {
       margin: 0;
-      max-width: 870px;
+      max-width: 900px;
       color: var(--muted);
       font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       font-size: 15px;
@@ -90,24 +86,27 @@ DEMO_UI_HTML = r'''<!doctype html>
 
     .route-token {
       justify-self: end;
-      min-width: 190px;
-      text-align: center;
-      padding: 14px 18px;
+      min-width: 188px;
+      max-width: 280px;
+      border: 1px solid rgba(246, 237, 207, 0.25);
       border-radius: 999px;
-      border: 1px solid rgba(245, 237, 207, 0.22);
-      color: var(--cream);
+      padding: 14px 18px;
       background: rgba(255, 255, 255, 0.08);
-      font-size: 20px;
+      color: var(--cream);
+      font-size: 19px;
       font-weight: 900;
       letter-spacing: 0.06em;
+      line-height: 1.1;
+      text-align: center;
       text-transform: uppercase;
+      white-space: nowrap;
     }
 
-    .route-token.answer { background: rgba(55, 214, 122, 0.16); border-color: rgba(55, 214, 122, 0.65); }
-    .route-token.clarify { background: rgba(255, 209, 92, 0.15); border-color: rgba(255, 209, 92, 0.7); }
-    .route-token.abstain { background: rgba(169, 177, 189, 0.13); border-color: rgba(169, 177, 189, 0.6); }
-    .route-token.escalate { background: rgba(255, 102, 92, 0.14); border-color: rgba(255, 102, 92, 0.7); }
-    .route-token.handoff { background: rgba(187, 140, 255, 0.16); border-color: rgba(187, 140, 255, 0.7); }
+    .route-token.answer { background: rgba(52, 212, 119, 0.16); border-color: rgba(52, 212, 119, 0.65); }
+    .route-token.clarify { background: rgba(255, 209, 92, 0.15); border-color: rgba(255, 209, 92, 0.72); }
+    .route-token.abstain { background: rgba(169, 177, 189, 0.13); border-color: rgba(169, 177, 189, 0.62); }
+    .route-token.escalate { background: rgba(255, 102, 92, 0.14); border-color: rgba(255, 102, 92, 0.72); }
+    .route-token.handoff { background: rgba(187, 140, 255, 0.16); border-color: rgba(187, 140, 255, 0.72); }
 
     .main {
       display: grid;
@@ -119,15 +118,15 @@ DEMO_UI_HTML = r'''<!doctype html>
     .card {
       border: 1px solid var(--line);
       border-radius: 24px;
-      background: linear-gradient(180deg, rgba(33, 48, 39, 0.96), rgba(19, 29, 21, 0.98));
-      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
+      background: linear-gradient(180deg, rgba(32, 48, 38, 0.97), rgba(18, 28, 20, 0.98));
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.23);
     }
 
     .controls {
-      padding: 20px;
       display: grid;
       gap: 14px;
       align-content: start;
+      padding: 20px;
     }
 
     .section-title {
@@ -147,52 +146,48 @@ DEMO_UI_HTML = r'''<!doctype html>
       text-transform: uppercase;
     }
 
-    select,
-    textarea,
-    button {
+    select, textarea, button {
       width: 100%;
-      font: inherit;
       border-radius: 14px;
+      font: inherit;
     }
 
-    select,
-    textarea {
-      color: var(--cream);
-      border: 1px solid rgba(245, 237, 207, 0.25);
+    select, textarea {
+      border: 1px solid rgba(246, 237, 207, 0.25);
       background: rgba(8, 14, 9, 0.72);
+      color: var(--cream);
       padding: 12px 13px;
     }
 
     textarea {
       min-height: 96px;
-      resize: vertical;
       line-height: 1.45;
+      resize: vertical;
     }
 
     button {
-      border: 1px solid rgba(245, 237, 207, 0.28);
-      color: var(--cream);
+      border: 1px solid rgba(246, 237, 207, 0.28);
       background: #111810;
-      padding: 12px 14px;
+      color: var(--cream);
       cursor: pointer;
       font-weight: 900;
       letter-spacing: 0.035em;
+      padding: 12px 14px;
       text-transform: uppercase;
     }
 
     button:hover:not(:disabled), button:focus-visible {
-      outline: 2px solid rgba(245, 237, 207, 0.36);
+      outline: 2px solid rgba(246, 237, 207, 0.36);
       outline-offset: 2px;
       background: #1d281f;
     }
 
     button:disabled { opacity: 0.45; cursor: not-allowed; }
-    .primary { background: #243623; border-color: rgba(55, 214, 122, 0.48); }
+    .primary { background: #243623; border-color: rgba(52, 212, 119, 0.48); }
     .handoff-btn { background: rgba(82, 49, 108, 0.72); border-color: rgba(187, 140, 255, 0.55); }
     .revoke { background: rgba(92, 38, 34, 0.72); border-color: rgba(255, 102, 92, 0.55); }
 
-    .session-box,
-    .error {
+    .session-box, .error {
       border-radius: 16px;
       padding: 12px;
       font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -202,8 +197,8 @@ DEMO_UI_HTML = r'''<!doctype html>
 
     .session-box {
       color: var(--muted);
-      background: rgba(245, 237, 207, 0.07);
-      border: 1px solid rgba(245, 237, 207, 0.18);
+      background: rgba(246, 237, 207, 0.07);
+      border: 1px solid rgba(246, 237, 207, 0.18);
       overflow-wrap: anywhere;
     }
 
@@ -213,10 +208,7 @@ DEMO_UI_HTML = r'''<!doctype html>
       background: rgba(255, 102, 92, 0.10);
     }
 
-    .scenario-grid {
-      display: grid;
-      gap: 10px;
-    }
+    .scenario-grid { display: grid; gap: 10px; }
 
     .scenario {
       text-align: left;
@@ -227,10 +219,10 @@ DEMO_UI_HTML = r'''<!doctype html>
 
     .scenario small {
       display: block;
+      margin-top: 4px;
       color: var(--muted);
       font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       font-weight: 500;
-      margin-top: 4px;
       line-height: 1.35;
     }
 
@@ -240,33 +232,33 @@ DEMO_UI_HTML = r'''<!doctype html>
     .scenario.escalate { border-left-color: var(--escalate); }
     .scenario.pt { border-left-color: var(--handoff); }
 
-    .workbench {
-      display: grid;
-      gap: 18px;
-    }
+    .workbench { display: grid; gap: 18px; }
 
     .signal-board {
       overflow: hidden;
       padding: 20px;
+      color: #1e2d25;
       background:
         linear-gradient(180deg, rgba(224, 229, 211, 0.94), rgba(191, 201, 183, 0.94)),
-        radial-gradient(circle at center, rgba(255,255,255,0.3), transparent 30rem);
-      color: #1e2d25;
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.30), transparent 30rem);
     }
 
     .signal-head {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 16px;
       align-items: start;
       margin-bottom: 18px;
     }
+
+    .signal-copy { min-width: 0; }
 
     .signal-head h2 {
       margin: 0 0 10px;
       color: #142016;
       font-size: clamp(24px, 3vw, 36px);
       letter-spacing: 0.12em;
+      line-height: 1.08;
       text-transform: uppercase;
     }
 
@@ -282,28 +274,33 @@ DEMO_UI_HTML = r'''<!doctype html>
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      min-width: 0;
       justify-content: flex-end;
+      min-width: 0;
+      max-width: 430px;
     }
 
     .badge {
       display: inline-flex;
-      align-items: center;
       justify-content: center;
-      gap: 6px;
-      max-width: 100%;
+      align-items: center;
+      max-width: 210px;
+      min-height: 36px;
       border-radius: 999px;
-      padding: 8px 11px;
       background: #101610;
       color: var(--cream);
       font-weight: 900;
-      line-height: 1.2;
-      letter-spacing: 0.055em;
+      font-size: 13px;
+      line-height: 1.15;
+      letter-spacing: 0.045em;
+      overflow: hidden;
+      padding: 8px 11px;
       text-align: center;
+      text-overflow: ellipsis;
       text-transform: uppercase;
-      white-space: normal;
-      overflow-wrap: anywhere;
+      white-space: nowrap;
     }
+
+    .badge.intent { max-width: 180px; }
 
     .lines {
       display: grid;
@@ -314,15 +311,15 @@ DEMO_UI_HTML = r'''<!doctype html>
     }
 
     .line-card {
+      min-height: 160px;
+      display: grid;
+      align-content: center;
+      gap: 12px;
       border: 3px solid #1a211b;
       border-radius: 26px;
       background: #101610;
       color: var(--cream);
       padding: 22px;
-      display: grid;
-      align-content: center;
-      gap: 12px;
-      min-height: 160px;
     }
 
     .line-card b {
@@ -351,52 +348,42 @@ DEMO_UI_HTML = r'''<!doctype html>
       left: -22px;
       right: 8px;
       top: 50%;
+      z-index: 0;
       height: 10px;
       border-radius: 999px;
       background: rgba(72, 82, 67, 0.45);
       transform: translateY(-50%);
-      z-index: 0;
     }
 
     .check {
       position: relative;
       z-index: 1;
       min-height: 150px;
+      display: grid;
+      align-content: space-between;
+      gap: 10px;
+      overflow: hidden;
       border: 3px solid rgba(30, 43, 35, 0.42);
       border-radius: 22px;
       background: rgba(236, 239, 225, 0.96);
-      padding: 15px 14px;
-      display: grid;
-      gap: 10px;
-      align-content: space-between;
       color: #26322a;
-      overflow: hidden;
+      padding: 15px 14px;
     }
 
     .check.on {
       border-color: #141a14;
-      box-shadow: 0 0 0 3px rgba(255, 209, 92, 0.25), 0 14px 28px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 0 0 3px rgba(255, 209, 92, 0.25), 0 14px 28px rgba(0, 0, 0, 0.20);
     }
 
-    .check-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: start;
-    }
-
-    .check-num {
-      font-size: 22px;
-      font-weight: 900;
-      color: #566357;
-    }
+    .check-head { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+    .check-num { color: #566357; font-size: 22px; font-weight: 900; }
 
     .lamp {
+      flex: 0 0 auto;
       width: 30px;
       height: 30px;
-      border-radius: 999px;
-      flex: 0 0 auto;
       border: 4px solid #242a24;
+      border-radius: 999px;
       background: #596555;
       box-shadow: inset 0 0 0 5px rgba(0, 0, 0, 0.12);
     }
@@ -404,22 +391,22 @@ DEMO_UI_HTML = r'''<!doctype html>
     .check.on .lamp { background: var(--clarify); box-shadow: 0 0 20px rgba(255, 209, 92, 0.72); }
 
     .check-title {
-      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-      font-weight: 780;
-      font-size: 14px;
-      line-height: 1.22;
       color: #415044;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 14px;
+      font-weight: 780;
+      line-height: 1.22;
     }
 
     .check-state {
       justify-self: start;
       border-radius: 999px;
       background: rgba(34, 45, 36, 0.12);
-      padding: 6px 10px;
       color: #657160;
       font-size: 13px;
       font-weight: 900;
       letter-spacing: 0.06em;
+      padding: 6px 10px;
       text-transform: uppercase;
     }
 
@@ -434,46 +421,36 @@ DEMO_UI_HTML = r'''<!doctype html>
 
     .platform {
       min-height: 145px;
-      border: 3px solid #181e18;
-      border-radius: 26px;
-      background: #f0ecd9;
-      color: #111711;
       display: grid;
       justify-items: center;
       align-content: center;
       gap: 10px;
-      text-align: center;
+      border: 3px solid #181e18;
+      border-radius: 26px;
+      background: #f0ecd9;
+      color: #111711;
       padding: 12px;
+      text-align: center;
     }
 
-    .platform.active {
-      transform: translateY(-2px);
-      box-shadow: 0 0 0 4px rgba(20, 26, 20, 0.12), 0 20px 40px rgba(0,0,0,0.2);
-    }
+    .platform.active { transform: translateY(-2px); box-shadow: 0 0 0 4px rgba(20, 26, 20, 0.12), 0 20px 40px rgba(0, 0, 0, 0.20); }
 
     .signal-lamp {
       width: 58px;
       height: 58px;
-      border-radius: 999px;
       border: 6px solid #202720;
+      border-radius: 999px;
       background: #5b6859;
     }
 
-    .platform.active.answer .signal-lamp { background: var(--answer); box-shadow: 0 0 26px rgba(55, 214, 122, 0.78); }
+    .platform.active.answer .signal-lamp { background: var(--answer); box-shadow: 0 0 26px rgba(52, 212, 119, 0.78); }
     .platform.active.clarify .signal-lamp { background: var(--clarify); box-shadow: 0 0 26px rgba(255, 209, 92, 0.78); }
     .platform.active.abstain .signal-lamp { background: var(--abstain); box-shadow: 0 0 24px rgba(169, 177, 189, 0.65); }
     .platform.active.escalate .signal-lamp { background: var(--escalate); box-shadow: 0 0 26px rgba(255, 102, 92, 0.78); }
     .platform.active.handoff .signal-lamp { background: var(--handoff); box-shadow: 0 0 26px rgba(187, 140, 255, 0.78); }
 
-    .platform b {
-      font-size: 22px;
-      letter-spacing: 0.05em;
-    }
-
-    .platform span {
-      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-      line-height: 1.28;
-    }
+    .platform b { font-size: 22px; letter-spacing: 0.05em; }
+    .platform span { font-family: Inter, ui-sans-serif, system-ui, sans-serif; line-height: 1.28; }
 
     .lower-grid {
       display: grid;
@@ -481,37 +458,29 @@ DEMO_UI_HTML = r'''<!doctype html>
       gap: 18px;
     }
 
-    .console {
-      padding: 18px;
-    }
+    .console, .ledger { padding: 20px; min-width: 0; }
 
-    .console h3,
-    .ledger h3 {
+    .console h3, .ledger h3 {
       margin: 0 0 12px;
       color: var(--cream);
       letter-spacing: 0.12em;
       text-transform: uppercase;
     }
 
-    .turns {
-      display: grid;
-      gap: 12px;
-    }
+    .turns { display: grid; gap: 12px; }
 
-    .turn,
-    .why-card,
-    .record {
-      border: 1px solid rgba(245, 237, 207, 0.18);
+    .turn, .why-card, .record {
+      border: 1px solid rgba(246, 237, 207, 0.18);
       border-radius: 18px;
       background: rgba(8, 14, 9, 0.58);
       padding: 14px;
     }
 
     .turn-user {
+      margin-bottom: 8px;
       color: var(--muted);
       font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       line-height: 1.45;
-      margin-bottom: 8px;
     }
 
     .turn-response {
@@ -524,22 +493,17 @@ DEMO_UI_HTML = r'''<!doctype html>
 
     .why-card {
       min-height: 72px;
+      margin-bottom: 18px;
       color: var(--cream);
       font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       line-height: 1.5;
-      margin-bottom: 18px;
-    }
-
-    .ledger {
-      min-width: 0;
-      padding: 20px;
     }
 
     .kv {
       display: grid;
       gap: 0;
       margin: 0 0 16px;
-      border-top: 1px solid rgba(245, 237, 207, 0.12);
+      border-top: 1px solid rgba(246, 237, 207, 0.12);
     }
 
     .kv div {
@@ -547,14 +511,13 @@ DEMO_UI_HTML = r'''<!doctype html>
       grid-template-columns: minmax(108px, 0.42fr) minmax(0, 1fr);
       align-items: start;
       column-gap: 18px;
-      row-gap: 4px;
       min-height: 42px;
-      border-bottom: 1px solid rgba(245, 237, 207, 0.12);
-      padding: 10px 0;
+      border-bottom: 1px solid rgba(246, 237, 207, 0.12);
       color: var(--muted);
       font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       font-size: 14px;
       line-height: 1.35;
+      padding: 10px 0;
     }
 
     .kv span {
@@ -575,18 +538,19 @@ DEMO_UI_HTML = r'''<!doctype html>
     }
 
     .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
     .pill {
       display: inline-flex;
+      border: 1px solid rgba(246, 237, 207, 0.16);
       border-radius: 999px;
-      padding: 5px 8px;
+      background: rgba(246, 237, 207, 0.09);
       color: var(--cream);
-      background: rgba(245, 237, 207, 0.09);
-      border: 1px solid rgba(245, 237, 207, 0.16);
       font-size: 12px;
       font-weight: 800;
       letter-spacing: 0.04em;
-      text-transform: uppercase;
       overflow-wrap: anywhere;
+      padding: 5px 8px;
+      text-transform: uppercase;
     }
 
     .records {
@@ -606,16 +570,16 @@ DEMO_UI_HTML = r'''<!doctype html>
     }
 
     .record dt { color: var(--muted); }
-    .record dd { margin: 0; text-align: right; color: var(--cream); overflow-wrap: anywhere; }
+    .record dd { margin: 0; color: var(--cream); text-align: right; overflow-wrap: anywhere; }
 
     .limits {
       margin-top: 18px;
       border-top: 1px solid var(--line);
-      padding: 14px 20px 18px;
       color: var(--muted);
       font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       font-size: 13px;
       line-height: 1.45;
+      padding: 14px 20px 18px;
     }
 
     .empty { color: var(--muted); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
@@ -634,7 +598,7 @@ DEMO_UI_HTML = r'''<!doctype html>
       .checks::before { display: none; }
       .topbar, .signal-head { grid-template-columns: 1fr; }
       .route-token { justify-self: start; }
-      .badge-row { justify-content: flex-start; }
+      .badge-row { justify-content: flex-start; max-width: 100%; }
     }
 
     @media (max-width: 640px) {
@@ -643,11 +607,7 @@ DEMO_UI_HTML = r'''<!doctype html>
       .main { padding: 12px; }
       .controls { grid-template-columns: 1fr; }
       .checks, .platforms { grid-template-columns: 1fr; }
-      .kv div {
-        grid-template-columns: 1fr;
-        row-gap: 6px;
-        padding: 11px 0;
-      }
+      .kv div { grid-template-columns: 1fr; row-gap: 6px; padding: 11px 0; }
       .kv span { padding-top: 0; }
       .topbar { padding: 18px; }
       .signal-board { padding: 14px; }
@@ -704,13 +664,13 @@ DEMO_UI_HTML = r'''<!doctype html>
         <section class="workbench">
           <section class="card signal-board" aria-label="interlocking panel">
             <div class="signal-head">
-              <div>
+              <div class="signal-copy">
                 <h2>Interlocking panel</h2>
                 <p>Spanish and Portuguese messages enter the same fixed route boundary. Check lamps light only after the API response returns route evidence.</p>
               </div>
               <div class="badge-row">
                 <span id="language-line" class="badge">ES/PT line</span>
-                <span id="intent-badge" class="badge">No intent</span>
+                <span id="intent-badge" class="badge intent">No intent</span>
                 <span class="badge">Visual prototype</span>
               </div>
             </div>
@@ -802,6 +762,22 @@ DEMO_UI_HTML = r'''<!doctype html>
     function routeClass(route) {
       const r = String(route || '').toLowerCase();
       return ['answer', 'clarify', 'abstain', 'escalate', 'handoff'].includes(r) ? r : '';
+    }
+
+    function displayIntent(intent) {
+      const raw = String(intent || '').toLowerCase();
+      if (!raw || raw === 'unknown') return 'NO INTENT';
+      const labels = {
+        transaction_status: 'TX STATUS',
+        transaction_lookup: 'TX LOOKUP',
+        customer_requested_support_handoff: 'SUPPORT HANDOFF',
+        unsupported_intent: 'UNSUPPORTED',
+        prohibited_banking_action: 'PROHIBITED',
+        unauthorized_activity: 'UNAUTHORIZED'
+      };
+      if (labels[raw]) return labels[raw];
+      const compact = raw.replace(/^customer_requested_/, '').replace(/^transaction_/, 'tx_').replaceAll('_', ' ').toUpperCase();
+      return compact.length > 18 ? `${compact.slice(0, 17)}…` : compact;
     }
 
     function setError(message) {
@@ -901,8 +877,10 @@ DEMO_UI_HTML = r'''<!doctype html>
       els.routeToken.className = `route-token ${klass}`;
       els.activeLine.textContent = state.session?.language ? `${state.session.language.toUpperCase()} line` : 'No line';
       els.languageLine.textContent = state.session?.language ? `${state.session.language.toUpperCase()} line` : 'ES/PT line';
-      els.intentBadge.textContent = response?.intent && response.intent !== 'unknown' ? response.intent : 'No intent';
+      els.intentBadge.textContent = displayIntent(response?.intent);
+      els.intentBadge.title = response?.intent || 'No intent';
       els.why.textContent = computeWhy(response);
+
       const kv = [];
       kv.push(['Route', route]);
       if (response?.intent && response.intent !== 'unknown') kv.push(['Intent', response.intent]);
@@ -912,6 +890,7 @@ DEMO_UI_HTML = r'''<!doctype html>
       if (response?.persisted !== undefined) kv.push(['Persisted', String(response.persisted)]);
       if (response?.verified !== undefined) kv.push(['Verified', String(response.verified)]);
       els.evidence.innerHTML = kv.map(([k, v]) => `<div><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join('');
+
       const reasons = response?.reason_codes || [];
       els.reasonPills.innerHTML = reasons.map((reason) => `<span class="pill">${escapeHtml(reason)}</span>`).join('');
       const records = [...(response?.products || []), ...(response?.transactions || [])];
@@ -988,7 +967,15 @@ DEMO_UI_HTML = r'''<!doctype html>
       const text = response.persisted && response.verified
         ? `Support ticket created and verified. Ticket: ${response.ticket_id}`
         : `Support ticket response received. Ticket: ${response.ticket_id || 'not returned'}`;
-      const mapped = {route: 'HANDOFF', intent: 'customer_requested_support_handoff', response_text: text, ticket_id: response.ticket_id, persisted: response.persisted, verified: response.verified, synthetic_data: state.session?.synthetic_data === true};
+      const mapped = {
+        route: 'HANDOFF',
+        intent: 'customer_requested_support_handoff',
+        response_text: text,
+        ticket_id: response.ticket_id,
+        persisted: response.persisted,
+        verified: response.verified,
+        synthetic_data: state.session?.synthetic_data === true
+      };
       state.lastResponse = mapped;
       state.turns.unshift({kind: 'HANDOFF', text, response: mapped});
       renderTurns();
@@ -1010,6 +997,7 @@ DEMO_UI_HTML = r'''<!doctype html>
     els.send.addEventListener('click', () => sendTurn().catch((error) => setError(error.message)));
     els.handoff.addEventListener('click', () => requestHandoff().catch((error) => setError(error.message)));
     els.revoke.addEventListener('click', () => revokeSession().catch((error) => setError(error.message)));
+
     document.querySelectorAll('.scenario').forEach((button) => {
       button.addEventListener('click', () => {
         els.message.value = button.dataset.message || '';
