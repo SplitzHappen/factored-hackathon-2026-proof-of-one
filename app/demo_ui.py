@@ -457,7 +457,7 @@ DEMO_UI_HTML = """<!doctype html>
         </div>
         <ul class="runtime-steps" aria-label="message handling steps">
           <li><b>1</b><span>The server issues a demo session for one fictional customer.</span></li>
-          <li><b>2</b><span>The local API checks the message against verified synthetic records.</span></li>
+          <li><b>2</b><span>Deterministic rules read the message; any transaction it mentions is checked against this customer's synthetic records.</span></li>
           <li><b>3</b><span>The backend returns a bounded route: answer, clarify, abstain, or ticket.</span></li>
         </ul>
       </aside>
@@ -494,7 +494,7 @@ DEMO_UI_HTML = """<!doctype html>
           </button>
           <button class="scenario" data-persona="lucia" data-message="Quiero la transacción DEMO-ES-1003.">
             ANSWER · Resolve clarification
-            <small>After the CLARIFY result, this selects one candidate and returns the matching record. (Lucía)</small>
+            <small>After CLARIFY, the customer names one transaction ID; the API re-verifies it and returns that record. (Lucía)</small>
           </button>
           <button class="scenario" data-persona="lucia" data-message="No reconozco este pago y no autoricé esta actividad en mi cuenta.">
             ESCALATE · Unauthorized activity
@@ -590,15 +590,22 @@ DEMO_UI_HTML = """<!doctype html>
       return '';
     }
 
-    function routeExplanation(route) {
+    function routeExplanation(route, reasonCodes = []) {
+      const has = (code) => reasonCodes.includes(code);
       if (route === 'ANSWER') {
         return 'Verified synthetic records matched the supported customer request.';
       }
       if (route === 'CLARIFY') {
-        return 'More than one verified record matched; the customer is asked to choose.';
+        if (has('ambiguous_transaction_match')) {
+          return 'More than one verified record matched; the customer is asked to choose.';
+        }
+        return 'The request could not be linked to one verified record for this customer, so the system asks for more detail instead of guessing.';
       }
       if (route === 'ESCALATE') {
-        return 'The customer reported unauthorized activity, so the demo creates a stored support ticket. This is not fraud detection.';
+        if (has('unauthorized_activity_reported')) {
+          return 'The customer reported unauthorized activity, so the demo creates a stored support ticket. This is not fraud detection.';
+        }
+        return 'A conservative rule routed this message to a stored support ticket instead of answering automatically. This is not fraud detection.';
       }
       if (route === 'ABSTAIN') {
         return 'The local rules do not support this request, so the system does not invent an answer.';
@@ -665,7 +672,7 @@ DEMO_UI_HTML = """<!doctype html>
         ];
         const candidates = response.clarification_transaction_ids || [];
         const intent = response.intent && response.intent !== 'unknown' ? response.intent : '';
-        const explanation = routeExplanation(route);
+        const explanation = routeExplanation(route, response.reason_codes || []);
         return `
           <article class="turn">
             <header class="turn-header">

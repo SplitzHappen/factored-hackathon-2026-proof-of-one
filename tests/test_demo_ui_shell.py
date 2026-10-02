@@ -69,6 +69,9 @@ def test_demo_shell_references_only_existing_public_demo_api_paths(tmp_path) -> 
     assert "Demo scenarios" in html
     assert "Preset judge flows" not in html
     assert "More than one verified record matched; the customer is asked to choose." in html
+    assert "could not be linked to one verified record" in html
+    assert "A conservative rule routed this message" in html
+    assert "routeExplanation(route,response.reason_codes||[])" in compact_html
     assert "justify-content:flex-start;" in compact_html
     assert "gap:16px;" in compact_html
     assert "state.session&&els.persona.value!==state.session.persona_id" in compact_html
@@ -162,6 +165,23 @@ def test_demo_shell_clarify_follow_up_resolves_to_answer(tmp_path) -> None:
     assert body["route"] == "ANSWER"
     assert body["transactions"]
     assert body["transactions"][0]["transaction_id"] == "DEMO-ES-1003"
+
+
+def test_demo_shell_missing_id_clarify_is_not_ambiguity(tmp_path) -> None:
+    client = _client(tmp_path)
+    session = _session(client, "lucia")
+
+    response = client.post(
+        "/api/customer/turn",
+        headers={"X-Demo-Session": session["session_id"]},
+        json={"message": "Quiero la transacción DEMO-ES-9999."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "CLARIFY"
+    assert "ambiguous_transaction_match" not in body["reason_codes"]
+    assert body["clarification_transaction_ids"] == []
 
 
 def test_demo_shell_handoff_api_returns_persisted_verified_ticket(tmp_path) -> None:

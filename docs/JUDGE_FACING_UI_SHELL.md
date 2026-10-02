@@ -14,11 +14,14 @@ The shell is a thin browser interface over the existing local synthetic FastAPI 
   - `POST /api/customer/turn`
   - `POST /api/customer/handoff`
   - `DELETE /api/demo/session`
-- Presents four bounded judge flows:
+- Presents five demo scenarios plus a support-handoff button:
   - `ANSWER` over verified synthetic transaction records;
   - `CLARIFY` when two synthetic transactions match the same customer request;
+  - `CLARIFY` follow-up, where the customer names one transaction ID and the API re-verifies it and returns that record;
   - `ESCALATE` when the customer reports unauthorized activity;
+  - Portuguese support over Rafael's synthetic records;
   - support handoff through a stored ticket response.
+- Shows a plain-language explanation under each response, chosen from the backend route and reason codes.
 - Shows the runtime boundary from `/ready`, including synthetic data mode and `llm_connected=false`.
 
 ## What the shell does not do
@@ -73,9 +76,10 @@ Capture sequence:
 1. **Overview** — hero, claim-limit cards, and runtime boundary showing `ready`, synthetic mode, and `llm_connected=false`.
 2. **ANSWER / Lucía** — `Muéstrame mis últimos movimientos.` returning `ANSWER` and transaction cards.
 3. **CLARIFY / Lucía** — `Busca las transacciones de 54.000 COP.` returning `CLARIFY` with candidates `DEMO-ES-1003` and `DEMO-ES-1004`.
-4. **ESCALATE / Lucía** — unauthorized-activity report returning `ESCALATE` and a support-ticket ID.
-5. **HANDOFF / Lucía** — explicit support handoff showing the returned ticket plus API `persisted` and `verified` fields.
-6. **Portuguese / Rafael** — select Rafael, click **Start new demo session**, then send `Quero ver meus pagamentos recentes.` to return a Portuguese answer over Rafael's synthetic records.
+4. **CLARIFY follow-up / Lucía** — `Quiero la transacción DEMO-ES-1003.` returning `ANSWER` with the single re-verified record.
+5. **ESCALATE / Lucía** — unauthorized-activity report returning `ESCALATE` and a support-ticket ID.
+6. **HANDOFF / Lucía** — explicit support handoff showing the returned ticket plus API `persisted` and `verified` fields.
+7. **Portuguese / Rafael** — select Rafael, click **Start new demo session**, then send `Quero ver meus pagamentos recentes.` to return a Portuguese answer over Rafael's synthetic records.
 
 For main deck screenshots, crop or avoid overemphasizing session and tenant identifiers. Keep those details for appendix evidence only.
 
