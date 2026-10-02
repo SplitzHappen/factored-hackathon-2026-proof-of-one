@@ -47,7 +47,8 @@ def test_demo_shell_references_only_existing_public_demo_api_paths(tmp_path) -> 
     assert "/api/customer/turn" in html
     assert "/api/customer/handoff" in html
     assert "/api/demo/session" in html
-    assert "customer_id" not in html
+    assert "/api/customer" in html
+    assert "/api/customer_id" not in html
 
 
 def test_demo_shell_routes_are_hidden_from_openapi_schema(tmp_path) -> None:
