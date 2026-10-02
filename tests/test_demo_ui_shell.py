@@ -58,10 +58,16 @@ def test_demo_shell_references_only_existing_public_demo_api_paths(tmp_path) -> 
     assert "/api/customer/turn" in html
     assert "/api/customer/handoff" in html
     assert "/api/demo/session" in html
-    assert "data-persona=\"rafael\"" in html
+    assert 'data-persona="rafael"' in html
     assert "Busca las transacciones de 54.000 COP." in html
     assert "No live agent is connected in this demo" in html
-    assert "selected persona differs from the active session" in html
+    assert "justify-content:flex-start" in html
+    assert "gap:16px" in html
+    assert "state.session&&els.persona.value!==state.session.persona_id" in html
+    assert "The selected persona differs from the active session" in html
+    assert "state.session?.synthetic_data===true" in html
+    assert "reason_codes: ['customer_requested_support_handoff']" not in html
+    assert "_render_demo_shell_html" not in html
 
 
 def test_demo_shell_routes_are_hidden_from_openapi_schema(tmp_path) -> None:
