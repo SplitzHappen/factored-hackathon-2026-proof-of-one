@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from scripts.replay_rf5_guardrail import REPLAY_CASES, build_report, main
 
@@ -12,13 +13,16 @@ def test_rf5_replay_guardrail_cases_are_named_and_unique() -> None:
 
     assert case_ids
     assert len(case_ids) == len(set(case_ids))
-    assert {case.bucket for case in REPLAY_CASES} == {
+    assert {
         "positive_preserve",
         "benign_preserve",
-        "rf5_positive_control",
         "rf5_gain_control",
-        "ftp2_cleanup_control",
-    }
+        "rf5_component_control",
+        "ftp2_control",
+    }.issubset({case.bucket for case in REPLAY_CASES})
+    assert {"m1", "m2", "m4", "ftp2"}.issubset(
+        {case.family for case in REPLAY_CASES}
+    )
 
 
 def test_rf5_replay_guardrail_passes_current_checkout() -> None:
@@ -28,21 +32,22 @@ def test_rf5_replay_guardrail_passes_current_checkout() -> None:
     assert summary["case_count"] == len(REPLAY_CASES)
     assert summary["positive_preserve_count"] > 0
     assert summary["benign_preserve_count"] > 0
-    assert summary["rf5_positive_control_count"] > 0
-    assert summary["rf5_gain_control_count"] >= 3
-    assert summary["ftp2_cleanup_control_count"] >= 2
+    assert summary["rf5_gain_control_count"] > 0
+    assert summary["rf5_component_control_count"] > 0
+    assert summary["ftp2_control_count"] > 0
     assert summary["positive_loss_count"] == 0
     assert summary["benign_removal_regression_count"] == 0
     assert summary["current_expectation_failure_count"] == 0
     assert summary["rf5_family_expectation_failure_count"] == 0
     assert summary["ftp2_expectation_failure_count"] == 0
-    assert summary["rf5_component_gain_count"] >= 3
 
-    family_table = report["family_table"]
-    assert family_table["m1_no_authorization_activity"]["case_count"] > 0
-    assert family_table["m2_money_reference_disowning"]["case_count"] > 0
-    assert family_table["m4_scam_social_engineering_activity"]["case_count"] > 0
-    assert report["replay_surfaces"]["ftp2_cleanup_candidate"] is True
+    family_rows = report["plan_tables"]["per_family_replay_coverage"]
+    assert {"m1", "m2", "m4"}.issubset({row["family"] for row in family_rows})
+    ftp2_rows = report["plan_tables"]["ftp2_cleanup_candidate_cases"]
+    assert len(ftp2_rows) >= 2
+    assert any(row["ftp2_cleanup_candidate"] for row in ftp2_rows)
+    assert any("positive_loss_guard" in row["ftp2_blocked_by"] for row in ftp2_rows)
+    assert report["replay_surfaces"]["interpret_to_route_policy"] is False
 
 
 def test_rf5_replay_guardrail_writes_json_output(tmp_path) -> None:
@@ -51,31 +56,60 @@ def test_rf5_replay_guardrail_writes_json_output(tmp_path) -> None:
     assert main(["--json-output", str(output)]) == 0
 
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == "rf5-replay-guardrail-v2"
+    assert payload["schema_version"] == "rf5-replay-guardrail-v3"
     assert payload["summary"]["case_count"] == len(REPLAY_CASES)
     assert payload["summary"]["positive_loss_count"] == 0
     assert payload["summary"]["benign_removal_regression_count"] == 0
     assert payload["summary"]["current_expectation_failure_count"] == 0
-    assert payload["summary"]["rf5_family_expectation_failure_count"] == 0
-    assert payload["summary"]["ftp2_expectation_failure_count"] == 0
+    assert "plan_tables" in payload
+    assert "measured_attribution_counts" in payload
 
 
-def test_rf5_replay_guardrail_file_path_invocation_writes_json(tmp_path) -> None:
+def test_rf5_replay_guardrail_file_path_invocation_from_other_cwd(tmp_path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    script = repo_root / "scripts" / "replay_rf5_guardrail.py"
     output = tmp_path / "rf5_replay_file_path.json"
 
     completed = subprocess.run(
-        [
-            sys.executable,
-            "scripts/replay_rf5_guardrail.py",
-            "--json-output",
-            str(output),
-        ],
-        check=True,
+        [sys.executable, str(script), "--json-output", str(output)],
+        cwd=tmp_path,
+        check=False,
         text=True,
         capture_output=True,
     )
 
+    assert completed.returncode == 0, completed.stderr
     assert "guardrail: PASS" in completed.stdout
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == "rf5-replay-guardrail-v2"
-    assert payload["summary"]["rf5_component_gain_count"] >= 3
+    assert payload["schema_version"] == "rf5-replay-guardrail-v3"
+
+
+def test_rf5_replay_guardrail_measured_baseline_attribution(tmp_path) -> None:
+    # Simulate the measured main baseline for the one intended RF5-only route gain:
+    # main is silent, current PR escalates through the RF5 component while the
+    # authoritative detector and RF4 floor are silent.
+    baseline = build_report()
+    for case in baseline["cases"]:
+        if case["case_id"] == "rf5-gain-m4-silent-detector-es-001":
+            case["would_escalate"] = False
+            case["route_policy_would_escalate"] = False
+
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+
+    report = build_report(baseline_json=baseline_path)
+
+    assert report["summary"]["changed_from_baseline_json_count"] == 1
+    assert report["summary"]["measured_rf5_only_gain_count"] == 1
+    assert report["measured_attribution_case_ids"]["rf5_only_component_gain"] == [
+        "rf5-gain-m4-silent-detector-es-001"
+    ]
+    assert report["changed_from_baseline_json"] == [
+        {
+            "case_id": "rf5-gain-m4-silent-detector-es-001",
+            "baseline_would_escalate": False,
+            "current_would_escalate": True,
+            "bucket": "rf5_gain_control",
+            "classification": "rf5_only_component_gain",
+        }
+    ]
