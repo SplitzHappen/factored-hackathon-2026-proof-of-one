@@ -74,6 +74,10 @@ class TransactionStatusFilter(StrEnum):
 class PolicyReason(StrEnum):
     SUPPORTED_VERIFIED = "supported_verified"
     UNAUTHORIZED_ACTIVITY_REPORTED = "unauthorized_activity_reported"
+    # RF4 B-HYBRID fail-safe floor: a denial / non-consent cue next to a money,
+    # card, or account mention. A conservative human-review request, not a fraud
+    # determination; kept distinct from explicit reports for traceability.
+    POSSIBLE_UNAUTHORIZED_ACTIVITY = "possible_unauthorized_activity"
     OWNERSHIP_UNVERIFIED = "ownership_unverified"
     TRUSTED_RECORD_MISSING = "trusted_record_missing"
     TRUSTED_DATA_CONFLICT = "trusted_data_conflict"
@@ -191,6 +195,9 @@ class VerifiedInterpretation(ContractModel):
     ] = Field(default_factory=list, max_length=50)
     provider_attempts: int = Field(ge=0, le=5)
     lexical_unauthorized_override: bool = False
+    # Server-side only (never model-controlled): set by the RF4 fail-safe floor
+    # when the authoritative unauthorized-activity signal is false.
+    possible_unauthorized_activity: bool = False
     fallback_reason: InterpretationFallbackReason | None = None
     requires_human_fallback: bool = False
 
@@ -251,6 +258,7 @@ class PolicyInput(ContractModel):
 
     intent: PolicyIntent
     unauthorized_activity_asserted: bool
+    possible_unauthorized_activity: bool = False
     ownership_verified: bool
     trusted_record_found: bool
     trusted_data_conflict: bool

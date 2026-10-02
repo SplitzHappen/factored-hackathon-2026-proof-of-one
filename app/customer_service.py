@@ -84,6 +84,9 @@ class CustomerResolutionService:
                 unauthorized_activity_asserted=(
                     interpretation.unauthorized_activity_asserted
                 ),
+                possible_unauthorized_activity=(
+                    interpretation.possible_unauthorized_activity
+                ),
                 ownership_verified=not missing_or_unowned,
                 trusted_record_found=not trusted_record_missing,
                 trusted_data_conflict=False,
@@ -262,6 +265,12 @@ class CustomerResolutionService:
                 "Caso registrado após sinal explícito de atividade não reconhecida."
                 if pt
                 else "Caso registrado tras una señal explícita de actividad no reconocida."
+            )
+        if reason is PolicyReason.POSSIBLE_UNAUTHORIZED_ACTIVITY:
+            return (
+                "Caso registrado para revisão humana de possível atividade não reconhecida."
+                if pt
+                else "Caso registrado para revisión humana de posible actividad no reconocida."
             )
         if reason is PolicyReason.INTERPRETATION_UNAVAILABLE:
             return (

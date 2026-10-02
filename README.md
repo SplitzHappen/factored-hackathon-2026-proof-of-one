@@ -57,7 +57,7 @@ The selected design intentionally separates:
 3. **Deterministic policy and authorization** — implemented in Python outside model discretion.
 4. **AI interpretation** — added only after deterministic identity, retrieval, routing, persistence, and evaluation controls pass tests.
 
-The model will never receive arbitrary SQL access and will never control the authenticated customer identity. Retrospective `is_fraud` labels and organizer `fraud_score` values are also excluded from runtime transaction records and policy inputs; fraud-specific mandatory escalation is driven by the customer's reported non-recognition/unauthorized activity, not by a score.
+The model will never receive arbitrary SQL access and will never control the authenticated customer identity. Retrospective `is_fraud` labels and organizer `fraud_score` values are also excluded from runtime transaction records and policy inputs; fraud-specific mandatory escalation is driven by the customer's reported non-recognition/unauthorized activity, not by a score. A conservative deterministic fail-safe floor additionally routes a clear first-person denial next to a money, card or account mention to human review under the distinct reason code `possible_unauthorized_activity` (see [docs/LIMITATIONS.md](docs/LIMITATIONS.md) §12A).
 
 The writable SQLite store contains only operational metadata: server-established session identity references, bounded structured conversation state, rate-limit events, and structured escalation/support tickets. It contains no customer/product/transaction banking tables and rejects unexpected tables on initialization.
 
