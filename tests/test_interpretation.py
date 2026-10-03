@@ -139,6 +139,7 @@ def _session(language: SupportedLanguage = SupportedLanguage.ES) -> Authenticate
 
 def _output(
     *,
+    language: str = "es",
     intent: str = "transaction_lookup",
     unauthorized: bool = False,
     transaction_id: str | None = "T001",
@@ -146,6 +147,7 @@ def _output(
     **extra: object,
 ) -> str:
     payload: dict[str, object] = {
+        "language": language,
         "intent": intent,
         "unauthorized_activity_asserted": unauthorized,
         "transaction_id": transaction_id,
@@ -198,12 +200,33 @@ def test_provider_receives_no_identity_or_banking_records(runtime_parts) -> None
     request, prompt, schema = provider.calls[0]
     dumped = request.model_dump()
     assert set(dumped) == {"language", "message", "reference_date", "previous_intent"}
+    assert dumped["language"] is SupportedLanguage.ES
+    assert result.language is SupportedLanguage.ES
     assert "customer_id" not in dumped
     assert "session_id" not in dumped
     assert "C001" not in prompt
     assert "customer_id" not in json.dumps(schema)
     assert "fraud" not in json.dumps(schema).lower()
     assert prompt == INTERPRETATION_SYSTEM_PROMPT
+
+
+def test_detected_language_can_differ_from_profile_language(runtime_parts) -> None:
+    bank, store = runtime_parts
+    session = _session(SupportedLanguage.ES)
+    store.save_authenticated_session(session)
+    provider = FakeProvider(_output(language="pt", transaction_id="T001"))
+    service = InterpretationService(bank=bank, store=store, provider=provider)
+
+    result = service.interpret(
+        session=session,
+        message="Qual é o status da transação T001?",
+        reference_date=REFERENCE_DATE,
+    )
+
+    request, _prompt, _schema = provider.calls[0]
+    assert request.language is SupportedLanguage.ES
+    assert result.language is SupportedLanguage.PT
+    assert result.verified_transaction_id == "T001"
 
 
 def test_exact_transaction_reference_is_ownership_checked(runtime_parts) -> None:
@@ -412,6 +435,7 @@ def test_high_confidence_unauthorized_phrases_can_only_raise_safety_signal(
     store.save_authenticated_session(session)
     provider = FakeProvider(
         _output(
+            language=language.value,
             intent="transaction_lookup",
             unauthorized=False,
             transaction_id=None,
@@ -518,6 +542,7 @@ def test_cross_language_unauthorized_backstop_still_raises_signal(runtime_parts)
     store.save_authenticated_session(session)
     provider = FakeProvider(
         _output(
+            language="pt",
             intent="transaction_lookup",
             unauthorized=False,
             transaction_id=None,
@@ -531,6 +556,7 @@ def test_cross_language_unauthorized_backstop_still_raises_signal(runtime_parts)
         reference_date=REFERENCE_DATE,
     )
 
+    assert result.language is SupportedLanguage.PT
     assert result.unauthorized_activity_asserted is True
     assert result.lexical_unauthorized_override is True
 
@@ -583,6 +609,30 @@ def test_canonical_status_enum_matches_spanish_message_cue(runtime_parts) -> Non
     )
 
     assert result.status is InterpretationStatus.VERIFIED
+    assert result.transaction_reference_status is TransactionReferenceStatus.AMBIGUOUS
+
+
+def test_canonical_status_enum_matches_portuguese_message_cue_under_spanish_profile(runtime_parts) -> None:
+    bank, store = runtime_parts
+    session = _session(SupportedLanguage.ES)
+    store.save_authenticated_session(session)
+    provider = FakeProvider(
+        _output(
+            language="pt",
+            transaction_id=None,
+            transaction_query={"status": "Approved"},
+        )
+    )
+    service = InterpretationService(bank=bank, store=store, provider=provider)
+
+    result = service.interpret(
+        session=session,
+        message="Busque minha transação aprovada.",
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status is InterpretationStatus.VERIFIED
+    assert result.language is SupportedLanguage.PT
     assert result.transaction_reference_status is TransactionReferenceStatus.AMBIGUOUS
 
 
@@ -686,6 +736,7 @@ def test_model_date_filters_must_match_server_resolved_provenance(
     store.save_authenticated_session(session)
     provider = FakeProvider(
         _output(
+            language=language.value,
             transaction_id=None,
             transaction_query=query,
         )
