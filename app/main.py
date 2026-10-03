@@ -182,9 +182,9 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 "OpenAI GPT-6 Luna · deterministic policy authority retained",
             ),
             (
-                "Deterministic checks override intent · Not fraud detection",
-                "LLM interprets language · deterministic checks override intent · "
-                "Not fraud detection",
+                "els.lineBoundary.textContent = 'Deterministic checks override intent · Not fraud detection';",
+                "els.lineBoundary.innerHTML = 'LLM interprets language<br>"
+                "Deterministic checks override intent<br>Not fraud detection';",
             ),
         )
         for old, new in replacements:
