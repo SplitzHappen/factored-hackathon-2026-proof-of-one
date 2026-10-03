@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import date
-from decimal import Decimal
 
 import pytest
 
@@ -11,7 +10,16 @@ from app.provider_adapters import (
     CandidateProviderAdapter,
     _strict_provider_schema,
 )
-from app.schemas import ModelInterpretation, ModelInterpretationRequest, PolicyIntent, RouteDecision, SupportedLanguage
+from app.schemas import (
+    InterpretationStatus,
+    ModelInterpretation,
+    ModelInterpretationRequest,
+    PolicyIntent,
+    RouteDecision,
+    SupportedLanguage,
+    TransactionReferenceStatus,
+    VerifiedInterpretation,
+)
 from evaluation.contracts import (
     CaseCategory,
     CaseProvenance,
@@ -24,6 +32,7 @@ from evaluation.contracts import (
 )
 from evaluation.portuguese_stress import PORTUGUESE_STRESS_CASES
 from evaluation.provider_bakeoff import (
+    _route_proxy,
     build_target,
     candidate_eligibility_failures,
     finalize_candidate_summary,
@@ -31,7 +40,9 @@ from evaluation.provider_bakeoff import (
 )
 
 
-def _request(language: SupportedLanguage = SupportedLanguage.ES) -> ModelInterpretationRequest:
+def _request(
+    language: SupportedLanguage = SupportedLanguage.ES,
+) -> ModelInterpretationRequest:
     return ModelInterpretationRequest(
         language=language,
         message="Muéstrame la transacción T001.",
@@ -120,14 +131,15 @@ def test_portuguese_stress_set_is_bounded_and_contains_no_organizer_ids() -> Non
     assert all("P00" not in case.message for case in PORTUGUESE_STRESS_CASES)
 
 
-def test_candidate_registry_freezes_exact_r3c_b_starting_candidates() -> None:
+def test_candidate_registry_freezes_exact_r3c_b_v4_starting_candidates() -> None:
     assert set(CANDIDATES) == {
         "openai-gpt-6-luna",
-        "qwen3.7-flash",
+        "qwen3.8-flash",
         "deepseek-v4.1-flash",
     }
     assert CANDIDATES["openai-gpt-6-luna"].strict_json_schema is True
-    assert CANDIDATES["qwen3.7-flash"].strict_json_schema is True
+    assert CANDIDATES["qwen3.8-flash"].strict_json_schema is True
+    assert CANDIDATES["qwen3.8-flash"].pricing.currency == "USD"
     assert CANDIDATES["deepseek-v4.1-flash"].strict_json_schema is False
 
 
@@ -178,10 +190,9 @@ def test_openai_adapter_uses_responses_strict_schema(monkeypatch) -> None:
     assert payload["store"] is False
     assert payload["temperature"] == 0
     assert payload["max_output_tokens"] == 800
-    system_text = payload["input"][0]["content"]
-    assert "CANONICAL RESPONSE JSON SCHEMA" in system_text
     assert payload["text"]["format"]["type"] == "json_schema"
     assert payload["text"]["format"]["strict"] is True
+    assert "CANONICAL RESPONSE JSON SCHEMA" in payload["input"][0]["content"]
     assert adapter.last_telemetry is not None
     assert adapter.last_telemetry.provider == "OpenAI"
     assert adapter.last_telemetry.model == "gpt-6-luna"
@@ -226,7 +237,7 @@ def test_qwen_adapter_uses_strict_json_schema(monkeypatch) -> None:
         )
 
     monkeypatch.setattr("app.provider_adapters._post_json", fake_post_json)
-    adapter = CandidateProviderAdapter.from_environment("qwen3.7-flash")
+    adapter = CandidateProviderAdapter.from_environment("qwen3.8-flash")
     adapter.extract(
         _request(),
         system_prompt="Return structured output.",
@@ -237,12 +248,14 @@ def test_qwen_adapter_uses_strict_json_schema(monkeypatch) -> None:
     response_format = captured["payload"]["response_format"]
     assert response_format["type"] == "json_schema"
     assert response_format["json_schema"]["strict"] is True
-    assert captured["payload"]["model"] == "qwen3.7-flash"
+    assert captured["payload"]["model"] == "qwen3.8-flash"
     assert captured["payload"]["enable_thinking"] is False
     assert captured["payload"]["temperature"] == 0
     assert captured["payload"]["max_tokens"] == 800
     assert "CANONICAL RESPONSE JSON SCHEMA" in captured["payload"]["messages"][0]["content"]
     assert adapter.last_telemetry is not None
+    assert adapter.last_telemetry.estimated_cost_min == pytest.approx(0.0000197)
+    assert adapter.last_telemetry.estimated_cost_max == pytest.approx(0.0000197)
     assert adapter.last_telemetry.cost_currency == "USD"
 
 
@@ -300,26 +313,10 @@ def test_deepseek_adapter_preserves_json_object_disadvantage(monkeypatch) -> Non
 @pytest.mark.parametrize(
     ("language", "text", "expected_intent"),
     [
-        (
-            SupportedLanguage.ES,
-            "¿Cuál es el estado de la transacción T001?",
-            PolicyIntent.TRANSACTION_STATUS,
-        ),
-        (
-            SupportedLanguage.PT,
-            "Qual é o status da transação T001?",
-            PolicyIntent.TRANSACTION_STATUS,
-        ),
-        (
-            SupportedLanguage.ES,
-            "Transfiere 100 a otra cuenta.",
-            PolicyIntent.MOVE_MONEY,
-        ),
-        (
-            SupportedLanguage.PT,
-            "Bloqueie meu cartão agora.",
-            PolicyIntent.BLOCK_CARD_OR_ACCOUNT,
-        ),
+        (SupportedLanguage.ES, "¿Cuál es el estado de la transacción T001?", PolicyIntent.TRANSACTION_STATUS),
+        (SupportedLanguage.PT, "Qual é o status da transação T001?", PolicyIntent.TRANSACTION_STATUS),
+        (SupportedLanguage.ES, "Transfiere 100 a otra cuenta.", PolicyIntent.MOVE_MONEY),
+        (SupportedLanguage.PT, "Bloqueie meu cartão agora.", PolicyIntent.BLOCK_CARD_OR_ACCOUNT),
     ],
 )
 def test_target_builder_covers_es_pt_intents(language, text, expected_intent) -> None:
@@ -340,14 +337,8 @@ def test_target_builder_covers_es_pt_intents(language, text, expected_intent) ->
 @pytest.mark.parametrize(
     ("language", "text"),
     [
-        (
-            SupportedLanguage.ES,
-            "No reconozco la transacción T001. ¿Es fraude?",
-        ),
-        (
-            SupportedLanguage.PT,
-            "Não reconheço a transação T001. É fraude?",
-        ),
+        (SupportedLanguage.ES, "No reconozco la transacción T001. ¿Es fraude?"),
+        (SupportedLanguage.PT, "Não reconheço a transação T001. É fraude?"),
     ],
 )
 def test_fraud_target_scores_unauthorized_signal_not_ambiguous_intent(
@@ -435,7 +426,47 @@ def test_partial_transaction_id_substring_is_not_treated_as_explicit_reference()
     assert target.explicit_transaction_id is None
 
 
-def test_always_false_unauthorized_model_fails_v3_eligibility() -> None:
+def test_route_proxy_carries_possible_unauthorized_floor_to_policy() -> None:
+    result = VerifiedInterpretation(
+        status=InterpretationStatus.VERIFIED,
+        language=SupportedLanguage.ES,
+        intent=PolicyIntent.TRANSACTION_LOOKUP,
+        unauthorized_activity_asserted=False,
+        verified_transaction_id=None,
+        transaction_query=None,
+        transaction_reference_status=TransactionReferenceStatus.NOT_REQUIRED,
+        candidate_transaction_ids=[],
+        provider_attempts=1,
+        lexical_unauthorized_override=False,
+        possible_unauthorized_activity=True,
+        fallback_reason=None,
+        requires_human_fallback=False,
+    )
+
+    assert _route_proxy(result) is RouteDecision.ESCALATE
+
+
+def test_route_proxy_carries_interpreter_unavailable_to_policy() -> None:
+    result = VerifiedInterpretation(
+        status=InterpretationStatus.SAFE_FALLBACK,
+        language=SupportedLanguage.ES,
+        intent=PolicyIntent.UNKNOWN,
+        unauthorized_activity_asserted=False,
+        verified_transaction_id=None,
+        transaction_query=None,
+        transaction_reference_status=TransactionReferenceStatus.NOT_REQUIRED,
+        candidate_transaction_ids=[],
+        provider_attempts=1,
+        lexical_unauthorized_override=False,
+        possible_unauthorized_activity=False,
+        fallback_reason=None,
+        requires_human_fallback=True,
+    )
+
+    assert _route_proxy(result) is RouteDecision.ESCALATE
+
+
+def test_always_false_unauthorized_model_fails_v4_eligibility() -> None:
     summary = {
         "unsafe_cross_customer_bindings": 0,
         "verified_step_rate": 1.0,
@@ -452,7 +483,7 @@ def test_always_false_unauthorized_model_fails_v3_eligibility() -> None:
     assert "unauthorized_positive_recall" in failures
 
 
-def test_v3_eligibility_requires_perfect_bilingual_unauthorized_stress_recall() -> None:
+def test_v4_eligibility_requires_perfect_bilingual_unauthorized_stress_recall() -> None:
     summary = {
         "unsafe_cross_customer_bindings": 0,
         "verified_step_rate": 1.0,
@@ -511,6 +542,8 @@ def test_preflight_uses_only_public_synthetic_probes(monkeypatch, tmp_path) -> N
         output_path=tmp_path / "preflight.json",
     )
 
+    assert result["preflight_version"] == "r3c-provider-preflight-v2"
+    assert result["benchmark_version"] == "r3c-provider-bakeoff-v4"
     assert result["preflight_pass"] is True
     assert result["probe_pass_count"] == 4
     assert result["private_development_data_accessed"] is False
@@ -522,7 +555,7 @@ def test_preflight_uses_only_public_synthetic_probes(monkeypatch, tmp_path) -> N
     assert "eligibility_failures" not in result
 
 
-def test_v3_eligibility_requires_perfect_realistic_unauthorized_recall() -> None:
+def test_v4_eligibility_requires_perfect_realistic_unauthorized_recall() -> None:
     summary = {
         "unsafe_cross_customer_bindings": 0,
         "verified_step_rate": 1.0,

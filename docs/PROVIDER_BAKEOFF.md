@@ -1,7 +1,7 @@
 # R3C-B Provider Bake-off
 
-Status: **v3 repaired harness; live execution still blocked pending realistic-language slice, terms clearance, and bounded Claude repair confirmation**  
-Evidence date: 2026-09-26  
+Status: **v4 preflight-ready harness; no live provider/private development execution has occurred yet**  
+Evidence refresh: 2026-10-03  
 Evaluation surface: **private 100-case development pool + public/team-generated stress evidence after synthetic provider preflight**
 
 The frozen 200-case held-out suite is not used for provider selection, prompt tuning,
@@ -14,29 +14,24 @@ The starting candidate set is frozen before development-pool execution.
 | Candidate ID | API model | Structured-output mode | Pricing snapshot |
 |---|---|---|---|
 | `openai-gpt-6-luna` | `gpt-6-luna` | strict JSON Schema via Responses API | USD 0.10/M input, USD 0.50/M output |
-| `qwen3.7-flash` | `qwen3.7-flash` | strict JSON Schema via OpenAI-compatible Chat Completions | Singapore international, <=32K: USD 0.030/M input, USD 0.130/M output |
-| `deepseek-v4.1-flash` | `deepseek-flash` | JSON Object (schema validated by Proof of One after return) | off-peak USD 0.15/M input + 0.60/M output; peak USD 0.30/M input + 1.20/M output |
+| `qwen3.8-flash` | `qwen3.8-flash` | strict JSON Schema via OpenAI-compatible Chat Completions | Singapore international: USD 0.15/M input, USD 0.47/M output |
+| `deepseek-v4.1-flash` | `deepseek-flash` | JSON Object, schema validated by Proof of One after return | off-peak USD 0.15/M input + 0.60/M output; peak USD 0.30/M input + 1.20/M output |
 
-Important comparison rule: every provider receives the **same textual canonical JSON
-schema, enum values, and valid example** in its prompt context. OpenAI and Qwen also
-receive API-native strict JSON Schema enforcement. DeepSeek keeps its genuine JSON-object
-disadvantage: invalid/empty/mis-shaped first-pass output still counts against reliability.
-This repairs the v2 harness defect where DeepSeek was asked to satisfy a schema it never
-received.
+Important comparison rule: every provider receives the **same textual canonical JSON schema,
+enum values, and valid example** in its prompt context. OpenAI and Qwen also receive API-native
+strict JSON Schema enforcement. DeepSeek keeps its genuine JSON-object disadvantage: invalid,
+empty, or mis-shaped first-pass output still counts against reliability.
 
-The benchmark uses non-thinking / minimum-reasoning behavior for this narrow extraction
-task where the API exposes such a control. Sampling temperature is fixed to 0 and output
-is bounded to 800 tokens for comparability. Transport/HTTP failures are recorded separately
-from schema/model failures using safe aggregate telemetry.
+The benchmark uses non-thinking / minimum-reasoning behavior for this narrow extraction task where
+the API exposes such a control. Sampling temperature is fixed to 0 and output is bounded to 800
+tokens for comparability. Transport/HTTP failures are recorded separately from schema/model
+failures using safe aggregate telemetry.
 
 ## Why these candidates
 
-- GPT-6 Luna is the current low-cost OpenAI tier, released September 22, 2026, and supports multilingual input, strict Structured Outputs, and `reasoning.effort=none`.
-- Qwen3.7-Flash is a low-cost current Qwen Flash model, supports strict JSON Schema, and
-  Alibaba documents Portuguese among Qwen's supported languages.
-- DeepSeek V4.1 Flash is the current `deepseek-flash` endpoint and is inexpensive, but
-  its documented JSON mode guarantees valid JSON rather than the same schema-level
-  contract.
+- GPT-6 Luna is the current low-cost OpenAI slot and supports multilingual input, strict Structured Outputs, and `reasoning.effort=none`.
+- Qwen3.8-Flash is Alibaba's current Qwen Flash candidate for this slot and supports strict JSON Schema. Qwen3.7-Flash remains callable but is now legacy, so the v4 refresh moves the Qwen candidate before any private development call.
+- DeepSeek V4.1 Flash is served through the `deepseek-flash` endpoint and is inexpensive, but its documented JSON mode guarantees valid JSON rather than the same schema-level contract.
 
 This is a task-specific comparison, not a general model benchmark.
 
@@ -54,36 +49,25 @@ It verifies the canonical development combined SHA-256:
 
 The runner refuses paths whose filename contains `heldout`.
 
-The current development pool contains 100 cases:
-- 75 Spanish;
-- 25 Portuguese;
-- no organizer-customer overlap with the held-out pool.
+The current development pool contains 100 cases: 75 Spanish, 25 Portuguese, and no organizer-customer overlap with the held-out pool.
 
-A separate public **16-case Portuguese stress set** is also run. It is entirely
-team-generated and contains no organizer IDs or banking values. It covers informal
-Brazilian phrasing, abbreviations/typos, non-recognition assertions, transaction lookup,
-status, decline-cause, money movement, card blocking, disputes, profile changes, and
-credit eligibility.
+A separate public **16-case Portuguese stress set** is also run. It is entirely team-generated and contains no organizer IDs or banking values. It covers informal Brazilian phrasing, abbreviations/typos, non-recognition assertions, transaction lookup, status, decline-cause, money movement, card blocking, disputes, profile changes, and credit eligibility.
 
-The v3 benchmark additionally loads frozen
-`factored-realistic-language-v1`:
+The v4 benchmark additionally loads frozen `factored-realistic-language-v1`:
 
 - 32 public synthetic cases;
 - 16 Spanish / 16 Portuguese;
 - 16 semantic pairs;
-- canonical SHA-256
-  `e04071c19ae5ab239ba1fac8725eb35d1e5c262b45f3cd29ec5af84711eef459`;
+- canonical SHA-256 `e04071c19ae5ab239ba1fac8725eb35d1e5c262b45f3cd29ec5af84711eef459`;
 - no organizer rows/IDs/banking values;
 - team-generated wording only;
 - Portuguese explicitly **not** claimed as native-reviewed.
 
-Its highest normalized literal-surface similarity to the legacy public generator templates
-is 0.657143 (<0.70). See `docs/REALISTIC_LANGUAGE_SLICE.md`.
+Its highest normalized literal-surface similarity to the legacy public generator templates is 0.657143 (<0.70). See `docs/REALISTIC_LANGUAGE_SLICE.md`.
 
 ## What is measured
 
-Each candidate receives the same R3C interpreter prompt/schema and the same development
-steps.
+Each candidate receives the same R3C interpreter prompt/schema and the same development steps.
 
 The runner records only aggregate metrics:
 
@@ -106,22 +90,14 @@ The runner records only aggregate metrics:
 - input/output token usage where returned by the provider;
 - estimated cost range in the provider's native pricing currency.
 
-The runner does **not** persist:
-- prompts;
-- customer IDs;
-- transaction IDs;
-- banking values;
-- raw model outputs;
-- answer-key contents.
-
-Aggregate outputs are written under git-ignored
-`evaluation/results/private/r3c_b/`.
+The runner does **not** persist prompts, customer IDs, transaction IDs, banking values, raw model outputs, or answer-key contents. Aggregate outputs are written under git-ignored `evaluation/results/private/r3c_b/`.
 
 ## Safety architecture during the bake-off
 
 Provider output remains untrusted.
 
 Every call still passes through the R3C deterministic post-check:
+
 - exact persisted session required;
 - transaction IDs must appear in customer text;
 - owned transaction references are checked against DuckDB;
@@ -129,8 +105,9 @@ Every call still passes through the R3C deterministic post-check:
 - model search breadth remains server-controlled;
 - invalid output safely falls back.
 
-The bake-off therefore compares language interpretation quality without granting any
-provider additional banking authority.
+The v4 diagnostic route projection now carries the same interpretation-derived safety signals as the frozen product path: explicit unauthorized activity, RF4/RF5 possible unauthorized activity, interpreter-unavailable state, ambiguity, and required-missing references all reach `route_policy()`.
+
+The bake-off therefore compares language interpretation quality without granting any provider additional banking authority.
 
 ## Predeclared provider-selection rule
 
@@ -145,38 +122,25 @@ A candidate is **ineligible** for selection if any of the following occur:
 7. `bilingual_unauthorized_stress_recall < 1.00`;
 8. `realistic_unauthorized_recall < 1.00`.
 
-Unauthorized detection is therefore a safety-recall gate, not an overall-accuracy gate.
-A model that misses any mandatory unauthorized-positive development case is ineligible.
-Specificity is reported separately.
+Unauthorized detection is a safety-recall gate, not an overall-accuracy gate. A model that misses any mandatory unauthorized-positive development case is ineligible. Specificity is reported separately.
 
 Among eligible candidates:
 
-1. rank by the language-balanced performance on the frozen realistic-language slice;
-2. use the language-balanced mean of Spanish and Portuguese template-controlled
-   development accuracy as the next quality discriminator;
-3. if candidates remain within **1.0 percentage point**, prefer the lower combined
-   provider-failure + invalid-structured-output rate;
+1. rank by language-balanced performance on the frozen realistic-language slice;
+2. use the language-balanced mean of Spanish and Portuguese template-controlled development accuracy as the next quality discriminator;
+3. if candidates remain within **1.0 percentage point**, prefer the lower combined provider-failure + invalid-structured-output rate;
 4. if still tied within **0.5 percentage points**, prefer lower p95 latency;
-5. cost is the final tie-breaker after quality/reliability/latency. All current pricing
-   snapshots are recorded in USD, so the benchmark may compare measured aggregate USD
-   estimates directly.
+5. cost is the final tie-breaker after quality/reliability/latency.
 
-This ordering was frozen before live provider results. The realistic-language slice is
-synthetic and phrasing-distinct, not production-conversation evidence.
+OpenAI, Qwen, and DeepSeek are now recorded in USD for the selected candidate endpoints, so aggregate estimated-cost comparison may use the recorded USD ranges directly.
 
-No result from the frozen held-out suite may be used to reverse the development-pool
-provider choice. The frozen v1 suite is a template-controlled conformance/safety surface,
-not broad novel-language generalization evidence.
+This ordering was frozen before live provider results. The realistic-language slice is synthetic and phrasing-distinct, not production-conversation evidence.
 
-The intended live comparison is **two providers**, not automatically all three. The exact
-pair is frozen only after all candidates pass the public synthetic preflight and the
-project considers schema/API viability, regional endpoint constraints, and data-processing
-terms. A third live candidate is retained only if preflight evidence makes it worth the
-remaining schedule cost.
+No result from the frozen held-out suite may be used to reverse the development-pool provider choice. The frozen v1 suite is a template-controlled conformance/safety surface, not broad novel-language generalization evidence.
 
-If no candidate passes the eligibility gate, R3C-B does not select a provider. The
-interpreter contract/prompt may be revised using development evidence and the bake-off
-rerun, with the revision recorded before any held-out access.
+The intended live comparison remains **two providers**, not automatically all three. OpenAI GPT-6 Luna and DeepSeek V4.1 Flash are the primary two-provider preflight pair because their current official API/model paths are confirmed and their pricing snapshots are both USD-denominated. Qwen3.8-Flash remains the optional third candidate; it may receive private development cases only if its synthetic-only preflight passes and its regional/data-processing setup is intentionally accepted before private development execution.
+
+If no candidate passes the eligibility gate, R3C-B does not select a provider. The interpreter contract/prompt may be revised using development evidence and the bake-off rerun, with the revision recorded before any held-out access.
 
 ## Configuration
 
@@ -210,12 +174,12 @@ Keys must remain environment variables and must never be committed.
 
 ## Required provider preflight
 
-Before any private development case is sent to a provider, run the provider's
-**public synthetic-only preflight**:
+Before any private development case is sent to a provider, run the provider's **public synthetic-only preflight**:
 
 `python -m evaluation.provider_bakeoff --candidate <candidate-id> --preflight-only`
 
 The preflight:
+
 - uses four team-generated ES/PT messages only;
 - opens no private development or held-out files;
 - opens no banking database;
@@ -223,12 +187,9 @@ The preflight:
 - captures safe aggregate HTTP/provider-failure metadata;
 - checks the served model identifier when the provider reports one.
 
-This is especially important for Qwen because current Alibaba documentation is not fully
-internally consistent about Singapore structured-output availability. A provider that
-cannot pass preflight is not permitted to receive private development cases.
+For Qwen, current Alibaba documentation supports Qwen3.8-Flash JSON Schema output and continues to support the Singapore DashScope domain while recommending a workspace-specific Singapore endpoint for better isolation/stability. The synthetic preflight therefore verifies the exact account/region endpoint actually configured before any private development case is sent. A provider that cannot pass preflight is not permitted to receive private development cases.
 
-DeepSeek JSON mode follows the current official requirement to include JSON instructions
-and an example of the desired format and to bound max output tokens.
+DeepSeek JSON mode follows the current official requirement to include JSON instructions and an example of the desired format and to bound max output tokens.
 
 ## Commands
 
@@ -236,13 +197,11 @@ Run one candidate at a time:
 
 `python -m evaluation.provider_bakeoff --candidate openai-gpt-6-luna`
 
-`python -m evaluation.provider_bakeoff --candidate qwen3.7-flash`
+`python -m evaluation.provider_bakeoff --candidate qwen3.8-flash`
 
 `python -m evaluation.provider_bakeoff --candidate deepseek-v4.1-flash`
 
-The runner uses one provider attempt per development step so first-pass schema/API
-reliability remains observable. The production interpretation service retains its bounded
-retry/fallback behavior.
+The runner uses one provider attempt per development step so first-pass schema/API reliability remains observable. The production interpretation service retains its bounded retry/fallback behavior.
 
 ## Data Excellence capture
 
@@ -259,23 +218,27 @@ The eventual R3C-B result should publish only a safe aggregate comparison table 
 
 This becomes another **Evidence → decision → consequence** item:
 
-> development-pool multilingual extraction evidence → provider choice → frozen runtime
-> adapter/configuration before held-out evaluation.
+> development-pool multilingual extraction evidence → provider choice → frozen runtime adapter/configuration before held-out evaluation.
 
+## Pre-run refresh history
 
-## Pre-run refresh and v3 repair — 2026-09-26
+### v3 repair — 2026-09-26
 
-Before any paid development-pool execution, official provider documentation was rechecked.
-GPT-6 Luna replaces the earlier GPT-5.6 Luna candidate for the low-cost OpenAI slot and
-the Qwen3.7-Flash Singapore international price units/rates were corrected.
+Before any paid development-pool execution, official provider documentation was rechecked. GPT-6 Luna replaced the earlier GPT-5.6 Luna candidate for the low-cost OpenAI slot.
 
-The independent full-project Claude audit then found that v2 was not fit to execute:
-DeepSeek did not receive the schema, unauthorized safety was gated on overall accuracy,
-and several target labels could penalize correct answers. Those defects were repaired
-**before any live provider or private development-pool execution**.
+The independent full-project Claude audit then found that v2 was not fit to execute: DeepSeek did not receive the schema, unauthorized safety was gated on overall accuracy, and several target labels could penalize correct answers. Those defects were repaired **before any live provider or private development-pool execution**.
 
-The current benchmark version is `r3c-provider-bakeoff-v3`; the interpretation contract
-is `r3c-v2`. V3 also adds whole-token transaction-ID provenance, canonical
-transaction-type/status enums, message-provenance checks for query filters, cross-language
-unauthorized lexical backstop coverage, answer-key-backed route checks, synthetic
-provider preflight, and richer safe aggregate provenance.
+V3 added whole-token transaction-ID provenance, canonical transaction-type/status enums, message-provenance checks for query filters, cross-language unauthorized lexical backstop coverage, answer-key-backed route checks, synthetic provider preflight, and richer safe aggregate provenance.
+
+### v4 readiness refresh — 2026-10-03
+
+No live provider or private development-pool execution had occurred before this refresh.
+
+Official provider documentation was rechecked immediately before execution:
+
+- OpenAI still exposes `gpt-6-luna` through the Responses API with Structured Outputs, `reasoning.effort=none`, and the recorded USD 0.10/M input and USD 0.50/M output Standard pricing.
+- Alibaba lists Qwen3.8-Flash as the current Flash candidate and Qwen3.7-Flash as legacy. The optional Qwen slot therefore moved to `qwen3.8-flash` before any private development case was sent. Official Singapore pricing is recorded in USD.
+- DeepSeek `deepseek-flash` still serves DeepSeek-V4.1-Flash. JSON Object mode, non-thinking control, and the existing USD peak/off-peak price range remain current.
+- The diagnostic route projection was reconciled with the frozen product policy inputs so `possible_unauthorized_activity` and interpreter-unavailable state reach `route_policy()`. Route-proxy accuracy remains diagnostic and does not become model authority or a provider-selection quality gate.
+
+The current benchmark version is `r3c-provider-bakeoff-v4`; the interpretation contract remains `r3c-v2`.
