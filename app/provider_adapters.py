@@ -120,23 +120,50 @@ CANDIDATES: dict[str, ProviderCandidate] = {
 }
 
 
+_STRICT_SCHEMA_UNSUPPORTED_KEYWORDS = frozenset(
+    {
+        "default",
+        "description",
+        "examples",
+        "exclusiveMaximum",
+        "exclusiveMinimum",
+        "format",
+        "maxItems",
+        "maxLength",
+        "maxProperties",
+        "maximum",
+        "minItems",
+        "minLength",
+        "minProperties",
+        "minimum",
+        "multipleOf",
+        "pattern",
+        "title",
+        "uniqueItems",
+    }
+)
+
+
 def _strict_provider_schema(schema: dict[str, object]) -> dict[str, object]:
     """Normalize Pydantic JSON Schema for strict structured-output providers.
 
     Nullable fields remain nullable, but every declared object property is required.
-    This avoids provider-specific handling of omitted optional fields while preserving
-    the exact Pydantic validation contract after return.
+    OpenAI's strict structured-output subset rejects many validation annotations
+    that Pydantic emits for local validation, such as length, numeric, pattern,
+    date-format, and metadata keywords. Those constraints are still enforced after
+    return by Pydantic; the provider schema remains a shape/enum contract only.
     """
 
     normalized: dict[str, object] = copy.deepcopy(schema)
 
     def visit(node: object) -> None:
         if isinstance(node, dict):
+            for keyword in _STRICT_SCHEMA_UNSUPPORTED_KEYWORDS:
+                node.pop(keyword, None)
             properties = node.get("properties")
             if isinstance(properties, dict):
                 node["required"] = list(properties)
                 node["additionalProperties"] = False
-            node.pop("default", None)
             for value in list(node.values()):
                 visit(value)
         elif isinstance(node, list):
