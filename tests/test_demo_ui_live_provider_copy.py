@@ -34,10 +34,28 @@ def test_live_provider_demo_shell_removes_no_live_llm_copy(tmp_path) -> None:
         "not fraud detection · not production/pilot-ready"
     ) in html
     assert "live-provider interpretation behind deterministic policy" in html
-    assert "LLM interprets language<br>Deterministic checks override intent<br>Not fraud detection" in html
+    assert "• LLM detects language<br>• Deterministic checks override intent<br>• Not fraud detection" in html
+    assert "LLM interprets language<br>Deterministic checks override intent<br>Not fraud detection" not in html
     assert "LLM interprets language · deterministic checks override intent · Not fraud detection" not in html
     assert "no live LLM" not in html.casefold()
     assert "no live-provider readiness claim" not in html.casefold()
+
+
+def test_live_provider_demo_shell_hides_manual_language_selector(tmp_path) -> None:
+    client = _live_provider_client(tmp_path)
+
+    response = client.get("/demo")
+
+    assert response.status_code == 200
+    html = response.text
+    assert 'id="language"' not in html
+    assert 'for="language"' not in html
+    assert "Customer writes in Spanish or Portuguese" in html
+    assert "turn language is detected from the message" in html
+    assert "Profile locale:" in html
+    assert "Turn language: auto-detected" in html
+    assert "ES/PT auto" in html
+    assert "detected`" in html
 
 
 def test_live_provider_status_is_exposed_in_readiness_and_health(tmp_path) -> None:
