@@ -7,7 +7,8 @@ from app.bank import BankRepository
 from app.customer_service import CustomerResolutionService
 from app.demo_data import DEMO_PERSONAS, DemoPersona, ensure_synthetic_demo_bank
 from app.deterministic_provider import DeterministicDemoInterpretationProvider
-from app.interpretation import InterpretationService
+from app.interpretation import InterpretationService, StructuredInterpretationProvider
+from app.provider_adapters import CandidateProviderAdapter
 from app.runtime import OperationalStore
 from app.settings import Settings, settings as default_settings
 
@@ -19,6 +20,29 @@ class AppContext:
     customer_service: CustomerResolutionService
     personas: dict[str, DemoPersona]
     data_mode: str
+    llm_connected: bool = False
+
+
+def _build_interpretation_provider(
+    settings: Settings,
+) -> tuple[StructuredInterpretationProvider, bool]:
+    if settings.interpretation_provider == "deterministic":
+        return DeterministicDemoInterpretationProvider(), False
+
+    if settings.interpretation_provider == "openai-gpt-6-luna":
+        provider = CandidateProviderAdapter.from_environment(
+            settings.interpretation_provider,
+        )
+        if not provider.is_configured():
+            raise ValueError(
+                "INTERPRETATION_PROVIDER=openai-gpt-6-luna requires "
+                "OPENAI_API_KEY to be set"
+            )
+        return provider, True
+
+    raise ValueError(
+        f"Unsupported INTERPRETATION_PROVIDER: {settings.interpretation_provider!r}"
+    )
 
 
 def build_app_context(settings: Settings = default_settings) -> AppContext:
@@ -39,7 +63,7 @@ def build_app_context(settings: Settings = default_settings) -> AppContext:
     store.initialize(data_mode=artifact_mode)
     store.cleanup_expired_state()
 
-    provider = DeterministicDemoInterpretationProvider()
+    provider, llm_connected = _build_interpretation_provider(settings)
     interpreter = InterpretationService(
         bank=bank,
         store=store,
@@ -58,4 +82,5 @@ def build_app_context(settings: Settings = default_settings) -> AppContext:
         customer_service=service,
         personas=dict(DEMO_PERSONAS),
         data_mode=artifact_mode,
+        llm_connected=llm_connected,
     )

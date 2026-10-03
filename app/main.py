@@ -180,10 +180,15 @@ def create_app(context: AppContext | None = None) -> FastAPI:
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
+        runtime_context = getattr(app.state, "context", None)
         return HealthResponse(
             status="ok",
             service="proof-of-one",
-            llm_connected=False,
+            llm_connected=(
+                bool(runtime_context.llm_connected)
+                if runtime_context is not None
+                else False
+            ),
         )
 
     @app.get("/ready", response_model=ReadyResponse)
@@ -232,7 +237,7 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             synthetic_data=runtime_context.data_mode == "synthetic",
             bank_ready=bank_ready,
             runtime_ready=runtime_ready,
-            llm_connected=False,
+            llm_connected=runtime_context.llm_connected,
         )
         if not (bank_ready and runtime_ready):
             return JSONResponse(
