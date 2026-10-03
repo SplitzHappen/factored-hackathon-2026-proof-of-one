@@ -187,6 +187,7 @@ def _provider_visible_schema_context(
 
     strict_schema = _strict_provider_schema(response_schema)
     example = {
+        "language": "es",
         "intent": "transaction_lookup",
         "unauthorized_activity_asserted": False,
         "transaction_id": None,
