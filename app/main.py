@@ -183,8 +183,8 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             ),
             (
                 "els.lineBoundary.textContent = 'Deterministic checks override intent · Not fraud detection';",
-                "els.lineBoundary.innerHTML = 'LLM interprets language<br>"
-                "Deterministic checks override intent<br>Not fraud detection';",
+                "els.lineBoundary.innerHTML = '• LLM interprets language<br>"
+                "• Deterministic checks override intent<br>• Not fraud detection';",
             ),
         )
         for old, new in replacements:
