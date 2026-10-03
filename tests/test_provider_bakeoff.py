@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import date
-from decimal import Decimal
 
 import pytest
 
@@ -33,15 +32,17 @@ from evaluation.contracts import (
 )
 from evaluation.portuguese_stress import PORTUGUESE_STRESS_CASES
 from evaluation.provider_bakeoff import (
+    _route_proxy,
     build_target,
     candidate_eligibility_failures,
-    _route_proxy,
     finalize_candidate_summary,
     run_candidate_preflight,
 )
 
 
-def _request(language: SupportedLanguage = SupportedLanguage.ES) -> ModelInterpretationRequest:
+def _request(
+    language: SupportedLanguage = SupportedLanguage.ES,
+) -> ModelInterpretationRequest:
     return ModelInterpretationRequest(
         language=language,
         message="Muéstrame la transacción T001.",
@@ -130,7 +131,7 @@ def test_portuguese_stress_set_is_bounded_and_contains_no_organizer_ids() -> Non
     assert all("P00" not in case.message for case in PORTUGUESE_STRESS_CASES)
 
 
-def test_candidate_registry_freezes_exact_r3c_b_starting_candidates() -> None:
+def test_candidate_registry_freezes_exact_r3c_b_v4_starting_candidates() -> None:
     assert set(CANDIDATES) == {
         "openai-gpt-6-luna",
         "qwen3.8-flash",
@@ -138,6 +139,7 @@ def test_candidate_registry_freezes_exact_r3c_b_starting_candidates() -> None:
     }
     assert CANDIDATES["openai-gpt-6-luna"].strict_json_schema is True
     assert CANDIDATES["qwen3.8-flash"].strict_json_schema is True
+    assert CANDIDATES["qwen3.8-flash"].pricing.currency == "USD"
     assert CANDIDATES["deepseek-v4.1-flash"].strict_json_schema is False
 
 
@@ -188,10 +190,9 @@ def test_openai_adapter_uses_responses_strict_schema(monkeypatch) -> None:
     assert payload["store"] is False
     assert payload["temperature"] == 0
     assert payload["max_output_tokens"] == 800
-    system_text = payload["input"][0]["content"]
-    assert "CANONICAL RESPONSE JSON SCHEMA" in system_text
     assert payload["text"]["format"]["type"] == "json_schema"
     assert payload["text"]["format"]["strict"] is True
+    assert "CANONICAL RESPONSE JSON SCHEMA" in payload["input"][0]["content"]
     assert adapter.last_telemetry is not None
     assert adapter.last_telemetry.provider == "OpenAI"
     assert adapter.last_telemetry.model == "gpt-6-luna"
@@ -253,9 +254,9 @@ def test_qwen_adapter_uses_strict_json_schema(monkeypatch) -> None:
     assert captured["payload"]["max_tokens"] == 800
     assert "CANONICAL RESPONSE JSON SCHEMA" in captured["payload"]["messages"][0]["content"]
     assert adapter.last_telemetry is not None
-    assert adapter.last_telemetry.estimated_cost_min == pytest.approx(0.00014367)
-    assert adapter.last_telemetry.estimated_cost_max == pytest.approx(0.00014367)
-    assert adapter.last_telemetry.cost_currency == "CNY"
+    assert adapter.last_telemetry.estimated_cost_min == pytest.approx(0.0000197)
+    assert adapter.last_telemetry.estimated_cost_max == pytest.approx(0.0000197)
+    assert adapter.last_telemetry.cost_currency == "USD"
 
 
 def test_deepseek_adapter_preserves_json_object_disadvantage(monkeypatch) -> None:
@@ -312,26 +313,10 @@ def test_deepseek_adapter_preserves_json_object_disadvantage(monkeypatch) -> Non
 @pytest.mark.parametrize(
     ("language", "text", "expected_intent"),
     [
-        (
-            SupportedLanguage.ES,
-            "¿Cuál es el estado de la transacción T001?",
-            PolicyIntent.TRANSACTION_STATUS,
-        ),
-        (
-            SupportedLanguage.PT,
-            "Qual é o status da transação T001?",
-            PolicyIntent.TRANSACTION_STATUS,
-        ),
-        (
-            SupportedLanguage.ES,
-            "Transfiere 100 a otra cuenta.",
-            PolicyIntent.MOVE_MONEY,
-        ),
-        (
-            SupportedLanguage.PT,
-            "Bloqueie meu cartão agora.",
-            PolicyIntent.BLOCK_CARD_OR_ACCOUNT,
-        ),
+        (SupportedLanguage.ES, "¿Cuál es el estado de la transacción T001?", PolicyIntent.TRANSACTION_STATUS),
+        (SupportedLanguage.PT, "Qual é o status da transação T001?", PolicyIntent.TRANSACTION_STATUS),
+        (SupportedLanguage.ES, "Transfiere 100 a otra cuenta.", PolicyIntent.MOVE_MONEY),
+        (SupportedLanguage.PT, "Bloqueie meu cartão agora.", PolicyIntent.BLOCK_CARD_OR_ACCOUNT),
     ],
 )
 def test_target_builder_covers_es_pt_intents(language, text, expected_intent) -> None:
@@ -352,14 +337,8 @@ def test_target_builder_covers_es_pt_intents(language, text, expected_intent) ->
 @pytest.mark.parametrize(
     ("language", "text"),
     [
-        (
-            SupportedLanguage.ES,
-            "No reconozco la transacción T001. ¿Es fraude?",
-        ),
-        (
-            SupportedLanguage.PT,
-            "Não reconheço a transação T001. É fraude?",
-        ),
+        (SupportedLanguage.ES, "No reconozco la transacción T001. ¿Es fraude?"),
+        (SupportedLanguage.PT, "Não reconheço a transação T001. É fraude?"),
     ],
 )
 def test_fraud_target_scores_unauthorized_signal_not_ambiguous_intent(
