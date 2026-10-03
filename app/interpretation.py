@@ -87,6 +87,58 @@ _TRANSACTION_STATUS_CUES: dict[TransactionStatusFilter, tuple[str, ...]] = {
     TransactionStatusFilter.PENDING: ("pendiente", "pendente", "pending"),
     TransactionStatusFilter.REVERSED: ("revertida", "revertido", "estornada", "estornado", "reversed"),
 }
+_TRANSACTION_LOOKUP_OBJECT_CUES = (
+    "transacci",
+    "transaccion",
+    "transacciones",
+    "transacao",
+    "transacoes",
+    "movimiento",
+    "movimientos",
+    "movimento",
+    "movimentos",
+)
+
+_TRANSACTION_LOOKUP_ACTION_CUES = (
+    "consultar",
+    "consulta",
+    "buscar",
+    "busca",
+    "busque",
+    "revisar",
+    "revisa",
+    "estado",
+    "status",
+    "qual",
+    "cual",
+    "quiero",
+    "quero",
+)
+
+_SPANISH_LANGUAGE_CUES = (
+    "transaccion",
+    "transacciones",
+    "quiero",
+    "cual",
+    "estado",
+    "aprobada",
+    "aprobado",
+    "rechazada",
+    "rechazado",
+)
+
+_PORTUGUESE_LANGUAGE_CUES = (
+    "transacao",
+    "transacoes",
+    "quero",
+    "qual",
+    "estado",
+    "aprovada",
+    "aprovado",
+    "recusada",
+    "recusado",
+)
+
 
 
 def interpretation_contract_sha256() -> str:
@@ -227,6 +279,14 @@ class InterpretationService:
                 provider_attempts=attempt,
             )
 
+        amount_lookup_fallback = self._amount_lookup_fallback(
+            session=session,
+            request=request,
+            provider_attempts=self.max_attempts,
+        )
+        if amount_lookup_fallback is not None:
+            return amount_lookup_fallback
+
         fallback_unauthorized = self._lexical_unauthorized_assertion(
             message,
             session.language.value,
@@ -341,6 +401,65 @@ class InterpretationService:
             requires_human_fallback=False,
         )
 
+
+    def _amount_lookup_fallback(
+        self,
+        *,
+        session: AuthenticatedSession,
+        request: ModelInterpretationRequest,
+        provider_attempts: int,
+    ) -> VerifiedInterpretation | None:
+        """Deterministically recover safe amount-only transaction lookups.
+
+        This is intentionally narrow. It runs only after live-provider extraction
+        fails closed, and it can only create a transaction-query interpretation
+        from an amount that is visibly present in the customer message. Identity,
+        account scope, record matching, and route authority remain server-side.
+        """
+
+        if unsupported_language_dominant(request.message):
+            return None
+
+        detected_language = self._detect_supported_language(
+            request.message,
+            request.language,
+        )
+        if self._lexical_unauthorized_assertion(
+            request.message,
+            detected_language.value,
+        ):
+            return None
+        if self._failsafe_floor(request.message, unauthorized=False):
+            return None
+
+        normalized = self._normalize_message(request.message)
+        if not self._looks_like_transaction_lookup(normalized):
+            return None
+
+        observed_amounts = set()
+        for amount_language in (SupportedLanguage.ES, SupportedLanguage.PT):
+            observed_amounts.update(
+                extract_locale_amounts(request.message, amount_language)
+            )
+        amounts = list(observed_amounts)
+        if len(amounts) != 1:
+            return None
+
+        extraction = ModelInterpretation(
+            language=detected_language,
+            intent=PolicyIntent.TRANSACTION_LOOKUP,
+            unauthorized_activity_asserted=False,
+            transaction_id=None,
+            transaction_query=InterpretedTransactionQuery(amount=amounts[0]),
+        )
+        return self._postcheck(
+            session=session,
+            request=request,
+            extraction=extraction,
+            normalized_query=extraction.transaction_query,
+            provider_attempts=provider_attempts,
+        )
+
     def _verify_session(self, session: AuthenticatedSession) -> None:
         persisted = self.store.get_authenticated_session(session.session_id)
         if persisted is None or persisted != session:
@@ -438,6 +557,30 @@ class InterpretationService:
         # so they can add escalation but never remove or relabel one.
         return not unauthorized and (
             is_failsafe_escalation(message) or rf5_stage1_should_raise(message)
+        )
+
+
+    @classmethod
+    def _detect_supported_language(
+        cls,
+        message: str,
+        fallback: SupportedLanguage,
+    ) -> SupportedLanguage:
+        normalized = cls._normalize_message(message)
+        pt_hits = sum(cue in normalized for cue in _PORTUGUESE_LANGUAGE_CUES)
+        es_hits = sum(cue in normalized for cue in _SPANISH_LANGUAGE_CUES)
+        if pt_hits > es_hits:
+            return SupportedLanguage.PT
+        if es_hits > pt_hits:
+            return SupportedLanguage.ES
+        return fallback
+
+    @staticmethod
+    def _looks_like_transaction_lookup(normalized_message: str) -> bool:
+        return any(
+            cue in normalized_message for cue in _TRANSACTION_LOOKUP_OBJECT_CUES
+        ) and any(
+            cue in normalized_message for cue in _TRANSACTION_LOOKUP_ACTION_CUES
         )
 
     @classmethod
