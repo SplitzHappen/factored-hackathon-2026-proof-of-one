@@ -94,10 +94,10 @@ CANDIDATES: dict[str, ProviderCandidate] = {
         default_base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         pricing=ProviderPricing(
             currency="CNY",
-            input_per_million_min=1.094,
-            input_per_million_max=1.094,
-            output_per_million_min=3.427,
-            output_per_million_max=3.427,
+            input_per_million_min=0.8,
+            input_per_million_max=0.8,
+            output_per_million_min=2.7,
+            output_per_million_max=2.7,
         ),
     ),
     "deepseek-v4.1-flash": ProviderCandidate(
