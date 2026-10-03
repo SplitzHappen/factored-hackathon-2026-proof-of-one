@@ -860,7 +860,7 @@ DEMO_UI_HTML = r'''<!doctype html>
     function humanizeCode(value) {
       return String(value || '')
         .replaceAll('_', ' ')
-        .replace(/w/g, (char) => char.toUpperCase());
+        .replace(/\b\w/g, (char) => char.toUpperCase());
     }
 
     function displayIntent(intent, reasonCodes = []) {
