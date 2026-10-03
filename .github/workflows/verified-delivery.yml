@@ -1,0 +1,30 @@
+name: verified-delivery
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  contract-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Test the governance gate
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest .github/verified-delivery/test_verify_delivery_contract.py -v
+
+      - name: Verify high-assurance delivery contract
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 scripts/verify_delivery_contract.py
