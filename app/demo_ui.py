@@ -328,10 +328,12 @@ DEMO_UI_HTML = r'''<!doctype html>
     }
 
     .line-card {
+      min-width: 0;
       min-height: 160px;
       display: grid;
       align-content: center;
       gap: 12px;
+      overflow: hidden;
       border: 3px solid #1a211b;
       border-radius: 26px;
       background: #101610;
@@ -504,11 +506,20 @@ DEMO_UI_HTML = r'''<!doctype html>
     }
 
     .line-summary {
+      min-width: 0;
       display: grid;
       gap: 7px;
       font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       font-size: 14px;
       line-height: 1.35;
+    }
+
+    .line-summary span {
+      min-width: 0;
+      display: block;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
     }
 
     .line-summary strong { color: var(--cream); }
@@ -846,6 +857,12 @@ DEMO_UI_HTML = r'''<!doctype html>
       return ['answer', 'clarify', 'abstain', 'escalate', 'handoff'].includes(r) ? r : '';
     }
 
+    function humanizeCode(value) {
+      return String(value || '')
+        .replaceAll('_', ' ')
+        .replace(/w/g, (char) => char.toUpperCase());
+    }
+
     function displayIntent(intent, reasonCodes = []) {
       const raw = String(intent || '').toLowerCase();
       if ((!raw || raw === 'unknown') && reasonCodes.includes('unsupported_intent')) return 'UNSUPPORTED INTENT';
@@ -988,11 +1005,11 @@ DEMO_UI_HTML = r'''<!doctype html>
         return;
       }
 
-      els.lineInterpreter.innerHTML = `<strong>Interpreter:</strong> deterministic provider · no live LLM${intent ? ` · intent ${escapeHtml(intent)}` : ''}`;
+      els.lineInterpreter.innerHTML = `<strong>Interpreter:</strong> deterministic provider · no live LLM${intent ? `<br><strong>Intent:</strong> ${escapeHtml(humanizeCode(intent))}` : ''}`;
       if (route === 'ANSWER') {
         els.lineDecision.innerHTML = '<strong>Checks:</strong> 1–8 CLEAR';
       } else if (firedIndex >= 0) {
-        els.lineDecision.innerHTML = `<strong>First fired:</strong> check ${firedIndex + 1} · ${escapeHtml(reasons[firedIndex] || reasons[0])}`;
+        els.lineDecision.innerHTML = `<strong>First fired:</strong> check ${firedIndex + 1}<br><strong>Reason:</strong> ${escapeHtml(humanizeCode(reasons[firedIndex] || reasons[0]))}`;
       } else {
         els.lineDecision.innerHTML = '<strong>Checks:</strong> route returned without a mapped demo check';
       }
