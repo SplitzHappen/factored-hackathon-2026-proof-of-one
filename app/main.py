@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+
+import duckdb
 from contextlib import asynccontextmanager
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -12,6 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.artifact_identity import identify_bank_artifact_mode
+from app.bank import IncompatibleBankDatabaseError
 from app.bootstrap import AppContext, build_app_context
 from app.demo_ui import render_demo_ui
 from app.http_safety import RequestBodyLimitMiddleware
@@ -20,6 +23,8 @@ from app.schemas import (
     AuthenticatedSession,
     CustomerTurnRequest,
     CustomerTurnResponse,
+    DependencyUnavailableResponse,
+    ExecutionStatus,
     DemoPersonaSummary,
     DemoSessionCreateRequest,
     DemoSessionResponse,
@@ -66,6 +71,38 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"detail": "Operational state is temporarily unavailable"},
         )
+
+    def bank_unavailable_response() -> JSONResponse:
+        payload = DependencyUnavailableResponse(
+            detail=(
+                "Verified banking data is temporarily unavailable. "
+                "No account information was returned."
+            ),
+            dependency="bank",
+            execution_status=ExecutionStatus.DEPENDENCY_UNAVAILABLE,
+            action_completed=False,
+            banking_fact_released=False,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=payload.model_dump(mode="json"),
+        )
+
+    @app.exception_handler(duckdb.Error)
+    async def duckdb_bank_error_handler(
+        request: Request,
+        exc: duckdb.Error,
+    ) -> JSONResponse:
+        del request, exc
+        return bank_unavailable_response()
+
+    @app.exception_handler(IncompatibleBankDatabaseError)
+    async def incompatible_bank_error_handler(
+        request: Request,
+        exc: IncompatibleBankDatabaseError,
+    ) -> JSONResponse:
+        del request, exc
+        return bank_unavailable_response()
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_error_handler(
@@ -335,6 +372,14 @@ def create_app(context: AppContext | None = None) -> FastAPI:
     @app.post(
         "/api/customer/turn",
         response_model=CustomerTurnResponse,
+        responses={
+            status.HTTP_503_SERVICE_UNAVAILABLE: {
+                "model": DependencyUnavailableResponse,
+                "description": (
+                    "Trusted banking data is unavailable; no banking fact is released."
+                ),
+            }
+        },
     )
     def customer_turn(
         request: CustomerTurnRequest,
