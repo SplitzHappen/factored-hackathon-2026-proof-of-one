@@ -4,13 +4,16 @@ Proof of One is a bounded account/payment customer-support prototype for the Fac
 
 ## Current implementation stage
 
-Post-audit synthetic API hardening through the RD4 integration/concurrency assurance surface.
-The public runtime is still deliberately deterministic: live-provider selection/execution,
-blind realistic-language v2 evaluation, judge UI/Workbench, and final submission artifacts
-remain later gates.
+Final synthetic judge-facing freeze candidate after the signal-box UI, UI-test reconciliation,
+and RF5 full interpreter-to-policy replay evidence. The public runtime is deliberately
+deterministic and uses synthetic data; no live LLM is connected in the judge-facing runtime.
+
+The final submission still requires external deployment verification, a 4–6 slide presentation,
+and a video pitch no longer than 3 minutes. Blind realistic-language v2, held-out uplift claims,
+live-provider execution, and production/pilot readiness are not part of the shipped claim set.
 
 The application currently contains:
-- a judge-visible FastAPI walking skeleton with public synthetic demo personas, fresh server-issued per-visitor tenants, explicit customer roles, four-hour session TTL/revocation, and bounded operational retention;
+- a judge-facing signal-box web UI over the live local/public API, with public synthetic demo personas, fresh server-issued per-visitor tenants, explicit customer roles, four-hour session TTL/revocation, and bounded operational retention;
 - strict Pydantic boundary contracts;
 - Docker packaging;
 - a deterministic curated-data builder for minimized trusted banking data;
@@ -22,9 +25,10 @@ The application currently contains:
 - a provider-neutral Spanish/Portuguese interpretation boundary with strict typed extraction, bounded retries/fallback, deterministic transaction-reference verification, and no model authority over identity, ownership, banking truth, policy, or behavioral evidence;
 - a deterministic stub interpreter behind that same provider protocol so end-to-end product integration does not wait for live provider selection;
 - deterministic Spanish/Portuguese customer responses over verified facts, with cross-customer non-disclosure, verified escalation/support-ticket persistence, and an explicit customer-requested support-handoff endpoint;
-- a frozen descriptive Behavioral Unusualness fallback after the supervised fraud-risk model failed its pre-registered usefulness gate.
+- a frozen descriptive Behavioral Unusualness fallback after the supervised fraud-risk model failed its pre-registered usefulness gate;
+- an RF5 replay guardrail that now exercises the real deterministic interpreter -> verified interpretation -> authoritative `route_policy()` path over the public/non-held-out replay cases.
 
-No production LLM provider/model is frozen yet.
+No live LLM provider/model is connected to the frozen judge-facing runtime.
 
 ## Data & evaluation
 
@@ -63,9 +67,9 @@ The writable SQLite store contains only operational metadata: server-established
 
 Escalation is a controlled Act -> Verify path: a support ticket is inserted, committed, re-read and compared with the intended handoff, marked verified, and read back again before success is returned. Persistence or verification failure is a hard failure and is never represented as a successful escalation.
 
-## R3D walking-skeleton API
+## Judge-facing demo and API
 
-The public/default runtime uses fully synthetic demo data (`DATA_MODE=synthetic`). Start the service and open `/docs`, or use:
+The public/default runtime uses fully synthetic demo data (`DATA_MODE=synthetic`). Start the service and open `/` or `/demo` for the signal-box UI. The API remains available through:
 
 - `GET /api/demo/personas`
 - `POST /api/demo/sessions`
@@ -117,7 +121,17 @@ synthetic and curated modes. See
 docker compose up --build
 ```
 
-The service is exposed on port 8000. The default Docker Compose surface is synthetic-only: it creates/uses the recognized synthetic demo artifact and a synthetic-bound runtime SQLite store, and it does not mount the curated organizer-derived artifact. Curated local runs use explicit `DATA_MODE=curated`, the locally built curated `bank.duckdb`, and a separate curated runtime SQLite path outside the public default Compose surface.
+The local Compose surface maps port 8000. The production image also accepts a host-assigned
+`PORT` environment variable and points its container health check at that same port.
+
+The default Docker surface is synthetic-only: it creates/uses the recognized synthetic demo
+artifact and a synthetic-bound runtime SQLite store, and it does not mount the curated
+organizer-derived artifact. Curated local runs use explicit `DATA_MODE=curated`, the locally
+built curated `bank.duckdb`, and a separate curated runtime SQLite path outside the public
+default Compose surface.
+
+For the freeze/deployment contract and public-verification checklist, see
+[docs/FINAL_DEMO_DEPLOYMENT.md](docs/FINAL_DEMO_DEPLOYMENT.md).
 
 ## Curated data build
 
@@ -143,4 +157,15 @@ The operational store deliberately avoids raw conversation transcripts and unnec
 
 ## Submission status
 
-This repository is the canonical public implementation/submission surface for the Proof of One entry. Architecture, evaluation evidence, deployment documentation, limitations, and final submission artifacts will accumulate here as implementation proceeds.
+This repository is the canonical public implementation/submission surface for the Proof of One
+entry. Product behavior is in freeze preparation: feature/backend iteration is closed unless
+deployment verification exposes a concrete blocker.
+
+The official Factored submission requires a public repository, a working deployed solution,
+a 4–6 slide presentation, and a video pitch of at most 3 minutes. Deployment verification,
+deck/script finalization, final claims/design audit, video recording, and owner-approved
+submission remain outstanding.
+
+The public demo must continue to state its boundaries accurately: synthetic data, local/public
+prototype runtime, no live LLM in the judge-facing runtime, not fraud detection, and no
+production/pilot-readiness claim.

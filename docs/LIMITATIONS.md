@@ -206,6 +206,26 @@ Residual limitations:
 
 ## 13. Remaining validation before final submission
 
-Judge-facing evidence still depends on later gates including final RF1H-B2 closure under the narrowed contract, B3 resolution/integration, RF1J fresh/generalization evaluation, live/provider evaluation where applicable, final deployment/judge-facing UX, and final limitations/evaluation reconciliation.
+The judge-facing synthetic product is now in deployment-preparation freeze after the signal-box UI,
+final UI-test reconciliation, and RF5 full interpreter-to-policy replay evidence.
 
-This file should be updated whenever a material limitation is removed, narrowed, newly discovered, or converted into an explicit product-scope decision.
+Remaining submission gates are narrower than the earlier repair roadmap:
+
+- select the public hosting environment and freeze its trusted reverse-proxy configuration;
+- deploy only the synthetic judge-facing runtime and run the public verification checklist in
+  `FINAL_DEMO_DEPLOYMENT.md`;
+- reconcile final public claims across README, limitations, deck, and narration;
+- complete the final Claude claims/design audit against the actual deployed product + deck + script;
+- record the final <=3 minute video only after product/deployment/deck/script freeze;
+- submit only after explicit owner approval.
+
+The unauthorized-language surface remains deterministic and bounded. IPA-M1 is not represented as
+closed by this deployment freeze, and no production/general-language robustness claim should be
+inferred from the public synthetic demo.
+
+Blind realistic-language v2, held-out uplift evaluation, and live-provider evaluation remain
+separate evidence gates. They are not prerequisites for demonstrating the bounded synthetic
+runtime, but no uplift, live-LLM-quality, or production-readiness claim is permitted without them.
+
+This file should be updated whenever a material limitation is removed, narrowed, newly discovered,
+or converted into an explicit product-scope decision.
