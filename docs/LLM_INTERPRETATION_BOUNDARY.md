@@ -1,7 +1,8 @@
 # R3C Language Interpretation and Deterministic Post-check — contract r3c-v2
 
-R3C adds the internal language-understanding boundary for Spanish and Portuguese. It
-does **not** expose a public HTTP endpoint and it does not freeze an LLM provider.
+R3C defines the internal language-understanding boundary for Spanish and Portuguese. That
+boundary is now composed into the public customer-turn API, but no live LLM provider/model is
+frozen or connected to the judge-facing runtime.
 
 ## Authority boundary
 
@@ -81,9 +82,11 @@ Model output is not banking truth.
 - Relative dates are anchored to an explicit server-supplied reference date, not provider
   clock assumptions.
 
-The service does not create policy outcomes, tickets, banking actions, or behavioral
-evidence. R3D will compose the post-checked interpretation with deterministic retrieval
-facts and the already-frozen policy router.
+The interpretation service does not create policy outcomes, tickets, banking actions, or
+behavioral evidence. The application layer composes the post-checked interpretation with trusted
+retrieval facts and the deterministic policy router. Successful turns then emit separate
+server-generated operational Decision Evidence; that evidence is not part of the model response
+schema and cannot be authored by the provider.
 
 ## Unauthorized-activity safety backstop
 
@@ -101,25 +104,34 @@ It is not part of the model's response schema, the model cannot set it, and it i
 monotonic.
 It is not a fraud classifier and does not inspect behavioral evidence or fraud labels.
 
-## Deferred to R3D and later evaluation
+## Current integration status and remaining LLM work
 
-R3C deliberately does not add:
+The interpretation boundary is now integrated with:
 
-- tenant/analyst roles;
-- HTTP conversation endpoints;
-- provider API credentials;
+- server-issued customer sessions and tenant isolation;
+- public HTTP conversation endpoints;
+- deterministic customer-response generation over verified facts;
+- deterministic policy precedence;
+- operational Decision Evidence;
+- public deployment controls.
+
+Those application capabilities remain outside provider authority.
+
+Still deferred:
+
+- live provider API credentials;
 - provider/model selection;
-- customer response generation;
-- public deployment rate limits;
-- held-out prompt execution.
+- prompt/configuration freeze;
+- live-provider execution in the judge-facing runtime;
+- frozen held-out execution.
 
-The frozen 200-case held-out suite remains untouched. Provider selection and prompt
-refinement must use the separate development pool only, then freeze before held-out
-execution.
+The frozen 200-case held-out suite remains untouched. Provider selection and prompt refinement must
+use the separate development pool and permitted language-stress surfaces only. Provider/model/prompt
+must be frozen before held-out execution.
 
+`reference_date` is server-authoritative and resolved from the persisted demo persona timezone
+before the provider call. The provider may not infer or substitute a timezone.
 
-## Remaining R3D time contract
-
-`reference_date` is server-authoritative and already resolved before the provider call.
-R3D must document which tenant/demo timezone produced that date; the provider may not infer
-or substitute a timezone. This is a product-integration obligation rather than model authority.
+The current authority order, Decision Evidence semantics, banking-dependency failure boundary, and
+pre-LLM architecture freeze are documented in
+[POLICY_PRECEDENCE_AND_DECISION_EVIDENCE.md](POLICY_PRECEDENCE_AND_DECISION_EVIDENCE.md).
