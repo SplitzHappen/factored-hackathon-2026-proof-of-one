@@ -226,9 +226,11 @@ The preflight:
 - captures safe aggregate HTTP/provider-failure metadata;
 - checks the served model identifier when the provider reports one.
 
-This is especially important for Qwen because current Alibaba documentation is not fully
-internally consistent about Singapore structured-output availability. A provider that
-cannot pass preflight is not permitted to receive private development cases.
+For Qwen, current Alibaba documentation supports Qwen3.8-Flash JSON Schema output and
+continues to support the Singapore DashScope domain while recommending a workspace-specific
+Singapore endpoint for better isolation/stability. The synthetic preflight therefore verifies
+the exact account/region endpoint actually configured before any private development case is sent.
+A provider that cannot pass preflight is not permitted to receive private development cases.
 
 DeepSeek JSON mode follows the current official requirement to include JSON instructions
 and an example of the desired format and to bound max output tokens.
