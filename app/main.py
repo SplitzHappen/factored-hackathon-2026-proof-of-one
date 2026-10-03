@@ -148,11 +148,29 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 "The lamps are computed from the local synthetic API response, "
                 "not from static design placeholders.",
                 "The lamps are computed from the backend synthetic API response; "
-                "OpenAI interprets language while deterministic policy sets routes.",
+                "OpenAI detects language while deterministic policy sets routes.",
             ),
             (
                 "Local prototype · synthetic",
                 "Live LLM · synthetic",
+            ),
+            (
+                "          <div class=\"field\">\n"
+                "            <label for=\"language\">Language</label>\n"
+                "            <select id=\"language\">\n"
+                "              <option value=\"\">Persona default</option>\n"
+                "              <option value=\"es\">Spanish</option>\n"
+                "              <option value=\"pt\">Portuguese</option>\n"
+                "            </select>\n"
+                "          </div>",
+                "          <div class=\"session-box\">\n"
+                "            Customer writes in Spanish or Portuguese; turn language "
+                "is detected from the message.\n"
+                "          </div>",
+            ),
+            (
+                "      language: document.getElementById('language'),",
+                "      language: {value: ''},",
             ),
             (
                 "<strong>Interpreter:</strong> awaiting message",
@@ -182,9 +200,28 @@ def create_app(context: AppContext | None = None) -> FastAPI:
                 "OpenAI GPT-6 Luna · deterministic policy authority retained",
             ),
             (
+                "      els.activeLine.textContent = state.session?.language ? "
+                "`${state.session.language.toUpperCase()} line` : 'No line';\n"
+                "      els.languageLine.textContent = state.session?.language ? "
+                "`${state.session.language.toUpperCase()} line` : 'ES/PT line';",
+                "      const displayLanguage = response?.decision_evidence?.language "
+                "|| state.session?.language || '';\n"
+                "      els.activeLine.textContent = displayLanguage ? "
+                "`${displayLanguage.toUpperCase()} line` : 'No line';\n"
+                "      els.languageLine.textContent = displayLanguage ? "
+                "`${displayLanguage.toUpperCase()} detected` : 'ES/PT auto';",
+            ),
+            (
+                "        Language: ${escapeHtml(state.session.language)}<br>\n"
+                "        Synthetic: ${escapeHtml(state.session.synthetic_data)}`;",
+                "        Profile locale: ${escapeHtml(state.session.language)}<br>\n"
+                "        Turn language: auto-detected<br>\n"
+                "        Synthetic: ${escapeHtml(state.session.synthetic_data)}`;",
+            ),
+            (
                 "els.lineBoundary.textContent = 'Deterministic checks override intent · Not fraud detection';",
-                "els.lineBoundary.innerHTML = 'LLM interprets language<br>"
-                "Deterministic checks override intent<br>Not fraud detection';",
+                "els.lineBoundary.innerHTML = '• LLM detects language<br>"
+                "• Deterministic checks override intent<br>• Not fraud detection';",
             ),
         )
         for old, new in replacements:
