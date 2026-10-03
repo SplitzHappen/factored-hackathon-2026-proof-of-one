@@ -55,12 +55,14 @@ def _schema() -> dict[str, object]:
     return {
         "type": "object",
         "properties": {
+            "language": {"type": "string", "enum": ["es", "pt"]},
             "intent": {"type": "string"},
             "unauthorized_activity_asserted": {"type": "boolean"},
             "transaction_id": {"type": ["string", "null"]},
             "transaction_query": {"type": ["object", "null"]},
         },
         "required": [
+            "language",
             "intent",
             "unauthorized_activity_asserted",
             "transaction_id",
@@ -159,6 +161,7 @@ def test_openai_adapter_uses_responses_strict_schema(monkeypatch) -> None:
                                 "type": "output_text",
                                 "text": json.dumps(
                                     {
+                                        "language": "es",
                                         "intent": "transaction_lookup",
                                         "unauthorized_activity_asserted": False,
                                         "transaction_id": "T001",
@@ -221,6 +224,7 @@ def test_qwen_adapter_uses_strict_json_schema(monkeypatch) -> None:
                         "message": {
                             "content": json.dumps(
                                 {
+                                    "language": "es",
                                     "intent": "transaction_lookup",
                                     "unauthorized_activity_asserted": False,
                                     "transaction_id": "T001",
@@ -272,6 +276,7 @@ def test_deepseek_adapter_preserves_json_object_disadvantage(monkeypatch) -> Non
                         "message": {
                             "content": json.dumps(
                                 {
+                                    "language": "es",
                                     "intent": "transaction_lookup",
                                     "unauthorized_activity_asserted": False,
                                     "transaction_id": "T001",
@@ -302,6 +307,7 @@ def test_deepseek_adapter_preserves_json_object_disadvantage(monkeypatch) -> Non
     assert captured["payload"]["max_tokens"] == 800
     system_text = captured["payload"]["messages"][0]["content"]
     assert "CANONICAL RESPONSE JSON SCHEMA" in system_text
+    assert '"SupportedLanguage"' in system_text
     assert '"transaction_lookup"' in system_text
     assert '"unauthorized_activity_asserted"' in system_text
     assert '"transaction_query"' in system_text
@@ -507,6 +513,7 @@ def test_preflight_uses_only_public_synthetic_probes(monkeypatch, tmp_path) -> N
         payload = kwargs["payload"]
         request_payload = json.loads(payload["input"][1]["content"])
         message = request_payload["message"]
+        language = request_payload["language"]
         match = __import__("re").search(r"PREFLIGHT-[A-Z]{2}-\d{3}", message)
         assert match is not None
         transaction_id = match.group(0)
@@ -521,6 +528,7 @@ def test_preflight_uses_only_public_synthetic_probes(monkeypatch, tmp_path) -> N
                             "type": "output_text",
                             "text": json.dumps(
                                 {
+                                    "language": language,
                                     "intent": "transaction_lookup",
                                     "unauthorized_activity_asserted": unauthorized,
                                     "transaction_id": transaction_id,

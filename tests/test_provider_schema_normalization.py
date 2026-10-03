@@ -50,6 +50,7 @@ def test_model_interpretation_strict_schema_requires_all_object_fields() -> None
 
     assert schema["additionalProperties"] is False
     assert schema["required"] == [
+        "language",
         "intent",
         "unauthorized_activity_asserted",
         "transaction_id",
@@ -70,6 +71,7 @@ def test_model_interpretation_strict_schema_keeps_enum_and_nullability_contract(
     schema = _strict_provider_schema(ModelInterpretation.model_json_schema())
     serialized = json.dumps(schema, sort_keys=True)
 
+    assert "SupportedLanguage" in serialized
     assert "transaction_lookup" in serialized
     assert "unauthorized_activity_asserted" in serialized
     assert '"type": "null"' in serialized

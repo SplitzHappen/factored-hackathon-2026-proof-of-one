@@ -34,14 +34,24 @@ from app.schemas import (
     SupportedLanguage,
 )
 
-INTERPRETATION_CONTRACT_VERSION = "r3c-v2"
+INTERPRETATION_CONTRACT_VERSION = "r3c-v3-auto-language"
 
 INTERPRETATION_SYSTEM_PROMPT = """You are a multilingual banking-support interpreter.
 Return only one JSON object conforming exactly to the supplied response schema.
 
-Interpret the customer's message in the expected Spanish or Portuguese session language.
+Detect whether the current customer message is Spanish or Portuguese and return that
+language as the language field using only "es" or "pt". The request language is a
+customer-profile fallback locale only; do not treat it as an instruction to override
+the actual language of the current message. If the message is ambiguous between
+Spanish and Portuguese, use the request language as the fallback. If the message is
+outside the supported ES/PT scope, still return the closest fallback language but map
+the request to unknown unless a clear supported intent is present.
 Use only the supplied reference_date when resolving relative dates such as "ayer" or "ontem".
-Map the explicit request to the provided intent enum. For transaction_query.transaction_type
+Map the explicit request to the provided intent enum. If the message contains an explicit
+transaction/reference identifier, copy that identifier exactly into transaction_id even
+when the customer is reporting that the transaction was not authorized or not recognized.
+An unauthorized-activity report can still include a transaction reference; do not omit the
+reference merely because the message requires human review. For transaction_query.transaction_type
 and transaction_query.status, use only the canonical English enum values supplied in the JSON
 schema even when the customer speaks Spanish or Portuguese. Do not invent transaction IDs,
 dates, amounts, transaction types, or statuses. Extract transaction filters only when the
@@ -150,9 +160,10 @@ class InterpretationService:
     ) -> VerifiedInterpretation:
         """Interpret one customer turn without granting the model authority.
 
-        The model sees only expected language, customer text, and an optional prior
-        normalized intent. Persisted identity is verified before any provider call.
-        Transaction references are resolved only after model output is validated.
+        The model sees only a profile/fallback language, customer text, and an
+        optional prior normalized intent. Persisted identity is verified before any
+        provider call. Transaction references are resolved only after model output
+        is validated.
         """
 
         self._verify_session(session)
@@ -201,7 +212,7 @@ class InterpretationService:
                 or not self._query_supported_by_message(
                     query,
                     request.message,
-                    request.language,
+                    extraction.language,
                     request.reference_date,
                 )
             ):
@@ -247,9 +258,10 @@ class InterpretationService:
         normalized_query: InterpretedTransactionQuery | None,
         provider_attempts: int,
     ) -> VerifiedInterpretation:
+        detected_language = extraction.language
         lexical_unauthorized = self._lexical_unauthorized_assertion(
             request.message,
-            request.language.value,
+            detected_language.value,
         )
         unauthorized = (
             extraction.unauthorized_activity_asserted or lexical_unauthorized
@@ -313,7 +325,7 @@ class InterpretationService:
 
         return VerifiedInterpretation(
             status=InterpretationStatus.VERIFIED,
-            language=session.language,
+            language=detected_language,
             intent=intent,
             unauthorized_activity_asserted=unauthorized,
             verified_transaction_id=verified_transaction_id,

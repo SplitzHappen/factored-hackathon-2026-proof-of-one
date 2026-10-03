@@ -161,7 +161,12 @@ class TransactionReferenceStatus(StrEnum):
 
 
 class ModelInterpretationRequest(ContractModel):
-    """Provider-facing input. Deliberately excludes identity and banking records."""
+    """Provider-facing input. Deliberately excludes identity and banking records.
+
+    The language field is the profile/session fallback language. The model must
+    still detect whether the current message is Spanish or Portuguese and return
+    that detected language in ModelInterpretation.language.
+    """
 
     language: SupportedLanguage
     message: str = Field(min_length=1, max_length=4000)
@@ -172,6 +177,7 @@ class ModelInterpretationRequest(ContractModel):
 class ModelInterpretation(ContractModel):
     """Untrusted structured extraction returned by the language model."""
 
+    language: SupportedLanguage
     intent: PolicyIntent
     unauthorized_activity_asserted: bool
     transaction_id: str | None = Field(default=None, min_length=1, max_length=128)

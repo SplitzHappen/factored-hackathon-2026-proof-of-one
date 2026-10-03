@@ -67,6 +67,7 @@ class CustomerResolutionService:
             reference_date=reference_date,
             previous_intent=previous_intent,
         )
+        response_language = interpretation.language
 
         reference_status = interpretation.transaction_reference_status
         missing_or_unowned = (
@@ -148,7 +149,7 @@ class CustomerResolutionService:
                     transaction_id=interpretation.verified_transaction_id,
                     reason_code=policy.reason_codes[0].value,
                     summary=self._escalation_summary(
-                        session.language,
+                        response_language,
                         policy.reason_codes[0],
                     ),
                 ),
@@ -158,7 +159,7 @@ class CustomerResolutionService:
             session,
             ConversationState(
                 session_id=session.session_id,
-                language=session.language,
+                language=response_language,
                 previous_intent=interpretation.intent.value,
                 pending_query=None,
                 candidate_transaction_ids=interpretation.candidate_transaction_ids,
@@ -171,7 +172,7 @@ class CustomerResolutionService:
             route=policy.route,
             intent=interpretation.intent,
             response_text=self._response_text(
-                language=session.language,
+                language=response_language,
                 route=policy.route,
                 intent=interpretation.intent,
                 reason_codes=policy.reason_codes,
@@ -231,6 +232,7 @@ class CustomerResolutionService:
         policy: PolicyResult,
         escalation_record: EscalationRecord | None,
     ) -> DecisionEvidence:
+        del session
         controlling_reason = policy.reason_codes[0] if policy.reason_codes else None
         verification_codes: list[VerificationCode] = []
 
@@ -284,7 +286,7 @@ class CustomerResolutionService:
             )
 
         return DecisionEvidence(
-            language=session.language,
+            language=interpretation.language,
             interpretation_status=interpretation.status,
             reference_status=interpretation.transaction_reference_status,
             controlling_check=cls._controlling_check(controlling_reason),
