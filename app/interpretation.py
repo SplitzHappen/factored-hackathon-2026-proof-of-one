@@ -47,7 +47,11 @@ Spanish and Portuguese, use the request language as the fallback. If the message
 outside the supported ES/PT scope, still return the closest fallback language but map
 the request to unknown unless a clear supported intent is present.
 Use only the supplied reference_date when resolving relative dates such as "ayer" or "ontem".
-Map the explicit request to the provided intent enum. For transaction_query.transaction_type
+Map the explicit request to the provided intent enum. If the message contains an explicit
+transaction/reference identifier, copy that identifier exactly into transaction_id even
+when the customer is reporting that the transaction was not authorized or not recognized.
+An unauthorized-activity report can still include a transaction reference; do not omit the
+reference merely because the message requires human review. For transaction_query.transaction_type
 and transaction_query.status, use only the canonical English enum values supplied in the JSON
 schema even when the customer speaks Spanish or Portuguese. Do not invent transaction IDs,
 dates, amounts, transaction types, or statuses. Extract transaction filters only when the
