@@ -200,7 +200,7 @@ def test_openai_adapter_uses_responses_strict_schema(monkeypatch) -> None:
     assert adapter.last_telemetry.output_tokens == 20
     assert adapter.last_telemetry.estimated_cost_min == pytest.approx(0.000022)
     assert adapter.last_telemetry.estimated_cost_max == pytest.approx(0.000022)
-    assert adapter.last_telemetry.cost_currency == "CNY"
+    assert adapter.last_telemetry.cost_currency == "USD"
 
 
 def test_qwen_adapter_uses_strict_json_schema(monkeypatch) -> None:
@@ -253,7 +253,9 @@ def test_qwen_adapter_uses_strict_json_schema(monkeypatch) -> None:
     assert captured["payload"]["max_tokens"] == 800
     assert "CANONICAL RESPONSE JSON SCHEMA" in captured["payload"]["messages"][0]["content"]
     assert adapter.last_telemetry is not None
-    assert adapter.last_telemetry.cost_currency == "USD"
+    assert adapter.last_telemetry.estimated_cost_min == pytest.approx(0.00014367)
+    assert adapter.last_telemetry.estimated_cost_max == pytest.approx(0.00014367)
+    assert adapter.last_telemetry.cost_currency == "CNY"
 
 
 def test_deepseek_adapter_preserves_json_object_disadvantage(monkeypatch) -> None:
