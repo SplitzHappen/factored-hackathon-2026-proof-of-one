@@ -20,7 +20,7 @@ class AppContext:
     customer_service: CustomerResolutionService
     personas: dict[str, DemoPersona]
     data_mode: str
-    llm_connected: bool
+    llm_connected: bool = False
 
 
 def _build_interpretation_provider(
