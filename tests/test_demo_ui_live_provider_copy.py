@@ -34,6 +34,8 @@ def test_live_provider_demo_shell_removes_no_live_llm_copy(tmp_path) -> None:
         "not fraud detection · not production/pilot-ready"
     ) in html
     assert "live-provider interpretation behind deterministic policy" in html
+    assert "LLM interprets language<br>Deterministic checks override intent<br>Not fraud detection" in html
+    assert "LLM interprets language · deterministic checks override intent · Not fraud detection" not in html
     assert "no live LLM" not in html.casefold()
     assert "no live-provider readiness claim" not in html.casefold()
 
