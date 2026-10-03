@@ -563,6 +563,8 @@ def test_preflight_uses_only_public_synthetic_probes(monkeypatch, tmp_path) -> N
         output_path=tmp_path / "preflight.json",
     )
 
+    assert result["preflight_version"] == "r3c-provider-preflight-v2"
+    assert result["benchmark_version"] == "r3c-provider-bakeoff-v4"
     assert result["preflight_pass"] is True
     assert result["probe_pass_count"] == 4
     assert result["private_development_data_accessed"] is False
