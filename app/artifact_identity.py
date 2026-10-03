@@ -12,6 +12,13 @@ SYNTHETIC_SCHEMA_VERSION = 1
 SYNTHETIC_BUILDER_VERSION = "synthetic-demo-v1"
 CURATED_SCHEMA_VERSION = 1
 CURATED_BUILDER_VERSION = "r3b-1"
+FULL_CURATED_BUILDER_VERSION = "r3b-full-1"
+CURATED_BUILDER_VERSIONS = frozenset(
+    {
+        CURATED_BUILDER_VERSION,
+        FULL_CURATED_BUILDER_VERSION,
+    }
+)
 
 
 class BankArtifactIdentityError(RuntimeError):
@@ -53,7 +60,10 @@ def identify_bank_artifact_mode(path: Path) -> BankArtifactMode:
     identity = (int(rows[0][0]), str(rows[0][1]))
     if identity == (SYNTHETIC_SCHEMA_VERSION, SYNTHETIC_BUILDER_VERSION):
         return "synthetic"
-    if identity == (CURATED_SCHEMA_VERSION, CURATED_BUILDER_VERSION):
+    if (
+        identity[0] == CURATED_SCHEMA_VERSION
+        and identity[1] in CURATED_BUILDER_VERSIONS
+    ):
         return "curated"
 
     raise BankArtifactIdentityError(
