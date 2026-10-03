@@ -288,6 +288,7 @@ class ExecutionStatus(StrEnum):
 
     COMPLETED = "completed"
     NOT_INVOKED = "not_invoked"
+    DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
 
 
 class VerificationCode(StrEnum):
@@ -317,6 +318,16 @@ class DecisionEvidence(ContractModel):
         default_factory=list,
         max_length=10,
     )
+
+
+class DependencyUnavailableResponse(ContractModel):
+    """Sanitized fail-closed response when trusted banking data is unavailable."""
+
+    detail: str = Field(min_length=1, max_length=200)
+    dependency: str = Field(pattern=r"^bank$")
+    execution_status: ExecutionStatus
+    action_completed: bool = False
+    banking_fact_released: bool = False
 
 
 class EscalationRequest(ContractModel):
