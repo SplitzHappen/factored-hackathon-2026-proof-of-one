@@ -275,6 +275,50 @@ class PolicyResult(ContractModel):
     mandatory_escalation: bool = False
 
 
+class DecisionAction(StrEnum):
+    """Server-controlled operational action taken after policy disposition."""
+
+    NONE = "none"
+    READ_VERIFIED_BANK_RECORDS = "read_verified_bank_records"
+    CREATE_ESCALATION_TICKET = "create_escalation_ticket"
+
+
+class ExecutionStatus(StrEnum):
+    """Whether the permitted operational action ran in this turn."""
+
+    COMPLETED = "completed"
+    NOT_INVOKED = "not_invoked"
+
+
+class VerificationCode(StrEnum):
+    """Observable post-conditions; never model chain-of-thought."""
+
+    CUSTOMER_SCOPE_ENFORCED = "customer_scope_enforced"
+    RECORDS_VERIFIED = "records_verified"
+    AMBIGUITY_PRESERVED = "ambiguity_preserved"
+    REFERENCE_WITHHELD = "reference_withheld"
+    NO_BANKING_ACTION = "no_banking_action"
+    ESCALATION_PERSISTED = "escalation_persisted"
+    ESCALATION_READBACK_VERIFIED = "escalation_readback_verified"
+    SAFE_FALLBACK_PRESERVED = "safe_fallback_preserved"
+
+
+class DecisionEvidence(ContractModel):
+    """Compact operational evidence for one completed customer-turn decision."""
+
+    language: SupportedLanguage
+    interpretation_status: InterpretationStatus
+    reference_status: TransactionReferenceStatus
+    controlling_check: int | None = Field(default=None, ge=1, le=8)
+    controlling_reason: PolicyReason | None = None
+    action: DecisionAction
+    execution_status: ExecutionStatus
+    verification_codes: list[VerificationCode] = Field(
+        default_factory=list,
+        max_length=10,
+    )
+
+
 class EscalationRequest(ContractModel):
     session_id: UUID
     transaction_id: str | None = Field(default=None, min_length=1, max_length=128)
@@ -329,6 +373,7 @@ class CustomerTurnResponse(ContractModel):
     ] = Field(default_factory=list, max_length=10)
     escalation_ticket_id: UUID | None = None
     handoff_available: bool = False
+    decision_evidence: DecisionEvidence
     synthetic_data: bool = True
 
 
