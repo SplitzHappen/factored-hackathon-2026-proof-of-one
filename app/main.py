@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from app.artifact_identity import identify_bank_artifact_mode
 from app.bank import IncompatibleBankDatabaseError
 from app.bootstrap import AppContext, build_app_context
+from app.challenge_ui import render_challenge_ui
 from app.demo_ui import render_demo_ui
 from app.http_safety import RequestBodyLimitMiddleware
 from app.runtime import RateLimitExceededError, TicketLimitExceededError
@@ -144,6 +145,14 @@ def create_app(context: AppContext | None = None) -> FastAPI:
 
     def demo_shell_html() -> str:
         runtime_context = runtime()
+        if (
+            runtime_context.data_mode == "curated"
+            and runtime_context.bank.has_full_challenge_data()
+        ):
+            return render_challenge_ui(
+                llm_connected=runtime_context.llm_connected,
+            )
+
         html = render_demo_ui()
         if not runtime_context.llm_connected:
             return html
