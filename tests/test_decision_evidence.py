@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.bootstrap import build_app_context
 from app.main import create_app
+from app.schemas import (
+    DecisionAction,
+    DecisionEvidence,
+    ExecutionStatus,
+    InterpretationStatus,
+    PolicyReason,
+    SupportedLanguage,
+    TransactionReferenceStatus,
+)
 from app.settings import Settings
 
 
@@ -139,3 +150,22 @@ def test_demo_ui_surfaces_compact_operational_decision_evidence(tmp_path) -> Non
     assert "controlling_reason" in html
     assert "verification_codes" in html
     assert "Proof of One does not expose model reasoning" not in html
+
+
+def test_decision_evidence_contract_rejects_model_reasoning_surface() -> None:
+    values = {
+        "language": SupportedLanguage.ES,
+        "interpretation_status": InterpretationStatus.VERIFIED,
+        "reference_status": TransactionReferenceStatus.VERIFIED,
+        "controlling_check": None,
+        "controlling_reason": PolicyReason.SUPPORTED_VERIFIED,
+        "action": DecisionAction.READ_VERIFIED_BANK_RECORDS,
+        "execution_status": ExecutionStatus.COMPLETED,
+        "verification_codes": [],
+    }
+
+    with pytest.raises(ValidationError):
+        DecisionEvidence(
+            **values,
+            model_reasoning="private chain-of-thought must never be part of this contract",
+        )
