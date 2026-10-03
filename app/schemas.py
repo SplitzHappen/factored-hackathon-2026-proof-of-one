@@ -373,6 +373,44 @@ class DemoSessionResponse(ContractModel):
     synthetic_data: bool = True
 
 
+class ChallengeCustomerSummary(ContractModel):
+    customer_id: str = Field(min_length=1, max_length=128)
+    country: str | None = Field(default=None, max_length=120)
+    detected_accent: str | None = Field(default=None, max_length=120)
+    customer_status: str | None = Field(default=None, max_length=80)
+    default_language: SupportedLanguage
+    transcript_count: int = Field(ge=0)
+
+
+class ChallengeMessageSummary(ContractModel):
+    transcript_id: str = Field(min_length=1, max_length=128)
+    interaction_id: str | None = Field(default=None, max_length=128)
+    process_date: str | None = Field(default=None, max_length=80)
+    customer_text: str = Field(min_length=1)
+    detected_language: str | None = Field(default=None, max_length=80)
+    main_topics: str | None = None
+
+
+class ChallengeSessionCreateRequest(ContractModel):
+    customer_id: str = Field(min_length=1, max_length=128)
+
+
+class ChallengeSessionResponse(ContractModel):
+    session_id: UUID
+    tenant_id: str = Field(min_length=1, max_length=128)
+    role: SessionRole
+    customer_id: str = Field(min_length=1, max_length=128)
+    display_name: str = Field(min_length=1, max_length=160)
+    language: SupportedLanguage
+    transcript_count: int = Field(ge=0)
+    synthetic_data: bool = False
+
+
+class ChallengeCoverage(ContractModel):
+    full_challenge_data: bool
+    table_counts: dict[str, int] = Field(default_factory=dict)
+
+
 class CustomerTurnRequest(ContractModel):
     message: str = Field(min_length=1, max_length=4000)
 
