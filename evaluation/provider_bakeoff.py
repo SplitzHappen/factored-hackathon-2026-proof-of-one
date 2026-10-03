@@ -231,6 +231,13 @@ def build_target(
 
 
 def _route_proxy(result) -> RouteDecision:
+    """Diagnostic policy projection using the current frozen policy inputs.
+
+    This remains a bake-off diagnostic rather than provider-selection authority, but it
+    must carry every interpretation-derived safety signal that the active customer path
+    supplies to route_policy().
+    """
+
     reference_status = result.transaction_reference_status
     missing_or_unowned = (
         reference_status is TransactionReferenceStatus.NOT_FOUND_OR_NOT_OWNED
@@ -239,10 +246,15 @@ def _route_proxy(result) -> RouteDecision:
         PolicyInput(
             intent=result.intent,
             unauthorized_activity_asserted=result.unauthorized_activity_asserted,
+            possible_unauthorized_activity=result.possible_unauthorized_activity,
             ownership_verified=not missing_or_unowned,
             trusted_record_found=not missing_or_unowned,
             trusted_data_conflict=False,
             excluded_relationship_required=False,
+            interpretation_unavailable=(
+                result.status is InterpretationStatus.SAFE_FALLBACK
+                and result.requires_human_fallback
+            ),
             ambiguous_transaction_match=(
                 reference_status is TransactionReferenceStatus.AMBIGUOUS
             ),
@@ -453,8 +465,8 @@ def run_candidate_preflight(
 
     candidate = CANDIDATES[candidate_id]
     summary: dict[str, object] = {
-        "preflight_version": "r3c-provider-preflight-v1",
-        "benchmark_version": "r3c-provider-bakeoff-v3",
+        "preflight_version": "r3c-provider-preflight-v2",
+        "benchmark_version": "r3c-provider-bakeoff-v4",
         "interpretation_contract_sha256": interpretation_contract_sha256(),
         "git_sha": _git_sha(),
         "run_started_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -889,7 +901,7 @@ def run_candidate(
 
     candidate = CANDIDATES[candidate_id]
     summary: dict[str, object] = {
-        "benchmark_version": "r3c-provider-bakeoff-v3",
+        "benchmark_version": "r3c-provider-bakeoff-v4",
         "interpretation_contract_sha256": interpretation_contract_sha256(),
         "git_sha": _git_sha(),
         "run_started_at_utc": datetime.now(timezone.utc).isoformat(),
