@@ -32,7 +32,7 @@ body{margin:0;min-height:100vh;color:var(--ink);background:linear-gradient(145de
 .shell{border:3px solid var(--line);border-radius:34px;background:rgba(232,238,227,.90);box-shadow:var(--shadow);overflow:hidden}
 .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;padding:28px 40px 34px;border-bottom:3px solid var(--line);background:rgba(203,212,196,.92)}
 .kicker{margin:0 0 8px;color:var(--ink2);font-size:22px;font-weight:900;letter-spacing:.26em;text-transform:uppercase}
-h1{margin:0;color:var(--ink);font-size:clamp(36px,5.2vw,74px);line-height:.98;font-weight:1000;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+h1{margin:0;color:var(--ink);font-size:clamp(34px,5vw,70px);line-height:.98;font-weight:1000;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
 .brand p{margin:14px 0 0;max-width:980px;color:var(--ink2);font-family:Inter,system-ui,sans-serif;font-size:18px;line-height:1.45}
 .badges{display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end}
 .badge{border:3px solid var(--line);border-radius:999px;background:rgba(247,249,241,.72);padding:13px 20px;color:var(--ink);font-size:20px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
@@ -71,10 +71,10 @@ button:disabled{opacity:.46;cursor:not-allowed}
 @keyframes pulse{0%,100%{filter:brightness(.85)}50%{filter:brightness(1.45)}}
 .checks{display:grid;grid-template-columns:repeat(4,minmax(245px,1fr));gap:16px}
 .check{min-height:226px;border:4px solid var(--line);border-radius:28px;background:rgba(232,238,227,.92);padding:26px;color:var(--ink);overflow:hidden}
-.check-head{display:grid;grid-template-columns:1fr 74px;grid-template-areas:"num lamp" "title title";column-gap:18px;row-gap:14px;align-items:start}
+.check-head{display:grid;grid-template-columns:1fr 74px;grid-template-areas:"num lamp" "title title";column-gap:18px;row-gap:16px;align-items:start}
 .check-num{grid-area:num;color:var(--ink);font-size:clamp(34px,2.6vw,48px);font-weight:1000;line-height:1}
 .check-head .mini-lamp{grid-area:lamp;justify-self:end}
-.check-title{grid-area:title;color:var(--ink);font-size:clamp(24px,1.85vw,31px);font-weight:1000;letter-spacing:.13em;line-height:1.15;text-transform:uppercase;white-space:normal;max-width:100%}
+.check-title{grid-area:title;color:var(--ink);font-size:clamp(18px,1.18vw,24px);font-weight:1000;letter-spacing:.045em;line-height:1.18;text-transform:uppercase;white-space:normal;overflow-wrap:anywhere;word-break:normal;max-width:100%}
 .check p{margin:26px 0 0;color:var(--ink);font-family:Inter,system-ui,sans-serif;font-size:25px;line-height:1.42}
 .lanes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
 .lane{border:4px solid var(--line);border-radius:24px;background:rgba(232,238,227,.92);padding:18px;display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:12px}
