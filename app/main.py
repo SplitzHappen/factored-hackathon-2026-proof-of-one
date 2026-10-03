@@ -137,6 +137,60 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             )
         return runtime_context
 
+    def demo_shell_html() -> str:
+        runtime_context = runtime()
+        html = render_demo_ui()
+        if not runtime_context.llm_connected:
+            return html
+
+        replacements = (
+            (
+                "The lamps are computed from the local synthetic API response, "
+                "not from static design placeholders.",
+                "The lamps are computed from the backend synthetic API response; "
+                "OpenAI interprets language while deterministic policy sets routes.",
+            ),
+            (
+                "Local prototype · synthetic",
+                "Live LLM · synthetic",
+            ),
+            (
+                "<strong>Interpreter:</strong> awaiting message",
+                "<strong>Interpreter:</strong> OpenAI GPT-6 Luna · deterministic "
+                "policy authority retained",
+            ),
+            (
+                "No live LLM · Not fraud detection",
+                "Live LLM interpretation · Not fraud detection",
+            ),
+            (
+                "Synthetic data · local API · no live LLM · not fraud detection · "
+                "not production/pilot-ready",
+                "Synthetic data · live LLM interpretation · deterministic policy · "
+                "not fraud detection · not production/pilot-ready",
+            ),
+            (
+                "Boundary: synthetic demo data only · local API prototype · no "
+                "production or pilot readiness claim · no live-provider readiness "
+                "claim · not fraud detection · no final submission/go-live claim.",
+                "Boundary: synthetic demo data only · live-provider interpretation "
+                "behind deterministic policy · no production or pilot readiness "
+                "claim · not fraud detection · no final submission/go-live claim.",
+            ),
+            (
+                "deterministic provider · no live LLM",
+                "OpenAI GPT-6 Luna · deterministic policy authority retained",
+            ),
+            (
+                "Deterministic checks override intent · Not fraud detection",
+                "LLM interprets language · deterministic checks override intent · "
+                "Not fraud detection",
+            ),
+        )
+        for old, new in replacements:
+            html = html.replace(old, new)
+        return html
+
     def _peer_rate_subject(request: Request) -> str:
         host = request.client.host if request.client is not None else "unknown"
         return hashlib.sha256(
@@ -248,11 +302,11 @@ def create_app(context: AppContext | None = None) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def demo_shell_root() -> HTMLResponse:
-        return HTMLResponse(render_demo_ui())
+        return HTMLResponse(demo_shell_html())
 
     @app.get("/demo", response_class=HTMLResponse, include_in_schema=False)
     def demo_shell() -> HTMLResponse:
-        return HTMLResponse(render_demo_ui())
+        return HTMLResponse(demo_shell_html())
 
     @app.get(
         "/api/demo/personas",
