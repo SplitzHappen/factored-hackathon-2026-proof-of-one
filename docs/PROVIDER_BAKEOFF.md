@@ -1,7 +1,7 @@
 # R3C-B Provider Bake-off
 
-Status: **v3 repaired harness; live execution still blocked pending realistic-language slice, terms clearance, and bounded Claude repair confirmation**  
-Evidence date: 2026-09-26  
+Status: **v4 preflight-ready harness; no live provider/private development execution has occurred yet**  
+Evidence refresh: 2026-10-03  
 Evaluation surface: **private 100-case development pool + public/team-generated stress evidence after synthetic provider preflight**
 
 The frozen 200-case held-out suite is not used for provider selection, prompt tuning,
@@ -14,7 +14,7 @@ The starting candidate set is frozen before development-pool execution.
 | Candidate ID | API model | Structured-output mode | Pricing snapshot |
 |---|---|---|---|
 | `openai-gpt-6-luna` | `gpt-6-luna` | strict JSON Schema via Responses API | USD 0.10/M input, USD 0.50/M output |
-| `qwen3.7-flash` | `qwen3.7-flash` | strict JSON Schema via OpenAI-compatible Chat Completions | Singapore international, <=32K: USD 0.030/M input, USD 0.130/M output |
+| `qwen3.8-flash` | `qwen3.8-flash` | strict JSON Schema via OpenAI-compatible Chat Completions | Singapore international: CNY 1.094/M input, CNY 3.427/M output |
 | `deepseek-v4.1-flash` | `deepseek-flash` | JSON Object (schema validated by Proof of One after return) | off-peak USD 0.15/M input + 0.60/M output; peak USD 0.30/M input + 1.20/M output |
 
 Important comparison rule: every provider receives the **same textual canonical JSON
@@ -32,8 +32,9 @@ from schema/model failures using safe aggregate telemetry.
 ## Why these candidates
 
 - GPT-6 Luna is the current low-cost OpenAI tier, released September 22, 2026, and supports multilingual input, strict Structured Outputs, and `reasoning.effort=none`.
-- Qwen3.7-Flash is a low-cost current Qwen Flash model, supports strict JSON Schema, and
-  Alibaba documents Portuguese among Qwen's supported languages.
+- Qwen3.8-Flash is Alibaba's current recommended Qwen Flash candidate for this slot and
+  supports strict JSON Schema. Qwen3.7-Flash remains callable but is now listed as legacy,
+  so the pre-live v4 refresh moved the candidate before any private development call.
 - DeepSeek V4.1 Flash is the current `deepseek-flash` endpoint and is inexpensive, but
   its documented JSON mode guarantees valid JSON rather than the same schema-level
   contract.
@@ -65,7 +66,7 @@ Brazilian phrasing, abbreviations/typos, non-recognition assertions, transaction
 status, decline-cause, money movement, card blocking, disputes, profile changes, and
 credit eligibility.
 
-The v3 benchmark additionally loads frozen
+The v4 benchmark additionally loads frozen
 `factored-realistic-language-v1`:
 
 - 32 public synthetic cases;
@@ -157,9 +158,10 @@ Among eligible candidates:
 3. if candidates remain within **1.0 percentage point**, prefer the lower combined
    provider-failure + invalid-structured-output rate;
 4. if still tied within **0.5 percentage points**, prefer lower p95 latency;
-5. cost is the final tie-breaker after quality/reliability/latency. All current pricing
-   snapshots are recorded in USD, so the benchmark may compare measured aggregate USD
-   estimates directly.
+5. cost is the final tie-breaker after quality/reliability/latency **only when the tied
+   candidates' pricing is recorded in the same currency**. OpenAI and DeepSeek are recorded
+   in USD. Qwen3.8-Flash is recorded in official Singapore CNY pricing; no cross-currency
+   conversion may be invented after results are visible.
 
 This ordering was frozen before live provider results. The realistic-language slice is
 synthetic and phrasing-distinct, not production-conversation evidence.
@@ -168,11 +170,12 @@ No result from the frozen held-out suite may be used to reverse the development-
 provider choice. The frozen v1 suite is a template-controlled conformance/safety surface,
 not broad novel-language generalization evidence.
 
-The intended live comparison is **two providers**, not automatically all three. The exact
-pair is frozen only after all candidates pass the public synthetic preflight and the
-project considers schema/API viability, regional endpoint constraints, and data-processing
-terms. A third live candidate is retained only if preflight evidence makes it worth the
-remaining schedule cost.
+The intended live comparison remains **two providers**, not automatically all three.
+OpenAI GPT-6 Luna and DeepSeek V4.1 Flash are the primary two-provider preflight pair because
+their current official API/model paths are confirmed and their pricing snapshots are both
+USD-denominated. Qwen3.8-Flash remains the optional third candidate; it may receive private
+development cases only if its synthetic-only preflight passes and its regional/data-processing
+setup is intentionally accepted before private development execution.
 
 If no candidate passes the eligibility gate, R3C-B does not select a provider. The
 interpreter contract/prompt may be revised using development evidence and the bake-off
@@ -236,7 +239,7 @@ Run one candidate at a time:
 
 `python -m evaluation.provider_bakeoff --candidate openai-gpt-6-luna`
 
-`python -m evaluation.provider_bakeoff --candidate qwen3.7-flash`
+`python -m evaluation.provider_bakeoff --candidate qwen3.8-flash`
 
 `python -m evaluation.provider_bakeoff --candidate deepseek-v4.1-flash`
 
@@ -263,19 +266,41 @@ This becomes another **Evidence → decision → consequence** item:
 > adapter/configuration before held-out evaluation.
 
 
-## Pre-run refresh and v3 repair — 2026-09-26
+## Pre-run refresh history
+
+### v3 repair — 2026-09-26
 
 Before any paid development-pool execution, official provider documentation was rechecked.
-GPT-6 Luna replaces the earlier GPT-5.6 Luna candidate for the low-cost OpenAI slot and
-the Qwen3.7-Flash Singapore international price units/rates were corrected.
+GPT-6 Luna replaced the earlier GPT-5.6 Luna candidate for the low-cost OpenAI slot.
 
 The independent full-project Claude audit then found that v2 was not fit to execute:
 DeepSeek did not receive the schema, unauthorized safety was gated on overall accuracy,
 and several target labels could penalize correct answers. Those defects were repaired
 **before any live provider or private development-pool execution**.
 
-The current benchmark version is `r3c-provider-bakeoff-v3`; the interpretation contract
-is `r3c-v2`. V3 also adds whole-token transaction-ID provenance, canonical
-transaction-type/status enums, message-provenance checks for query filters, cross-language
-unauthorized lexical backstop coverage, answer-key-backed route checks, synthetic
-provider preflight, and richer safe aggregate provenance.
+V3 added whole-token transaction-ID provenance, canonical transaction-type/status enums,
+message-provenance checks for query filters, cross-language unauthorized lexical backstop
+coverage, answer-key-backed route checks, synthetic provider preflight, and richer safe
+aggregate provenance.
+
+### v4 readiness refresh — 2026-10-03
+
+No live provider or private development-pool execution had occurred before this refresh.
+
+Official provider documentation was rechecked immediately before execution:
+
+- OpenAI still exposes `gpt-6-luna` through the Responses API with Structured Outputs,
+  `reasoning.effort=none`, and the recorded USD 0.10/M input and USD 0.50/M output
+  Standard pricing.
+- Alibaba now lists Qwen3.8-Flash as the current Flash candidate and Qwen3.7-Flash as
+  legacy. The optional Qwen slot therefore moved to `qwen3.8-flash` before any private
+  development case was sent. Official Singapore pricing is recorded natively in CNY.
+- DeepSeek `deepseek-flash` still serves DeepSeek-V4.1-Flash. JSON Object mode,
+  non-thinking control, and the existing USD peak/off-peak price range remain current.
+- The diagnostic route projection was reconciled with the frozen product policy inputs so
+  `possible_unauthorized_activity` and interpreter-unavailable state reach
+  `route_policy()`. Route-proxy accuracy remains diagnostic and does not become model
+  authority or a provider-selection quality gate.
+
+The current benchmark version is `r3c-provider-bakeoff-v4`; the interpretation contract
+remains `r3c-v2`.
