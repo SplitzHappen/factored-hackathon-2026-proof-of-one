@@ -4,9 +4,10 @@ Proof of One is a bounded account/payment customer-support prototype for the Fac
 
 ## Current implementation stage
 
-Final synthetic judge-facing freeze candidate after the signal-box UI, UI-test reconciliation,
-and RF5 full interpreter-to-policy replay evidence. The public runtime is deliberately
-deterministic and uses synthetic data; no live LLM is connected in the judge-facing runtime.
+Pre-LLM architecture freeze candidate after the signal-box UI, full interpreter-to-policy
+replay evidence, first-class Decision Evidence / ACT -> VERIFY, and explicit trusted-bank
+dependency fail-closed handling. The public runtime remains deliberately deterministic and uses
+synthetic data; no live LLM is connected in the judge-facing runtime.
 
 The final submission still requires external deployment verification, a 4–6 slide presentation,
 and a video pitch no longer than 3 minutes. Blind realistic-language v2, held-out uplift claims,
@@ -19,8 +20,10 @@ The application currently contains:
 - a deterministic curated-data builder for minimized trusted banking data;
 - a bounded read-only DuckDB query layer with customer-isolation checks and an operational transaction projection that excludes retrospective fraud labels/reference scores;
 - a separate writable SQLite operational store for tenant/role-bound authenticated demo sessions, bounded conversation state, and structured support/escalation tickets;
-- a deterministic policy/router with fixed `ANSWER`, `CLARIFY`, `ABSTAIN`, and `ESCALATE` outcomes and hard safety precedence;
+- a deterministic policy/router with fixed `ANSWER`, `CLARIFY`, `ABSTAIN`, and `ESCALATE` outcomes and intentional authority-ordered precedence;
+- a strict server-generated Decision Evidence envelope that exposes interpretation status, controlling check/reason, action, execution status, and observable verification codes without exposing model chain-of-thought;
 - persistence verification that re-reads an escalation ticket before the runtime may report success;
+- a sanitized trusted-bank dependency failure contract that returns HTTP 503, claims no normal route in the failure payload, and releases no banking fact when the DuckDB/banking layer is unavailable;
 - tests proving that model-facing transaction queries cannot supply a `customer_id`, conversation state cannot rebind identity, and the runtime store cannot contain authoritative banking tables;
 - a provider-neutral Spanish/Portuguese interpretation boundary with strict typed extraction, bounded retries/fallback, deterministic transaction-reference verification, and no model authority over identity, ownership, banking truth, policy, or behavioral evidence;
 - a deterministic stub interpreter behind that same provider protocol so end-to-end product integration does not wait for live provider selection;
@@ -66,6 +69,16 @@ The model will never receive arbitrary SQL access and will never control the aut
 The writable SQLite store contains only operational metadata: server-established session identity references, bounded structured conversation state, rate-limit events, and structured escalation/support tickets. It contains no customer/product/transaction banking tables and rejects unexpected tables on initialization.
 
 Escalation is a controlled Act -> Verify path: a support ticket is inserted, committed, re-read and compared with the intended handoff, marked verified, and read back again before success is returned. Persistence or verification failure is a hard failure and is never represented as a successful escalation.
+
+Successful customer turns also emit compact server-generated operational Decision Evidence. This
+records the controlling check/reason, permitted action, execution state, and observable
+verification result; it is not model chain-of-thought. Banking dependency unavailability remains
+separate from policy disposition: it fails closed with HTTP 503 and no banking fact release rather
+than inventing a fifth route.
+
+The full precedence rationale, Decision Evidence semantics, route-vs-execution distinction, and
+pre-LLM freeze boundary are documented in
+[docs/POLICY_PRECEDENCE_AND_DECISION_EVIDENCE.md](docs/POLICY_PRECEDENCE_AND_DECISION_EVIDENCE.md).
 
 ## Judge-facing demo and API
 
