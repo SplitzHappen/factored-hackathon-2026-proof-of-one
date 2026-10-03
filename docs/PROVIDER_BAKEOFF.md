@@ -1,21 +1,36 @@
-# R3C-B Provider Bake-off
+# R3C-B Provider Qualification
 
-Status: **v4 preflight-ready harness; no live provider/private development execution has occurred yet**  
-Evidence refresh: 2026-10-03  
-Evaluation surface: **private 100-case development pool + public/team-generated stress evidence after synthetic provider preflight**
+Status: **OpenAI-only private development qualification passed; selected provider candidate frozen; runtime not wired yet**  
+Evidence timestamp: 2026-10-03T03:37:37Z  
+Evaluation surface: **public synthetic preflight + private 100-case development pool + public/team-generated stress evidence**
 
 The frozen 200-case held-out suite is not used for provider selection, prompt tuning,
 debugging, or bake-off repair.
 
+## Selected provider candidate
+
+Selected live interpretation provider candidate: **OpenAI GPT-6 Luna**
+
+Selection basis:
+
+1. public synthetic preflight passed on current provider path;
+2. private development qualification passed under predeclared eligibility gates;
+3. no eligible-failure reason was reported;
+4. no raw prompts or raw outputs were persisted.
+
+This is a provider-selection decision only. The public/judge-facing runtime is still not wired to
+a live LLM provider, and deterministic policy remains the authority for identity, ownership,
+banking truth, route disposition, and operational action.
+
 ## Candidate snapshot
 
-The starting candidate set is frozen before development-pool execution.
+The original candidate set was frozen before development-pool execution.
 
-| Candidate ID | API model | Structured-output mode | Pricing snapshot |
-|---|---|---|---|
-| `openai-gpt-6-luna` | `gpt-6-luna` | strict JSON Schema via Responses API | USD 0.10/M input, USD 0.50/M output |
-| `qwen3.8-flash` | `qwen3.8-flash` | strict JSON Schema via OpenAI-compatible Chat Completions | Singapore international: USD 0.15/M input, USD 0.47/M output |
-| `deepseek-v4.1-flash` | `deepseek-flash` | JSON Object, schema validated by Proof of One after return | off-peak USD 0.15/M input + 0.60/M output; peak USD 0.30/M input + 1.20/M output |
+| Candidate ID | API model | Structured-output mode | Pricing snapshot | Current status |
+|---|---|---|---|---|
+| `openai-gpt-6-luna` | `gpt-6-luna` | strict JSON Schema via Responses API | USD 0.10/M input, USD 0.50/M output | **Selected after qualification PASS** |
+| `qwen3.8-flash` | `qwen3.8-flash` | strict JSON Schema via OpenAI-compatible Chat Completions | Singapore international: USD 0.15/M input, USD 0.47/M output | Optional fallback only; not run on private development pool |
+| `deepseek-v4.1-flash` | `deepseek-flash` | JSON Object, schema validated by Proof of One after return | off-peak USD 0.15/M input + 0.60/M output; peak USD 0.30/M input + 1.20/M output | Optional fallback only; not run on private development pool |
 
 Important comparison rule: every provider receives the **same textual canonical JSON schema,
 enum values, and valid example** in its prompt context. OpenAI and Qwen also receive API-native
@@ -33,7 +48,7 @@ failures using safe aggregate telemetry.
 - Qwen3.8-Flash is Alibaba's current Qwen Flash candidate for this slot and supports strict JSON Schema. Qwen3.7-Flash remains callable but is now legacy, so the v4 refresh moves the Qwen candidate before any private development call.
 - DeepSeek V4.1 Flash is served through the `deepseek-flash` endpoint and is inexpensive, but its documented JSON mode guarantees valid JSON rather than the same schema-level contract.
 
-This is a task-specific comparison, not a general model benchmark.
+This is a task-specific qualification, not a general model benchmark.
 
 ## Private inputs
 
@@ -92,7 +107,7 @@ The runner records only aggregate metrics:
 
 The runner does **not** persist prompts, customer IDs, transaction IDs, banking values, raw model outputs, or answer-key contents. Aggregate outputs are written under git-ignored `evaluation/results/private/r3c_b/`.
 
-## Safety architecture during the bake-off
+## Safety architecture during qualification
 
 Provider output remains untrusted.
 
@@ -105,9 +120,9 @@ Every call still passes through the R3C deterministic post-check:
 - model search breadth remains server-controlled;
 - invalid output safely falls back.
 
-The v4 diagnostic route projection now carries the same interpretation-derived safety signals as the frozen product path: explicit unauthorized activity, RF4/RF5 possible unauthorized activity, interpreter-unavailable state, ambiguity, and required-missing references all reach `route_policy()`.
+The v4 diagnostic route projection carries the same interpretation-derived safety signals as the frozen product path: explicit unauthorized activity, RF4/RF5 possible unauthorized activity, interpreter-unavailable state, ambiguity, and required-missing references all reach `route_policy()`.
 
-The bake-off therefore compares language interpretation quality without granting any provider additional banking authority.
+The qualification therefore evaluates language interpretation quality without granting any provider additional banking authority.
 
 ## Predeclared provider-selection rule
 
@@ -132,15 +147,82 @@ Among eligible candidates:
 4. if still tied within **0.5 percentage points**, prefer lower p95 latency;
 5. cost is the final tie-breaker after quality/reliability/latency.
 
-OpenAI, Qwen, and DeepSeek are now recorded in USD for the selected candidate endpoints, so aggregate estimated-cost comparison may use the recorded USD ranges directly.
+OpenAI, Qwen, and DeepSeek are recorded in USD for the selected candidate endpoints, so aggregate estimated-cost comparison may use the recorded USD ranges directly.
 
 This ordering was frozen before live provider results. The realistic-language slice is synthetic and phrasing-distinct, not production-conversation evidence.
 
 No result from the frozen held-out suite may be used to reverse the development-pool provider choice. The frozen v1 suite is a template-controlled conformance/safety surface, not broad novel-language generalization evidence.
 
-The intended live comparison remains **two providers**, not automatically all three. OpenAI GPT-6 Luna and DeepSeek V4.1 Flash are the primary two-provider preflight pair because their current official API/model paths are confirmed and their pricing snapshots are both USD-denominated. Qwen3.8-Flash remains the optional third candidate; it may receive private development cases only if its synthetic-only preflight passes and its regional/data-processing setup is intentionally accepted before private development execution.
+If no candidate passes the eligibility gate, R3C-B does not select a provider. The interpreter contract/prompt may be revised using development evidence and the qualification rerun, with the revision recorded before any held-out access.
 
-If no candidate passes the eligibility gate, R3C-B does not select a provider. The interpreter contract/prompt may be revised using development evidence and the bake-off rerun, with the revision recorded before any held-out access.
+## OpenAI qualification result — 2026-10-03
+
+OpenAI GPT-6 Luna passed public synthetic preflight after the strict-schema compatibility repair in product PR #149.
+
+Preflight evidence:
+
+| Metric | Result |
+|---|---:|
+| Candidate | `openai-gpt-6-luna` |
+| Benchmark version | `r3c-provider-bakeoff-v4` |
+| Preflight version | `r3c-provider-preflight-v2` |
+| Probe pass count | 4 / 4 |
+| Provider failures | 0 |
+| Invalid outputs | 0 |
+| HTTP status counts | `{"200": 4}` |
+| Served model counts | `{"gpt-6-luna": 4}` |
+| Private development data accessed | `false` |
+| Held-out data accessed | `false` |
+| Banking data accessed | `false` |
+| Raw prompts persisted | `false` |
+| Raw outputs persisted | `false` |
+
+OpenAI GPT-6 Luna then passed private development qualification at product `main` commit `bac6210995b908c2a38c2a50c1ac9d16ec2b91c8`.
+
+Development qualification evidence:
+
+| Metric | Result |
+|---|---:|
+| Candidate | `openai-gpt-6-luna` |
+| Provider | OpenAI |
+| Model | `gpt-6-luna` |
+| Benchmark version | `r3c-provider-bakeoff-v4` |
+| Development combined SHA-256 | `eae78144906d70a9d2a64cf3b37b452738eee70e9552c64e13522b4744dcbaa7` |
+| Total cases | 100 |
+| Total steps | 140 |
+| Verified step rate | 1.0 |
+| Intent accuracy | 1.0 |
+| Unauthorized positive recall | 1.0 |
+| Unauthorized specificity | 1.0 |
+| Explicit transaction-ID accuracy | 1.0 |
+| Cross-customer reference block rate | 1.0 |
+| Unsafe cross-customer bindings | 0 |
+| Spanish core accuracy | 1.0 |
+| Portuguese core accuracy | 1.0 |
+| Portuguese stress accuracy | 1.0 |
+| Bilingual unauthorized stress recall | 1.0 |
+| Realistic language accuracy | 1.0 |
+| Realistic Spanish accuracy | 1.0 |
+| Realistic Portuguese accuracy | 1.0 |
+| Realistic unauthorized recall | 1.0 |
+| Language gap | 0.0 percentage points |
+| Provider failure rate | 0.0 |
+| Invalid structured-output rate | 0.0 |
+| HTTP status counts | `{"200": 140}` |
+| Served model counts | `{"gpt-6-luna": 140}` |
+| p50 latency | 1305.0 ms |
+| p95 latency | 1804.65 ms |
+| Estimated cost | USD 0.0178175 |
+| Raw prompts persisted | `false` |
+| Raw outputs persisted | `false` |
+| Eligible | `true` |
+| Eligibility failures | `[]` |
+
+Diagnostic route-proxy accuracy was 0.7846153846153846. This is reported for traceability only and is not an eligibility gate because the product's deterministic router, not the model, remains authoritative for route disposition.
+
+Decision:
+
+> public synthetic preflight PASS + private development qualification PASS -> OpenAI GPT-6 Luna selected as the live interpretation provider candidate -> runtime wiring may proceed in a separate implementation PR, without changing deterministic policy authority and before any held-out execution.
 
 ## Configuration
 
@@ -193,19 +275,21 @@ DeepSeek JSON mode follows the current official requirement to include JSON inst
 
 ## Commands
 
-Run one candidate at a time:
+Run the selected OpenAI candidate qualification:
 
 `python -m evaluation.provider_bakeoff --candidate openai-gpt-6-luna`
 
-`python -m evaluation.provider_bakeoff --candidate qwen3.8-flash`
+Optional fallback candidates must pass public synthetic preflight before they may receive private development cases:
 
-`python -m evaluation.provider_bakeoff --candidate deepseek-v4.1-flash`
+`python -m evaluation.provider_bakeoff --candidate qwen3.8-flash --preflight-only`
+
+`python -m evaluation.provider_bakeoff --candidate deepseek-v4.1-flash --preflight-only`
 
 The runner uses one provider attempt per development step so first-pass schema/API reliability remains observable. The production interpretation service retains its bounded retry/fallback behavior.
 
 ## Data Excellence capture
 
-The eventual R3C-B result should publish only a safe aggregate comparison table containing:
+The selected-provider result publishes only safe aggregate evidence:
 
 - exact candidate/model identifiers;
 - frozen development SHA;
@@ -214,11 +298,11 @@ The eventual R3C-B result should publish only a safe aggregate comparison table 
 - latency;
 - token/cost aggregates;
 - predeclared eligibility result;
-- selected provider or explicit no-selection result.
+- selected provider result.
 
-This becomes another **Evidence → decision → consequence** item:
+This is another **Evidence -> decision -> consequence** item:
 
-> development-pool multilingual extraction evidence → provider choice → frozen runtime adapter/configuration before held-out evaluation.
+> development-pool multilingual extraction evidence -> OpenAI GPT-6 Luna provider choice -> frozen runtime adapter/configuration may be wired before held-out evaluation.
 
 ## Pre-run refresh history
 
