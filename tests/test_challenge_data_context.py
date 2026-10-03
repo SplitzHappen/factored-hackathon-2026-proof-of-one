@@ -5,6 +5,7 @@ from pathlib import Path
 import duckdb
 from fastapi.testclient import TestClient
 
+from app.challenge_ui import render_challenge_ui
 from app.main import create_app
 from app.settings import Settings
 from app.bootstrap import build_app_context
@@ -234,3 +235,48 @@ def test_challenge_customer_access_is_exactly_scoped(tmp_path: Path) -> None:
 
     messages = client.get("/api/challenge/customers/C999/messages")
     assert messages.status_code == 404
+
+
+def test_curated_mode_serves_full_challenge_judge_shell(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    for route in ("/", "/demo"):
+        response = client.get(route)
+        assert response.status_code == 200
+        html = response.text
+        assert "Full challenge-data signal box" in html
+        assert "Full challenge data · read-only · customer-scoped" in html
+        assert "/api/challenge/coverage" in html
+        assert "/api/challenge/customers" in html
+        assert "/api/challenge/sessions" in html
+        assert "/api/customer/turn" in html
+        assert "Provided messages" in html
+        assert "not fraud detection" in html
+        assert "Lucía" not in html
+        assert "Rafael" not in html
+
+
+def test_full_challenge_shell_uses_text_content_for_dataset_messages() -> None:
+    html = render_challenge_ui(llm_connected=True)
+
+    assert "LIVE LLM · FULL DATA" in html
+    assert "OpenAI GPT-6 Luna · deterministic policy authority retained" in html
+    assert "customer_text" in html
+    assert ".textContent = text" in html
+    assert ".innerHTML" not in html
+    assert "document_number" not in html
+    assert "mobile_phone" not in html
+    assert "email" not in html
+
+
+def test_challenge_api_paths_are_visible_in_openapi(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    paths = response.json()["paths"]
+
+    assert "/api/challenge/coverage" in paths
+    assert "/api/challenge/customers" in paths
+    assert "/api/challenge/customers/{customer_id}/messages" in paths
+    assert "/api/challenge/sessions" in paths
