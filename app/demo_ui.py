@@ -517,6 +517,8 @@ DEMO_UI_HTML = r'''<!doctype html>
     .line-summary span {
       min-width: 0;
       display: block;
+      font-size: 14px;
+      line-height: 1.35;
       overflow-wrap: anywhere;
       word-break: break-word;
       white-space: normal;
