@@ -780,7 +780,7 @@ DEMO_UI_HTML = r'''<!doctype html>
               <div id="turns" class="turns"><div class="empty">No message has been sent yet.</div></div>
             </section>
             <section class="card ledger">
-              <h3>Why this route</h3>
+              <h3>Decision evidence</h3>
               <div id="why" class="why-card">Waiting for backend response.</div>
               <div id="evidence" class="kv"></div>
               <div id="reason-pills" class="pill-row"></div>
@@ -926,7 +926,12 @@ DEMO_UI_HTML = r'''<!doctype html>
       const route = response?.route;
       const reasons = response?.reason_codes || [];
       if (route === 'ANSWER') return 'The backend found a supported request over matched synthetic records for this session.';
-      if (route === 'CLARIFY') return 'The backend found more than one matched synthetic record and refused to guess.';
+      if (route === 'CLARIFY') {
+        if (response?.decision_evidence?.reference_status === 'ambiguous') {
+          return 'The backend found more than one matched synthetic record and refused to guess.';
+        }
+        return 'The backend could not establish one safe verified reference and asks for clarification instead of guessing.';
+      }
       if (route === 'ESCALATE') return 'The customer reported unauthorized activity; the demo routes to human review. Not fraud detection.';
       if (route === 'ABSTAIN') return 'The request is outside the supported or safe demo boundary, so the system abstains.';
       if (route === 'HANDOFF') return 'The separate handoff endpoint created support-ticket evidence with persisted/verified flags.';
@@ -937,7 +942,10 @@ DEMO_UI_HTML = r'''<!doctype html>
     function renderChecks(response) {
       const route = response?.route;
       const reasons = response?.reason_codes || [];
-      const firedIndex = checks.findIndex(([code]) => reasons.includes(code));
+      const controllingCheck = Number(response?.decision_evidence?.controlling_check || 0);
+      const firedIndex = controllingCheck > 0
+        ? controllingCheck - 1
+        : checks.findIndex(([code]) => reasons.includes(code));
 
       els.checks.innerHTML = checks.map(([code, label], index) => {
         let stateName = 'waiting';
@@ -989,7 +997,11 @@ DEMO_UI_HTML = r'''<!doctype html>
       const route = response?.route;
       const intent = response?.intent && response.intent !== 'unknown' ? response.intent : null;
       const reasons = response?.reason_codes || [];
-      const firedIndex = checks.findIndex(([code]) => reasons.includes(code));
+      const evidence = response?.decision_evidence;
+      const controllingCheck = Number(evidence?.controlling_check || 0);
+      const firedIndex = controllingCheck > 0
+        ? controllingCheck - 1
+        : checks.findIndex(([code]) => reasons.includes(code));
 
       if (!response) {
         els.lineInterpreter.innerHTML = '<strong>Interpreter:</strong> awaiting message';
@@ -1011,7 +1023,8 @@ DEMO_UI_HTML = r'''<!doctype html>
       if (route === 'ANSWER') {
         els.lineDecision.innerHTML = '<strong>Checks:</strong> 1–8 CLEAR';
       } else if (firedIndex >= 0) {
-        els.lineDecision.innerHTML = `<strong>First fired:</strong> check ${firedIndex + 1}<br><strong>Reason:</strong> ${escapeHtml(humanizeCode(reasons[firedIndex] || reasons[0]))}`;
+        const controllingReason = evidence?.controlling_reason || reasons[firedIndex] || reasons[0];
+        els.lineDecision.innerHTML = `<strong>First fired:</strong> check ${firedIndex + 1}<br><strong>Reason:</strong> ${escapeHtml(humanizeCode(controllingReason))}`;
       } else {
         els.lineDecision.innerHTML = '<strong>Checks:</strong> route returned without a mapped demo check';
       }
@@ -1047,13 +1060,26 @@ DEMO_UI_HTML = r'''<!doctype html>
       renderLineSummary(response);
 
       const kv = [];
+      const evidence = response?.decision_evidence;
       kv.push(['Route', route]);
-      if (response?.intent && response.intent !== 'unknown') kv.push(['Intent', response.intent]);
+      if (response?.intent && response.intent !== 'unknown') kv.push(['Intent', humanizeCode(response.intent)]);
+      if (evidence) {
+        kv.push(['Language', String(evidence.language || '').toUpperCase()]);
+        kv.push(['Interpretation', humanizeCode(evidence.interpretation_status)]);
+        kv.push(['Reference', humanizeCode(evidence.reference_status)]);
+        const control = evidence.controlling_check
+          ? `Check ${evidence.controlling_check} · ${humanizeCode(evidence.controlling_reason)}`
+          : (route === 'ANSWER' ? 'All checks clear' : humanizeCode(evidence.controlling_reason || 'not mapped'));
+        kv.push(['Control', control]);
+        kv.push(['Action', humanizeCode(evidence.action)]);
+        kv.push(['Execution', humanizeCode(evidence.execution_status)]);
+        kv.push(['Verification', (evidence.verification_codes || []).map(humanizeCode).join(' · ') || 'None']);
+      }
       if (response?.synthetic_data !== undefined) kv.push(['Synthetic', String(response.synthetic_data)]);
       if (response?.escalation_ticket_id) kv.push(['Ticket', response.escalation_ticket_id]);
       if (response?.ticket_id) kv.push(['Ticket', response.ticket_id]);
-      if (response?.persisted !== undefined) kv.push(['Persisted', String(response.persisted)]);
-      if (response?.verified !== undefined) kv.push(['Read-back verified', String(response.verified)]);
+      if (!evidence && response?.persisted !== undefined) kv.push(['Persisted', String(response.persisted)]);
+      if (!evidence && response?.verified !== undefined) kv.push(['Read-back verified', String(response.verified)]);
       els.evidence.innerHTML = kv.map(([k, v]) => `<div><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join('');
 
       const reasons = response?.reason_codes || [];

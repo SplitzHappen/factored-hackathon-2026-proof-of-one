@@ -11,18 +11,24 @@ from app.schemas import (
     AuthenticatedSession,
     ConversationState,
     CustomerTurnResponse,
+    DecisionAction,
+    DecisionEvidence,
     EscalationRecord,
     EscalationRequest,
+    ExecutionStatus,
     InterpretationStatus,
     PolicyInput,
     PolicyIntent,
     PolicyReason,
+    PolicyResult,
     ProductRecord,
     RouteDecision,
     SupportedLanguage,
     TransactionQuery,
     TransactionRecord,
     TransactionReferenceStatus,
+    VerificationCode,
+    VerifiedInterpretation,
 )
 
 
@@ -133,9 +139,9 @@ class CustomerResolutionService:
             candidate.transaction_id for candidate in clarification_candidates
         ]
 
-        ticket_id = None
+        escalation_record: EscalationRecord | None = None
         if policy.route is RouteDecision.ESCALATE:
-            escalation = self.store.create_escalation_ticket(
+            escalation_record = self.store.create_escalation_ticket(
                 session,
                 EscalationRequest(
                     session_id=session.session_id,
@@ -147,7 +153,6 @@ class CustomerResolutionService:
                     ),
                 ),
             )
-            ticket_id = escalation.ticket_id
 
         self.store.save_conversation_state(
             session,
@@ -181,12 +186,112 @@ class CustomerResolutionService:
             products=products,
             transactions=transactions,
             clarification_transaction_ids=clarification_ids,
-            escalation_ticket_id=ticket_id,
+            escalation_ticket_id=(
+                escalation_record.ticket_id
+                if escalation_record is not None
+                else None
+            ),
             handoff_available=(
                 policy.route is RouteDecision.ABSTAIN
                 or missing_or_unowned
             ),
+            decision_evidence=self._decision_evidence(
+                session=session,
+                interpretation=interpretation,
+                policy=policy,
+                escalation_record=escalation_record,
+            ),
             synthetic_data=self.synthetic_data,
+        )
+
+    @staticmethod
+    def _controlling_check(reason: PolicyReason | None) -> int | None:
+        if reason is None or reason is PolicyReason.SUPPORTED_VERIFIED:
+            return None
+        return {
+            PolicyReason.UNAUTHORIZED_ACTIVITY_REPORTED: 1,
+            PolicyReason.POSSIBLE_UNAUTHORIZED_ACTIVITY: 2,
+            PolicyReason.INTERPRETATION_UNAVAILABLE: 3,
+            PolicyReason.OWNERSHIP_UNVERIFIED: 4,
+            PolicyReason.TRUSTED_RECORD_MISSING: 4,
+            PolicyReason.TRUSTED_DATA_CONFLICT: 4,
+            PolicyReason.EXCLUDED_RELATIONSHIP_REQUIRED: 4,
+            PolicyReason.UNSUPPORTED_CAUSAL_EXPLANATION: 5,
+            PolicyReason.PROHIBITED_BANKING_ACTION: 6,
+            PolicyReason.UNSUPPORTED_INTENT: 7,
+            PolicyReason.AMBIGUOUS_TRANSACTION_MATCH: 8,
+        }.get(reason)
+
+    @classmethod
+    def _decision_evidence(
+        cls,
+        *,
+        session: AuthenticatedSession,
+        interpretation: VerifiedInterpretation,
+        policy: PolicyResult,
+        escalation_record: EscalationRecord | None,
+    ) -> DecisionEvidence:
+        controlling_reason = policy.reason_codes[0] if policy.reason_codes else None
+        verification_codes: list[VerificationCode] = []
+
+        if policy.route is RouteDecision.ANSWER:
+            action = DecisionAction.READ_VERIFIED_BANK_RECORDS
+            execution_status = ExecutionStatus.COMPLETED
+            verification_codes.extend(
+                [
+                    VerificationCode.CUSTOMER_SCOPE_ENFORCED,
+                    VerificationCode.RECORDS_VERIFIED,
+                ]
+            )
+        elif policy.route is RouteDecision.ESCALATE:
+            action = DecisionAction.CREATE_ESCALATION_TICKET
+            execution_status = ExecutionStatus.COMPLETED
+            if escalation_record is None:
+                raise RuntimeError(
+                    "ESCALATE cannot return without a verified escalation record"
+                )
+            if escalation_record.persisted:
+                verification_codes.append(
+                    VerificationCode.ESCALATION_PERSISTED
+                )
+            if escalation_record.verified:
+                verification_codes.append(
+                    VerificationCode.ESCALATION_READBACK_VERIFIED
+                )
+        else:
+            action = DecisionAction.NONE
+            execution_status = ExecutionStatus.NOT_INVOKED
+            verification_codes.append(VerificationCode.NO_BANKING_ACTION)
+            if (
+                policy.route is RouteDecision.CLARIFY
+                and interpretation.transaction_reference_status
+                is TransactionReferenceStatus.AMBIGUOUS
+            ):
+                verification_codes.append(
+                    VerificationCode.AMBIGUITY_PRESERVED
+                )
+            if (
+                interpretation.transaction_reference_status
+                is TransactionReferenceStatus.NOT_FOUND_OR_NOT_OWNED
+            ):
+                verification_codes.append(
+                    VerificationCode.REFERENCE_WITHHELD
+                )
+
+        if interpretation.status is InterpretationStatus.SAFE_FALLBACK:
+            verification_codes.append(
+                VerificationCode.SAFE_FALLBACK_PRESERVED
+            )
+
+        return DecisionEvidence(
+            language=session.language,
+            interpretation_status=interpretation.status,
+            reference_status=interpretation.transaction_reference_status,
+            controlling_check=cls._controlling_check(controlling_reason),
+            controlling_reason=controlling_reason,
+            action=action,
+            execution_status=execution_status,
+            verification_codes=verification_codes,
         )
 
     def _answer_transactions(
