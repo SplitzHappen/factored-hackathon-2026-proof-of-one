@@ -38,6 +38,7 @@ class DeterministicDemoInterpretationProvider(StructuredInterpretationProvider):
         response_schema: dict[str, object],
     ) -> str:
         del system_prompt, response_schema
+        detected_language = self._detected_language(request.message, request.language)
         message = _normalize(request.message)
         raw_id = _TRANSACTION_ID.search(request.message)
         transaction_id = raw_id.group(0).upper() if raw_id else None
@@ -46,7 +47,7 @@ class DeterministicDemoInterpretationProvider(StructuredInterpretationProvider):
 
         intent = self._intent(message, transaction_id is not None)
         amount = (
-            self._explicit_amount(request.message, request.language)
+            self._explicit_amount(request.message, detected_language)
             if transaction_id is None
             and intent in {
                 PolicyIntent.TRANSACTION_LOOKUP,
@@ -57,6 +58,7 @@ class DeterministicDemoInterpretationProvider(StructuredInterpretationProvider):
 
         return json.dumps(
             {
+                "language": detected_language.value,
                 "intent": intent.value,
                 "unauthorized_activity_asserted": unauthorized,
                 "transaction_id": transaction_id,
@@ -69,6 +71,53 @@ class DeterministicDemoInterpretationProvider(StructuredInterpretationProvider):
             ensure_ascii=False,
             sort_keys=True,
         )
+
+    @staticmethod
+    def _detected_language(
+        message: str,
+        fallback: SupportedLanguage,
+    ) -> SupportedLanguage:
+        normalized = _normalize(message)
+        pt_cues = (
+            "qual e",
+            "transacao",
+            "transacoes",
+            "nao ",
+            "voce",
+            "mostre",
+            "pagamento",
+            "pagamentos",
+            "lancamento",
+            "lancamentos",
+            "atividade",
+            "minha conta",
+            "meus produtos",
+            "ate ",
+            "ontem",
+        )
+        es_cues = (
+            "cual es",
+            "transaccion",
+            "transacciones",
+            " no ",
+            "muestrame",
+            "pago",
+            "pagos",
+            "movimiento",
+            "movimientos",
+            "actividad",
+            "mi cuenta",
+            "mis productos",
+            "hasta ",
+            "ayer",
+        )
+        pt_score = sum(1 for cue in pt_cues if cue in normalized)
+        es_score = sum(1 for cue in es_cues if cue in normalized)
+        if pt_score > es_score:
+            return SupportedLanguage.PT
+        if es_score > pt_score:
+            return SupportedLanguage.ES
+        return fallback
 
     @staticmethod
     def _explicit_amount(
