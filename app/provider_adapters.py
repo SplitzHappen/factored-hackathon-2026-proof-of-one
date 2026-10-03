@@ -83,21 +83,21 @@ CANDIDATES: dict[str, ProviderCandidate] = {
             output_per_million_max=0.50,
         ),
     ),
-    "qwen3.7-flash": ProviderCandidate(
-        candidate_id="qwen3.7-flash",
+    "qwen3.8-flash": ProviderCandidate(
+        candidate_id="qwen3.8-flash",
         provider="Alibaba Cloud Model Studio",
-        model="qwen3.7-flash",
+        model="qwen3.8-flash",
         strict_json_schema=True,
         api_style="openai_chat",
         api_key_env="DASHSCOPE_API_KEY",
         base_url_env="DASHSCOPE_BASE_URL",
         default_base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         pricing=ProviderPricing(
-            currency="USD",
-            input_per_million_min=0.030,
-            input_per_million_max=0.030,
-            output_per_million_min=0.130,
-            output_per_million_max=0.130,
+            currency="CNY",
+            input_per_million_min=1.094,
+            input_per_million_max=1.094,
+            output_per_million_min=3.427,
+            output_per_million_max=3.427,
         ),
     ),
     "deepseek-v4.1-flash": ProviderCandidate(
@@ -398,7 +398,7 @@ class CandidateProviderAdapter:
                     "max_tokens": 800,
                     **(
                         {"enable_thinking": False}
-                        if self.candidate.candidate_id == "qwen3.7-flash"
+                        if self.candidate.candidate_id == "qwen3.8-flash"
                         else {"thinking": {"type": "disabled"}}
                         if self.candidate.candidate_id == "deepseek-v4.1-flash"
                         else {}
