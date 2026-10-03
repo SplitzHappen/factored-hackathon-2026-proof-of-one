@@ -21,6 +21,11 @@ from app.http_safety import RequestBodyLimitMiddleware
 from app.runtime import RateLimitExceededError, TicketLimitExceededError
 from app.schemas import (
     AuthenticatedSession,
+    ChallengeCoverage,
+    ChallengeCustomerSummary,
+    ChallengeMessageSummary,
+    ChallengeSessionCreateRequest,
+    ChallengeSessionResponse,
     CustomerTurnRequest,
     CustomerTurnResponse,
     DependencyUnavailableResponse,
@@ -234,6 +239,29 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             f"proof-of-one-demo-session-create|{host}".encode("utf-8")
         ).hexdigest()
 
+    def _challenge_timezone(country: str | None) -> str:
+        key = (country or "").strip().casefold()
+        return {
+            "brazil": "America/Sao_Paulo",
+            "brasil": "America/Sao_Paulo",
+            "colombia": "America/Bogota",
+            "argentina": "America/Argentina/Buenos_Aires",
+            "chile": "America/Santiago",
+            "peru": "America/Lima",
+            "mexico": "America/Mexico_City",
+            "méxico": "America/Mexico_City",
+            "uruguay": "America/Montevideo",
+            "paraguay": "America/Asuncion",
+            "ecuador": "America/Guayaquil",
+            "bolivia": "America/La_Paz",
+            "venezuela": "America/Caracas",
+            "panama": "America/Panama",
+            "panamá": "America/Panama",
+            "costa rica": "America/Costa_Rica",
+            "dominican republic": "America/Santo_Domingo",
+            "república dominicana": "America/Santo_Domingo",
+        }.get(key, "UTC")
+
     def customer_session(
         x_demo_session: str | None = Header(default=None, alias="X-Demo-Session"),
     ) -> AuthenticatedSession:
@@ -420,6 +448,146 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             synthetic_data=True,
         )
 
+    @app.get(
+        "/api/challenge/coverage",
+        response_model=ChallengeCoverage,
+    )
+    def challenge_coverage() -> ChallengeCoverage:
+        runtime_context = runtime()
+        if (
+            runtime_context.data_mode != "curated"
+            or not runtime_context.bank.has_full_challenge_data()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Full challenge data is not available",
+            )
+        return ChallengeCoverage(
+            full_challenge_data=True,
+            table_counts=runtime_context.bank.challenge_table_counts(),
+        )
+
+    @app.get(
+        "/api/challenge/customers",
+        response_model=list[ChallengeCustomerSummary],
+    )
+    def search_challenge_customers(
+        query: str = "",
+        limit: int = 20,
+    ) -> list[ChallengeCustomerSummary]:
+        runtime_context = runtime()
+        if (
+            runtime_context.data_mode != "curated"
+            or not runtime_context.bank.has_full_challenge_data()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Full challenge data is not available",
+            )
+        try:
+            return runtime_context.bank.search_challenge_customers(
+                query,
+                limit=limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
+    @app.get(
+        "/api/challenge/customers/{customer_id}/messages",
+        response_model=list[ChallengeMessageSummary],
+    )
+    def list_challenge_customer_messages(
+        customer_id: str,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> list[ChallengeMessageSummary]:
+        runtime_context = runtime()
+        if (
+            runtime_context.data_mode != "curated"
+            or not runtime_context.bank.has_full_challenge_data()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Full challenge data is not available",
+            )
+        customer = runtime_context.bank.get_challenge_customer(customer_id)
+        if customer is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Unknown challenge customer",
+            )
+        try:
+            return runtime_context.bank.list_challenge_customer_messages(
+                customer_id,
+                limit=limit,
+                offset=offset,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
+    @app.post(
+        "/api/challenge/sessions",
+        response_model=ChallengeSessionResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_challenge_session(
+        request: ChallengeSessionCreateRequest,
+        http_request: Request,
+    ) -> ChallengeSessionResponse:
+        runtime_context = runtime()
+        if (
+            runtime_context.data_mode != "curated"
+            or not runtime_context.bank.has_full_challenge_data()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Full challenge data is not available",
+            )
+
+        runtime_context.store.cleanup_expired_state()
+        customer = runtime_context.bank.get_challenge_customer(request.customer_id)
+        if customer is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Unknown challenge customer",
+            )
+
+        try:
+            runtime_context.store.enforce_session_creation_rate(
+                _peer_rate_subject(http_request)
+            )
+        except RateLimitExceededError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Challenge session creation limit reached",
+            ) from exc
+
+        session = AuthenticatedSession(
+            session_id=uuid4(),
+            tenant_id=f"challenge-{uuid4().hex}",
+            role=SessionRole.CUSTOMER,
+            demo_persona_id=f"challenge:{customer.customer_id}",
+            customer_id=customer.customer_id,
+            language=customer.default_language,
+        )
+        runtime_context.store.save_authenticated_session(session)
+        return ChallengeSessionResponse(
+            session_id=session.session_id,
+            tenant_id=session.tenant_id,
+            role=session.role,
+            customer_id=customer.customer_id,
+            display_name=f"Challenge customer {customer.customer_id}",
+            language=session.language,
+            transcript_count=customer.transcript_count,
+            synthetic_data=False,
+        )
+
     @app.post(
         "/api/customer/handoff",
         response_model=EscalationRecord,
@@ -482,15 +650,31 @@ def create_app(context: AppContext | None = None) -> FastAPI:
         x_demo_session: str | None = Header(default=None, alias="X-Demo-Session"),
     ) -> CustomerTurnResponse:
         session = customer_session(x_demo_session)
-        persona = runtime().personas.get(session.demo_persona_id)
-        if persona is None:
+        runtime_context = runtime()
+        persona = runtime_context.personas.get(session.demo_persona_id)
+        if persona is not None:
+            timezone_name = persona.timezone_name
+        elif (
+            runtime_context.data_mode == "curated"
+            and session.demo_persona_id == f"challenge:{session.customer_id}"
+            and runtime_context.bank.has_full_challenge_data()
+        ):
+            customer = runtime_context.bank.get_challenge_customer(
+                session.customer_id
+            )
+            if customer is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Challenge customer is not permitted",
+                )
+            timezone_name = _challenge_timezone(customer.country)
+        else:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Session persona is not permitted",
+                detail="Session customer is not permitted",
             )
-        reference_date = datetime.now(
-            ZoneInfo(persona.timezone_name)
-        ).date()
+
+        reference_date = datetime.now(ZoneInfo(timezone_name)).date()
         try:
             return runtime().customer_service.resolve_turn(
                 session=session,

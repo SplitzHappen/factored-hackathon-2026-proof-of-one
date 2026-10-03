@@ -8,10 +8,34 @@ from typing import Iterator
 import duckdb
 
 from app.behavioral_evidence import BehavioralEvidenceInput
-from app.schemas import CustomerSummary, ProductRecord, TransactionQuery, TransactionRecord
+from app.schemas import (
+    ChallengeCustomerSummary,
+    ChallengeMessageSummary,
+    CustomerSummary,
+    ProductRecord,
+    SupportedLanguage,
+    TransactionQuery,
+    TransactionRecord,
+)
 
 
 EXPECTED_CURATED_SCHEMA_VERSION = 1
+
+FULL_CHALLENGE_TABLES: dict[str, str] = {
+    "customers": "challenge_customers",
+    "products": "challenge_products",
+    "transactions": "challenge_transactions",
+    "call_center_interactions": "call_center_interactions",
+    "call_transcripts": "call_transcripts",
+    "campaign_sends": "campaign_sends",
+    "complaints": "complaints",
+    "digital_events": "digital_events",
+    "satisfaction_surveys": "satisfaction_surveys",
+    "branches": "branches",
+    "daily_exchange_rates": "daily_exchange_rates",
+    "marketing_campaigns": "marketing_campaigns",
+    "service_agents": "service_agents",
+}
 
 
 class IncompatibleBankDatabaseError(RuntimeError):
@@ -92,6 +116,221 @@ class BankRepository:
                 "Banking database is missing required tables: "
                 + ", ".join(sorted(missing))
             )
+
+    def has_full_challenge_data(self) -> bool:
+        """Return whether the full challenge source layer is present."""
+
+        with self._connect() as con:
+            rows = con.execute(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'main'
+                """
+            ).fetchall()
+        available = {str(row[0]) for row in rows}
+        return set(FULL_CHALLENGE_TABLES.values()).issubset(available)
+
+    def challenge_table_counts(self) -> dict[str, int]:
+        """Return non-sensitive row counts for the full challenge source layer."""
+
+        if not self.has_full_challenge_data():
+            raise IncompatibleBankDatabaseError(
+                "Full challenge data tables are not available in this artifact."
+            )
+
+        counts: dict[str, int] = {}
+        with self._connect() as con:
+            for source_name, table_name in FULL_CHALLENGE_TABLES.items():
+                row = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+                assert row is not None
+                counts[source_name] = int(row[0])
+        return counts
+
+    @staticmethod
+    def _challenge_language(
+        country: str | None,
+        detected_language: str | None,
+    ) -> SupportedLanguage:
+        label = (detected_language or "").strip().casefold()
+        if label.startswith("pt") or "portugu" in label:
+            return SupportedLanguage.PT
+        if label.startswith("es") or "span" in label or "espa" in label:
+            return SupportedLanguage.ES
+        if (country or "").strip().casefold() in {"brazil", "brasil"}:
+            return SupportedLanguage.PT
+        return SupportedLanguage.ES
+
+    def get_challenge_customer(
+        self,
+        customer_id: str,
+    ) -> ChallengeCustomerSummary | None:
+        """Resolve one challenge customer without exposing direct identifiers/PII."""
+
+        if not self.has_full_challenge_data():
+            raise IncompatibleBankDatabaseError(
+                "Full challenge data tables are not available in this artifact."
+            )
+
+        with self._connect() as con:
+            row = con.execute(
+                """
+                SELECT
+                    c.customer_id,
+                    c.country,
+                    c.detected_accent,
+                    c.customer_status,
+                    (
+                        SELECT ct.detected_language
+                        FROM call_transcripts ct
+                        WHERE ct.customer_id = c.customer_id
+                          AND NULLIF(TRIM(ct.detected_language), '') IS NOT NULL
+                        ORDER BY ct.process_date DESC, ct.transcript_id DESC
+                        LIMIT 1
+                    ) AS detected_language,
+                    (
+                        SELECT COUNT(*)
+                        FROM call_transcripts ct
+                        WHERE ct.customer_id = c.customer_id
+                          AND NULLIF(TRIM(ct.customer_text), '') IS NOT NULL
+                    ) AS transcript_count
+                FROM customers c
+                WHERE c.customer_id = ?
+                LIMIT 1
+                """,
+                [customer_id],
+            ).fetchone()
+
+        if row is None:
+            return None
+        return ChallengeCustomerSummary(
+            customer_id=str(row[0]),
+            country=None if row[1] is None else str(row[1]),
+            detected_accent=None if row[2] is None else str(row[2]),
+            customer_status=None if row[3] is None else str(row[3]),
+            default_language=self._challenge_language(
+                None if row[1] is None else str(row[1]),
+                None if row[4] is None else str(row[4]),
+            ),
+            transcript_count=int(row[5]),
+        )
+
+    def search_challenge_customers(
+        self,
+        query: str,
+        *,
+        limit: int = 20,
+    ) -> list[ChallengeCustomerSummary]:
+        """Search challenge customer IDs only; no names, contacts, or documents."""
+
+        if not 1 <= limit <= 50:
+            raise ValueError("limit must be between 1 and 50")
+        if not self.has_full_challenge_data():
+            raise IncompatibleBankDatabaseError(
+                "Full challenge data tables are not available in this artifact."
+            )
+
+        normalized = query.strip()
+        params: list[object] = []
+        predicate = ""
+        if normalized:
+            predicate = "WHERE LOWER(c.customer_id) LIKE LOWER(?)"
+            params.append(normalized + "%")
+        params.append(limit)
+
+        with self._connect() as con:
+            rows = con.execute(
+                f"""
+                SELECT
+                    c.customer_id,
+                    c.country,
+                    c.detected_accent,
+                    c.customer_status,
+                    (
+                        SELECT ct.detected_language
+                        FROM call_transcripts ct
+                        WHERE ct.customer_id = c.customer_id
+                          AND NULLIF(TRIM(ct.detected_language), '') IS NOT NULL
+                        ORDER BY ct.process_date DESC, ct.transcript_id DESC
+                        LIMIT 1
+                    ) AS detected_language,
+                    (
+                        SELECT COUNT(*)
+                        FROM call_transcripts ct
+                        WHERE ct.customer_id = c.customer_id
+                          AND NULLIF(TRIM(ct.customer_text), '') IS NOT NULL
+                    ) AS transcript_count
+                FROM customers c
+                {predicate}
+                ORDER BY transcript_count DESC, c.customer_id
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+
+        return [
+            ChallengeCustomerSummary(
+                customer_id=str(row[0]),
+                country=None if row[1] is None else str(row[1]),
+                detected_accent=None if row[2] is None else str(row[2]),
+                customer_status=None if row[3] is None else str(row[3]),
+                default_language=self._challenge_language(
+                    None if row[1] is None else str(row[1]),
+                    None if row[4] is None else str(row[4]),
+                ),
+                transcript_count=int(row[5]),
+            )
+            for row in rows
+        ]
+
+    def list_challenge_customer_messages(
+        self,
+        customer_id: str,
+        *,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> list[ChallengeMessageSummary]:
+        """Page through every provided customer message for one challenge customer."""
+
+        if not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        if offset < 0:
+            raise ValueError("offset must be non-negative")
+        if not self.has_full_challenge_data():
+            raise IncompatibleBankDatabaseError(
+                "Full challenge data tables are not available in this artifact."
+            )
+
+        with self._connect() as con:
+            rows = con.execute(
+                """
+                SELECT
+                    transcript_id,
+                    interaction_id,
+                    process_date,
+                    customer_text,
+                    detected_language,
+                    main_topics
+                FROM call_transcripts
+                WHERE customer_id = ?
+                  AND NULLIF(TRIM(customer_text), '') IS NOT NULL
+                ORDER BY process_date DESC, transcript_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                [customer_id, limit, offset],
+            ).fetchall()
+
+        return [
+            ChallengeMessageSummary(
+                transcript_id=str(row[0]),
+                interaction_id=None if row[1] is None else str(row[1]),
+                process_date=None if row[2] is None else str(row[2]),
+                customer_text=str(row[3]),
+                detected_language=None if row[4] is None else str(row[4]),
+                main_topics=None if row[5] is None else str(row[5]),
+            )
+            for row in rows
+        ]
 
     def get_customer_summary(
         self,
