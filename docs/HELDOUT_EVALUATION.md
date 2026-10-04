@@ -188,3 +188,106 @@ conversation data. See `docs/REALISTIC_LANGUAGE_SLICE.md`.
 
 No provider-selection, prompt-tuning, or debugging result may use the frozen 200-case
 held-out suite.
+
+## Pre-held-out execution enablement
+
+The final candidate does not expose held-out cases or answer keys through Git, the public runtime,
+or provider-facing prompts. Evaluation execution is intentionally split into two phases:
+
+1. **Execution phase**
+   - verify the frozen manifest identity;
+   - verify and load `heldout_cases.jsonl` only;
+   - execute the frozen systems;
+   - persist only structured `CaseExecution` records under
+     `evaluation/results/private/`.
+   - do **not** open `heldout_answer_keys.jsonl`.
+
+2. **Scoring phase**
+   - begin only after all authorized executions are complete;
+   - verify the case SHA, answer-key SHA, and canonical combined SHA;
+   - load answer keys;
+   - score the already-recorded executions with the existing frozen scorer.
+
+The execution helper in `evaluation/execution.py` hard-binds the canonical v1 suite identity:
+
+- cases SHA-256:
+  `f53a51c160ee93219f9accfb2e0739517a5e0c5dd8094e40ff664072f2c37154`;
+- answer-key SHA-256:
+  `545328e864acc6ad8e0250770426a7c11139bb0d411b8799c1d58e1a5160780c`;
+- combined SHA-256:
+  `4d6b920db63fbedf4af8ec08631ea5848abf6feb9013ef83f60c8fbe636ad3f7`.
+
+The execution-side loader deliberately does not require the answer-key file to exist, which makes
+the no-answer-key-during-execution boundary testable.
+
+### Execution-system boundary
+
+The runner is system-agnostic and writes the existing `CaseExecution` /
+`StepObservation` contracts. It can be instantiated for:
+
+- `deterministic_baseline`;
+- `simple_model_baseline`;
+- `proposed`.
+
+The deterministic baseline may use the existing deterministic ES/PT interpretation provider over
+the same trusted banking and policy boundary.
+
+Model-backed systems must supply an explicit frozen provider, model, model-config, prompt, and
+deployment identity. The runner does not choose or silently default those identities.
+
+This is important for the **simple-model baseline**: R2C/R2D require it, but the exact simple-model
+prompt/provider behavior was never fully specified in the frozen public implementation. This
+enablement layer therefore provides the execution slot and identity guard without inventing a
+post-freeze comparator prompt. That comparator identity must be explicitly frozen before
+consequential held-out execution.
+
+### Observable evidence adapter
+
+`observe_customer_turn()` converts only observable server output plus trusted owner-scoped bank
+read-back into `StepObservation`. It does not use answer keys.
+
+The adapter derives:
+
+- route;
+- returned amount/currency/status facts;
+- ownership enforcement;
+- trusted-record agreement / critical-fact errors;
+- permitted server action code;
+- verified escalation persistence/read-back;
+- bounded claim/safety codes such as cross-customer disclosure, invented transaction,
+  unsupported decline-cause explanation, or definitive fraud adjudication.
+
+Semantic correctness remains the frozen scorer's responsibility after execution.
+
+### Private artifact handling
+
+The canonical local files remain under:
+
+`evaluation/private/frozen/factored-heldout-v1/`
+
+and must remain git-ignored.
+
+Execution output must remain under:
+
+`evaluation/results/private/`
+
+and the helper refuses to write outside that git-ignored subtree.
+
+No tool should copy held-out prompts, locators, answer keys, or raw banking values into Git,
+Continuity, logs, PR bodies, provider prompts beyond the individual customer utterance being
+executed, or judge-facing artifacts.
+
+### Remaining gate before first held-out execution
+
+Before consequential held-out use:
+
+1. freeze the exact deterministic-baseline identity;
+2. freeze the exact simple-model-baseline provider/model/prompt/config identity;
+3. bind the proposed system to the already-frozen final candidate identity;
+4. independently confirm the execution/observation/scoring boundary;
+5. verify access to the canonical local frozen bytes without displaying them;
+6. obtain a renewed one-time owner authorization.
+
+Synthetic/development validation of the runner is permitted before that gate. Held-out execution
+is not.
+
