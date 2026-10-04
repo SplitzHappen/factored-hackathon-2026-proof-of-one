@@ -177,6 +177,14 @@ def test_full_challenge_coverage_and_customer_message_access(tmp_path: Path) -> 
     assert body["table_counts"]["customers"] == 1
     assert body["table_counts"]["call_transcripts"] == 2
 
+    blank = client.get("/api/challenge/customers", params={"query": ""})
+    assert blank.status_code == 200
+    assert blank.json() == []
+
+    broad_language = client.get("/api/challenge/customers", params={"query": "pt"})
+    assert broad_language.status_code == 200
+    assert broad_language.json() == []
+
     search = client.get("/api/challenge/customers", params={"query": "C00"})
     assert search.status_code == 200
     customers = search.json()
@@ -190,6 +198,13 @@ def test_full_challenge_coverage_and_customer_message_access(tmp_path: Path) -> 
             "transcript_count": 2,
         }
     ]
+
+    country_search = client.get(
+        "/api/challenge/customers",
+        params={"query": "Brazil pt"},
+    )
+    assert country_search.status_code == 200
+    assert [row["customer_id"] for row in country_search.json()] == ["C001"]
 
     messages = client.get("/api/challenge/customers/C001/messages")
     assert messages.status_code == 200
@@ -248,6 +263,10 @@ def test_curated_mode_serves_full_challenge_judge_shell(tmp_path: Path) -> None:
         assert "Deterministic Support Interlock" in html
         assert "Customer-scoped records · LLM interpretation" in html
         assert "Challenge data" in html
+        assert "Customer lookup" in html
+        assert "No customers shown" in html
+        assert "Matching customer" not in html
+        assert "Leave blank" not in html
         assert "/api/challenge/customers" in html
         assert "/api/challenge/sessions" in html
         assert "/api/customer/turn" in html
