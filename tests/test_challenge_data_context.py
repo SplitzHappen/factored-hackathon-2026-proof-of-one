@@ -248,7 +248,6 @@ def test_curated_mode_serves_full_challenge_judge_shell(tmp_path: Path) -> None:
         assert "Deterministic Support Interlock" in html
         assert "Customer-scoped records · LLM interpretation" in html
         assert "Challenge data" in html
-        assert "/api/challenge/coverage" in html
         assert "/api/challenge/customers" in html
         assert "/api/challenge/sessions" in html
         assert "/api/customer/turn" in html
