@@ -139,6 +139,69 @@ def test_case_loader_rejects_case_hash_drift(tmp_path: Path) -> None:
         load_cases_for_execution(frozen_dir, identity=identity)
 
 
+
+def test_source_bound_identity_requires_exact_database_and_manifest(
+    tmp_path: Path,
+) -> None:
+    frozen_dir = tmp_path / "factored-heldout-test-v1"
+    frozen_dir.mkdir()
+    cases = [_case()]
+    case_payload = _case_bytes(cases)
+    database_path = tmp_path / "bank.duckdb"
+    manifest_path = tmp_path / "build_manifest.json"
+    database_path.write_bytes(b"synthetic-test-database-bytes")
+    manifest_path.write_bytes(b'{"synthetic":"manifest"}\n')
+
+    identity = FrozenSuiteIdentity(
+        suite_version=frozen_dir.name,
+        case_count=1,
+        cases_sha256=hashlib.sha256(case_payload).hexdigest(),
+        answer_keys_sha256="a" * 64,
+        combined_sha256="b" * 64,
+        curated_database_sha256=hashlib.sha256(
+            database_path.read_bytes()
+        ).hexdigest(),
+        curated_manifest_sha256=hashlib.sha256(
+            manifest_path.read_bytes()
+        ).hexdigest(),
+    )
+    (frozen_dir / "freeze_manifest.json").write_text(
+        json.dumps(
+            {
+                "curated_database_sha256": identity.curated_database_sha256,
+                "curated_manifest_sha256": identity.curated_manifest_sha256,
+                "suite": {
+                    "suite_version": identity.suite_version,
+                    "case_count": identity.case_count,
+                    "cases_sha256": identity.cases_sha256,
+                    "answer_keys_sha256": identity.answer_keys_sha256,
+                    "combined_sha256": identity.combined_sha256,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (frozen_dir / "heldout_cases.jsonl").write_bytes(case_payload)
+
+    assert load_cases_for_execution(
+        frozen_dir,
+        identity=identity,
+        database_path=database_path,
+        curated_manifest_path=manifest_path,
+    ) == cases
+
+    database_path.write_bytes(b"drifted-database-bytes")
+    with pytest.raises(
+        EvaluationExecutionError,
+        match="curated database bytes do not match",
+    ):
+        load_cases_for_execution(
+            frozen_dir,
+            identity=identity,
+            database_path=database_path,
+            curated_manifest_path=manifest_path,
+        )
+
 def test_synthetic_runtime_produces_frozen_case_execution_contract(
     tmp_path: Path,
 ) -> None:
