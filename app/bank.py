@@ -221,7 +221,14 @@ class BankRepository:
         *,
         limit: int = 20,
     ) -> list[ChallengeCustomerSummary]:
-        """Search challenge customer IDs only; no names, contacts, or documents."""
+        """Search challenge customers by a strict non-sensitive whitelist.
+
+        Blank and overly broad queries intentionally return no customers. The
+        whitelisted fields are customer_id, country, detected accent,
+        customer_status, latest transcript language, and derived ES/PT locale.
+        Names, contact details, documents, account values, transaction values,
+        and raw customer messages are never searched here.
+        """
 
         if not 1 <= limit <= 50:
             raise ValueError("limit must be between 1 and 50")
@@ -230,39 +237,97 @@ class BankRepository:
                 "Full challenge data tables are not available in this artifact."
             )
 
-        normalized = query.strip()
+        normalized = " ".join(query.strip().split())
+        if not normalized:
+            return []
+
+        tokens = normalized.split()
+        # A lone two-character language/status fragment such as "es" or "pt"
+        # would enumerate too many customers. Allow short tokens only when they
+        # are paired with at least one specific token such as a customer prefix
+        # or country/status term.
+        if not any(len(token) >= 3 for token in tokens):
+            return []
+
+        clauses: list[str] = []
         params: list[object] = []
-        predicate = ""
-        if normalized:
-            predicate = "WHERE LOWER(c.customer_id) LIKE LOWER(?)"
-            params.append(normalized + "%")
+        for token in tokens:
+            if len(token) < 3 and len(tokens) == 1:
+                return []
+            like = f"%{token}%"
+            clauses.append(
+                "(" 
+                "LOWER(customer_id) LIKE LOWER(?) OR "
+                "LOWER(COALESCE(country, '')) LIKE LOWER(?) OR "
+                "LOWER(COALESCE(detected_accent, '')) LIKE LOWER(?) OR "
+                "LOWER(COALESCE(customer_status, '')) LIKE LOWER(?) OR "
+                "LOWER(COALESCE(detected_language, '')) LIKE LOWER(?) OR "
+                "default_language = LOWER(?)"
+                ")"
+            )
+            params.extend([like, like, like, like, like, token])
         params.append(limit)
 
         with self._connect() as con:
             rows = con.execute(
                 f"""
+                WITH customer_candidates AS (
+                    SELECT
+                        c.customer_id,
+                        c.country,
+                        c.detected_accent,
+                        c.customer_status,
+                        (
+                            SELECT ct.detected_language
+                            FROM call_transcripts ct
+                            WHERE ct.customer_id = c.customer_id
+                              AND NULLIF(TRIM(ct.detected_language), '') IS NOT NULL
+                            ORDER BY ct.process_date DESC, ct.transcript_id DESC
+                            LIMIT 1
+                        ) AS detected_language,
+                        (
+                            SELECT COUNT(*)
+                            FROM call_transcripts ct
+                            WHERE ct.customer_id = c.customer_id
+                              AND NULLIF(TRIM(ct.customer_text), '') IS NOT NULL
+                        ) AS transcript_count,
+                        CASE
+                            WHEN LOWER(COALESCE(
+                                (
+                                    SELECT ct.detected_language
+                                    FROM call_transcripts ct
+                                    WHERE ct.customer_id = c.customer_id
+                                      AND NULLIF(TRIM(ct.detected_language), '') IS NOT NULL
+                                    ORDER BY ct.process_date DESC, ct.transcript_id DESC
+                                    LIMIT 1
+                                ), ''
+                            )) LIKE 'pt%'
+                              OR LOWER(COALESCE(
+                                (
+                                    SELECT ct.detected_language
+                                    FROM call_transcripts ct
+                                    WHERE ct.customer_id = c.customer_id
+                                      AND NULLIF(TRIM(ct.detected_language), '') IS NOT NULL
+                                    ORDER BY ct.process_date DESC, ct.transcript_id DESC
+                                    LIMIT 1
+                                ), ''
+                            )) LIKE '%portugu%'
+                              OR LOWER(COALESCE(c.country, '')) IN ('brazil', 'brasil')
+                            THEN 'pt'
+                            ELSE 'es'
+                        END AS default_language
+                    FROM customers c
+                )
                 SELECT
-                    c.customer_id,
-                    c.country,
-                    c.detected_accent,
-                    c.customer_status,
-                    (
-                        SELECT ct.detected_language
-                        FROM call_transcripts ct
-                        WHERE ct.customer_id = c.customer_id
-                          AND NULLIF(TRIM(ct.detected_language), '') IS NOT NULL
-                        ORDER BY ct.process_date DESC, ct.transcript_id DESC
-                        LIMIT 1
-                    ) AS detected_language,
-                    (
-                        SELECT COUNT(*)
-                        FROM call_transcripts ct
-                        WHERE ct.customer_id = c.customer_id
-                          AND NULLIF(TRIM(ct.customer_text), '') IS NOT NULL
-                    ) AS transcript_count
-                FROM customers c
-                {predicate}
-                ORDER BY transcript_count DESC, c.customer_id
+                    customer_id,
+                    country,
+                    detected_accent,
+                    customer_status,
+                    detected_language,
+                    transcript_count
+                FROM customer_candidates
+                WHERE {' AND '.join(clauses)}
+                ORDER BY transcript_count DESC, customer_id
                 LIMIT ?
                 """,
                 params,
