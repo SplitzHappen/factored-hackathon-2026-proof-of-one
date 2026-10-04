@@ -220,6 +220,18 @@ The execution helper in `evaluation/execution.py` hard-binds the canonical v1 su
 The execution-side loader deliberately does not require the answer-key file to exist, which makes
 the no-answer-key-during-execution boundary testable.
 
+For the canonical held-out identity, the loader also requires explicit paths to the original
+frozen curated banking artifact and curated build manifest, and verifies their SHA-256 identities
+before loading cases:
+
+- curated database SHA-256:
+  `84d3df259923007511ac6b017b7a04c9e31f2b12e2219ec0f8a2d9661b2baad1`;
+- curated build-manifest SHA-256:
+  `bc9b583d75c1140e737dcefdc088ef7fbb98ba916fc2281aae1177c1ac2448b1`.
+
+This prevents a correctly hashed case file from being evaluated against a different banking
+artifact or lineage. The source files themselves remain local/private.
+
 ### Execution-system boundary
 
 The runner is system-agnostic and writes the existing `CaseExecution` /
