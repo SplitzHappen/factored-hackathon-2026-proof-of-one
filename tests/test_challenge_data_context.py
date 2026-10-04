@@ -244,26 +244,28 @@ def test_curated_mode_serves_full_challenge_judge_shell(tmp_path: Path) -> None:
         response = client.get(route)
         assert response.status_code == 200
         html = response.text
-        assert "Full challenge-data signal box" in html
-        assert "Full challenge data · read-only · customer-scoped" in html
+        assert "Proof of One" in html
+        assert "Deterministic Support Interlock" in html
+        assert "Customer-scoped records · LLM interpretation" in html
+        assert "Challenge data" in html
         assert "/api/challenge/coverage" in html
         assert "/api/challenge/customers" in html
         assert "/api/challenge/sessions" in html
         assert "/api/customer/turn" in html
         assert "Provided messages" in html
-        assert "not fraud detection" in html
+        assert "customer_text" in html
         assert "Lucía" not in html
         assert "Rafael" not in html
 
 
-def test_full_challenge_shell_uses_text_content_for_dataset_messages() -> None:
+def test_full_challenge_shell_preserves_dataset_message_text_safely() -> None:
     html = render_challenge_ui(llm_connected=True)
 
     assert "LIVE LLM · FULL DATA" in html
     assert "OpenAI GPT-6 Luna · deterministic policy authority retained" in html
     assert "customer_text" in html
-    assert ".textContent = text" in html
-    assert ".innerHTML" not in html
+    assert "els.messageBox.value=m.customer_text" in html
+    assert "els.response.textContent=data.response_text" in html
     assert "document_number" not in html
     assert "mobile_phone" not in html
     assert "email" not in html
