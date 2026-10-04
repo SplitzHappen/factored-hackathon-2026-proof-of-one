@@ -28,32 +28,48 @@ The original read-only source audit covered:
 - **0 malformed rows**
 - exactly **1 header schema variant per table**
 
-The observed row total was **24.41% higher** than the sum of the organizer's approximate per-table counts, largely because `digital_events` was substantially larger than documented. Proof of One therefore uses measured, reproducible denominators rather than documentation approximations.
+The observed row total was **24.41% higher** than the sum of the organizer's approximate per-table
+counts, largely because `digital_events` was substantially larger than documented. Proof of One
+therefore uses measured, reproducible denominators rather than documentation approximations.
 
-The judge-facing application does not query the complete organizer dataset directly.
+The current judge-facing Render deployment mounts a deterministic **full challenge-data DuckDB**
+built from the read-only organizer source. The artifact preserves all 13 supplied table families
+and also materializes the minimized canonical banking tables used by bounded customer/product/
+transaction operations.
 
-The current verified curated banking layer contains:
+Core canonical banking tables contain:
 
 - **150,000 customers**
 - **400,000 products**
 - **4,425,008 transactions**
 
-The curated database is produced deterministically from the organizer source, opened read-only at runtime, and physically separated from writable operational state.
+The full challenge source layer additionally preserves the supplied interactions, transcripts,
+campaign sends, complaints, digital events, surveys, branches, exchange rates, campaigns, and
+service-agent tables for judge-facing coverage and bounded customer/message retrieval.
 
-The real curated build is bound to:
+The runtime opens the DuckDB read-only and keeps writable operational state physically separate in
+SQLite.
 
-- curated database SHA-256: `84d3df259923007511ac6b017b7a04c9e31f2b12e2219ec0f8a2d9661b2baad1`
-- curated manifest SHA-256: `bc9b583d75c1140e737dcefdc088ef7fbb98ba916fc2281aae1177c1ac2448b1`
+The currently deployed full challenge artifact is bound to:
+
+- deployed DuckDB SHA-256: `939ccd040ae1bc8015edc6a5c9f9b3ad90f5af7205f4fb90c35826a24b4e9372`
+- deployed manifest SHA-256: `88e1bc9247fdb23e55126179823eb38dc67e8b42504465f289273d755fb81d35`
+
+The earlier minimized curated artifact remains useful analytical/build provenance, but it is not
+the artifact currently mounted by the public full-data deployment.
 
 ### Evidence → decision → consequence
 
-**Evidence:** the application needs only a bounded subset of the supplied relational data for account/payment resolution.
+**Evidence:** the product benefits from showing that it can operate over the complete challenge
+data estate while consequential banking operations still require a narrow trusted schema.
 
-**Decision:** build a minimized, reproducible serving artifact instead of giving the application unrestricted access to the raw data estate.
+**Decision:** preserve the complete supplied table families in a reproducible read-only artifact,
+while materializing canonical customer/product/transaction tables for bounded banking reads rather
+than granting arbitrary raw-data or SQL authority to the model.
 
-**Consequence:** runtime banking reads are limited to approved customer/product/transaction fields and ownership-verified relationships. Raw organizer data remain outside the public repository and are not writable by the application.
-
----
+**Consequence:** judges can inspect full challenge-data coverage and provided customer messages,
+while runtime banking facts still flow through customer-scoped, ownership-checked canonical tables.
+Raw organizer files remain outside Git, and writable operational state remains separate.
 
 ## 2. Data quality, relational integrity, and lineage
 
@@ -214,9 +230,11 @@ Required interpretation:
 
 ## 7. AI interpretation remains subordinate to verified data
 
-The language-model boundary is provider-neutral and currently unfrozen.
+The provider-neutral language-model boundary is currently wired to **OpenAI GPT-6 Luna** for the
+hackathon runtime under interpretation contract `r3c-v3-auto-language`.
 
-The model may interpret Spanish/Portuguese customer language into a strict schema, but it does not receive authority over:
+The model may interpret Spanish/Portuguese customer language into a strict schema, but it does not
+receive authority over:
 
 - authenticated customer identity;
 - transaction ownership;
@@ -225,19 +243,28 @@ The model may interpret Spanish/Portuguese customer language into a strict schem
 - behavioral evidence;
 - escalation persistence.
 
-A model-returned transaction ID must appear in the customer's actual text and must then pass ownership verification. Model-extracted transaction searches use server-controlled result breadth so ambiguity cannot be hidden by returning only one match.
+A model-returned transaction ID must appear in the customer's actual text and must then pass
+ownership verification. Model-extracted transaction searches use server-controlled result breadth
+so ambiguity cannot be hidden by returning only one match. The model also detects ES/PT turn
+language, but deterministic policy remains the route authority.
 
-Provider/model selection will use the separate development pool. The held-out suite remains sealed.
+OpenAI GPT-6 Luna was selected using the separate development pool and public/team-generated stress
+surfaces under predeclared gates. The required requalification after the auto-language contract
+change passed before product PR #155 merged. The frozen held-out suite remains sealed and has not
+been used to select, tune, or requalify the provider.
 
 ### Evidence → decision → consequence
 
-**Evidence:** language models are useful interpreters but are not reliable sources of identity, authorization, or banking facts.
+**Evidence:** language models are useful interpreters but are not reliable sources of identity,
+authorization, or banking facts.
 
-**Decision:** constrain the model to language interpretation and post-check every consequential fact deterministically.
+**Decision:** freeze the hackathon interpretation provider/model/configuration for evaluation
+provenance while constraining the model to language interpretation and post-checking every
+consequential fact deterministically.
 
-**Consequence:** model capability can be changed or improved without changing the trusted banking/safety boundary.
-
----
+**Consequence:** the current deployed semantic candidate is identifiable for later evaluation,
+while any material provider/model/prompt/config change must create a new evaluation-candidate
+identity rather than silently inheriting prior evidence.
 
 ## 8. What the final analytical story should show
 

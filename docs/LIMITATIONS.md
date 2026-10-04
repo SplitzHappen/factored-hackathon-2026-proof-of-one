@@ -8,7 +8,7 @@ Proof of One is intentionally bounded. This document records limitations that ma
 
 The current product is a prototype for **account / payment inquiry resolution**, not a general-purpose banking assistant.
 
-The public demo uses synthetic/demo identity and banking data. It does not connect to a live bank core, move money, reverse transactions, change account ownership, or perform other live financial mutations. The controlled action surface centers on support/escalation workflow state.
+The public demo uses the organizer-provided full challenge dataset, which is synthetic competition data rather than a live bank core. It does not move money, reverse transactions, change account ownership, or perform other live financial mutations. The controlled action surface centers on bounded information retrieval and support/escalation workflow state.
 
 ## 2. Language coverage is bounded
 
@@ -65,13 +65,26 @@ Therefore:
 
 The grammar intentionally avoids a general dependency, coordination, or coreference parser during the hackathon. This constrains recall and the range of structures that can be safely interpreted.
 
-## 6. Production LLM/provider selection is not yet frozen
+## 6. Hackathon provider is frozen; production-provider readiness is not
 
-The public runtime has a provider-neutral interpretation boundary and deterministic fallback/stub behavior. A production LLM provider/model is not yet frozen. Model output never has authority over authenticated identity, banking truth, transaction ownership, policy, or action authorization.
+The hackathon runtime is wired to **OpenAI GPT-6 Luna** under interpretation contract
+`r3c-v3-auto-language`, following the governed development qualification and the required
+requalification after the auto-language contract change.
 
-## 7. Public demo data is synthetic
+This is not a production-banking provider-readiness claim. Model output never has authority over
+authenticated identity, banking truth, transaction ownership, policy, or action authorization;
+those remain deterministic/server-controlled boundaries.
 
-The public/default runtime uses synthetic demo personas and synthetic/demo banking data. Public-demo results should not be interpreted as production performance on a real institution's customers, transaction distributions, operational systems, fraud typologies, or compliance environment.
+## 7. Public demo uses the full organizer challenge dataset
+
+The current public Render runtime uses the full organizer-provided challenge artifact in
+`DATA_MODE=curated`, including all 13 supplied table families plus minimized canonical banking
+tables used by the bounded runtime. The organizer challenge data itself is synthetic competition
+data, not a live institution's customer or banking system.
+
+Public-demo results therefore must not be interpreted as production performance on a real
+institution's customers, transaction distributions, operational systems, fraud typologies, or
+compliance environment.
 
 ## 8. The supervised fraud-risk model was not deployed
 
@@ -206,26 +219,30 @@ Residual limitations:
 
 ## 13. Remaining validation before final submission
 
-The judge-facing synthetic product is now in deployment-preparation freeze after the signal-box UI,
-final UI-test reconciliation, and RF5 full interpreter-to-policy replay evidence.
+The judge-facing runtime is deployed on Render with the full organizer-provided challenge artifact,
+OpenAI GPT-6 Luna interpretation, deterministic route authority, and the signal-box UI. The exact
+technical runtime identity has been pinned; final submission-candidate freeze still depends on the
+remaining package/final-assurance gates.
 
-Remaining submission gates are narrower than the earlier repair roadmap:
+Remaining gates are narrow:
 
-- select the public hosting environment and freeze its trusted reverse-proxy configuration;
-- deploy only the synthetic judge-facing runtime and run the public verification checklist in
-  `FINAL_DEMO_DEPLOYMENT.md`;
-- reconcile final public claims across README, limitations, deck, and narration;
-- complete the final Claude claims/design audit against the actual deployed product + deck + script;
+- keep public claims consistent across README, limitations, data-evidence spine, provider evidence,
+  deck, and narration;
+- obtain one fresh direct public root/UI + `/ready` observation after the final documentation-only
+  candidate is merged/deployed;
+- keep the frozen held-out suite sealed unless separately authorized for final evaluation;
+- complete the final independent claims/design audit against the exact deployed product + evidence
+  + deck + script;
 - record the final <=3 minute video only after product/deployment/deck/script freeze;
 - submit only after explicit owner approval.
 
-The unauthorized-language surface remains deterministic and bounded. IPA-M1 is not represented as
-closed by this deployment freeze, and no production/general-language robustness claim should be
-inferred from the public synthetic demo.
+The unauthorized-language surface remains deterministic and bounded. IPA-M1 is **not** represented
+as formally closed, and no production/general-language robustness claim should be inferred from the
+hackathon demo.
 
-Blind realistic-language v2, held-out uplift evaluation, and live-provider evaluation remain
-separate evidence gates. They are not prerequisites for demonstrating the bounded synthetic
-runtime, but no uplift, live-LLM-quality, or production-readiness claim is permitted without them.
+The realistic-language v1 slice and development-provider qualification are evidence for bounded
+interpretation quality only. No held-out PASS, baseline-vs-LLM uplift claim, fraud-detection claim,
+or production-readiness claim is permitted unless separately supported by the required evidence.
 
 This file should be updated whenever a material limitation is removed, narrowed, newly discovered,
 or converted into an explicit product-scope decision.
