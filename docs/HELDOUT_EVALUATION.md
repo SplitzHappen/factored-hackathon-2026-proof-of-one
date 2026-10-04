@@ -229,8 +229,11 @@ The runner is system-agnostic and writes the existing `CaseExecution` /
 - `simple_model_baseline`;
 - `proposed`.
 
-The deterministic baseline may use the existing deterministic ES/PT interpretation provider over
-the same trusted banking and policy boundary.
+The runner can execute a deterministic baseline over the same trusted banking and policy boundary,
+but this PR does **not** silently declare the public-demo deterministic provider to be the final
+held-out baseline. That provider is sufficient for synthetic runner validation, while its demo-ID
+parsing is not a frozen claim about organizer transaction-ID formats. The final deterministic
+baseline implementation/identity must therefore be explicitly frozen before held-out execution.
 
 Model-backed systems must supply an explicit frozen provider, model, model-config, prompt, and
 deployment identity. The runner does not choose or silently default those identities.
