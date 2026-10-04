@@ -1,6 +1,6 @@
 # R3C-B Provider Qualification
 
-Status: **OpenAI-only private development qualification passed; selected provider candidate frozen; runtime not wired yet**  
+Status: **OpenAI GPT-6 Luna selected and qualified for the hackathon runtime; live runtime wired; deterministic policy authority retained**  
 Evidence timestamp: 2026-10-03T03:37:37Z  
 Evaluation surface: **public synthetic preflight + private 100-case development pool + public/team-generated stress evidence**
 
@@ -18,9 +18,7 @@ Selection basis:
 3. no eligible-failure reason was reported;
 4. no raw prompts or raw outputs were persisted.
 
-This is a provider-selection decision only. The public/judge-facing runtime is still not wired to
-a live LLM provider, and deterministic policy remains the authority for identity, ownership,
-banking truth, route disposition, and operational action.
+The selected provider is now wired into the public/judge-facing runtime as the bounded language-interpretation layer. Deterministic policy remains the authority for identity, ownership, banking truth, route disposition, and operational action.
 
 ## Candidate snapshot
 
@@ -222,7 +220,25 @@ Diagnostic route-proxy accuracy was 0.7846153846153846. This is reported for tra
 
 Decision:
 
-> public synthetic preflight PASS + private development qualification PASS -> OpenAI GPT-6 Luna selected as the live interpretation provider candidate -> runtime wiring may proceed in a separate implementation PR, without changing deterministic policy authority and before any held-out execution.
+> public synthetic preflight PASS + private development qualification PASS -> OpenAI GPT-6 Luna selected as the live interpretation provider candidate. Runtime wiring subsequently merged in product PR #151. Product PR #155 later changed the interpretation contract to true ES/PT turn-language auto-detection and records the required OpenAI requalification PASS before merge. Deterministic policy authority remained unchanged, and no held-out execution was used.
+
+## Current runtime follow-up
+
+The public hackathon runtime now uses:
+
+- candidate ID: `openai-gpt-6-luna`;
+- provider/model: OpenAI / `gpt-6-luna`;
+- API style: Responses API with strict JSON Schema;
+- interpretation contract: `r3c-v3-auto-language`;
+- temperature: `0`;
+- reasoning effort: `none`;
+- maximum output tokens: `800`;
+- one bounded interpretation attempt before deterministic fail-closed recovery/fallback.
+
+The current public deployment uses full organizer-provided challenge data in curated mode. This is
+still a hackathon/prototype provider decision, not a production-banking provider-readiness claim.
+
+The frozen held-out suite remains sealed and was not used to select or requalify the provider.
 
 ## Configuration
 
@@ -302,7 +318,7 @@ The selected-provider result publishes only safe aggregate evidence:
 
 This is another **Evidence -> decision -> consequence** item:
 
-> development-pool multilingual extraction evidence -> OpenAI GPT-6 Luna provider choice -> frozen runtime adapter/configuration may be wired before held-out evaluation.
+> development-pool multilingual extraction evidence -> OpenAI GPT-6 Luna provider choice -> runtime adapter/configuration wired for the hackathon deployment; later auto-language contract requalified before merge; held-out evaluation remains separately sealed.
 
 ## Pre-run refresh history
 
@@ -325,4 +341,4 @@ Official provider documentation was rechecked immediately before execution:
 - DeepSeek `deepseek-flash` still serves DeepSeek-V4.1-Flash. JSON Object mode, non-thinking control, and the existing USD peak/off-peak price range remain current.
 - The diagnostic route projection was reconciled with the frozen product policy inputs so `possible_unauthorized_activity` and interpreter-unavailable state reach `route_policy()`. Route-proxy accuracy remains diagnostic and does not become model authority or a provider-selection quality gate.
 
-The current benchmark version is `r3c-provider-bakeoff-v4`; the interpretation contract remains `r3c-v2`.
+The current benchmark version is `r3c-provider-bakeoff-v4`; the deployed interpretation contract is `r3c-v3-auto-language`.
