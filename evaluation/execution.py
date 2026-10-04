@@ -77,17 +77,22 @@ class ExecutionIdentity:
             raise ValueError("system_version is required")
         if not self.deployment_version.strip():
             raise ValueError("deployment_version is required")
-        if self.system is not EvaluationSystem.DETERMINISTIC_BASELINE:
-            required = (
-                self.model_provider,
-                self.model_name,
-                self.model_config_id,
-                self.prompt_version,
-            )
-            if any(value is None or not value.strip() for value in required):
+        model_metadata = (
+            self.model_provider,
+            self.model_name,
+            self.model_config_id,
+            self.prompt_version,
+        )
+        if self.system is EvaluationSystem.DETERMINISTIC_BASELINE:
+            if any(value is not None for value in model_metadata):
                 raise ValueError(
-                    "model-backed systems require provider/model/config/prompt identity"
+                    "deterministic baseline must not carry model/provider/prompt identity"
                 )
+            return
+        if any(value is None or not value.strip() for value in model_metadata):
+            raise ValueError(
+                "model-backed systems require provider/model/config/prompt identity"
+            )
 
 
 CaseLike = HeldoutCase | DevelopmentCase
@@ -577,6 +582,36 @@ def run_system_cases(
                 )
             )
     return executions
+
+
+def run_canonical_heldout_cases(
+    cases: Sequence[HeldoutCase],
+    system: CustomerServiceEvaluationSystem,
+    *,
+    identity: FrozenSuiteIdentity = CANONICAL_HELDOUT_IDENTITY,
+) -> list[CaseExecution]:
+    """Run the frozen held-out schedule with no caller-controlled suite identity."""
+
+    if identity != CANONICAL_HELDOUT_IDENTITY:
+        raise EvaluationExecutionError(
+            "canonical held-out execution requires the canonical frozen identity"
+        )
+    if len(cases) != identity.case_count:
+        raise EvaluationExecutionError(
+            f"canonical held-out execution requires exactly {identity.case_count} cases"
+        )
+    if len({case.case_id for case in cases}) != len(cases):
+        raise EvaluationExecutionError("canonical held-out case IDs are not unique")
+
+    return run_system_cases(
+        cases,
+        system,
+        suite_version=identity.suite_version,
+        suite_combined_sha256=identity.combined_sha256,
+        require_high_risk_repeats=(
+            system.identity.system is EvaluationSystem.PROPOSED
+        ),
+    )
 
 
 def write_private_execution_jsonl(
