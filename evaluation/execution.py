@@ -180,13 +180,13 @@ def _verify_source_binding(
             "canonical held-out execution requires the frozen curated database "
             "and build-manifest paths"
         )
-    database_path = database_path.expanduser().resolve()
-    curated_manifest_path = curated_manifest_path.expanduser().resolve()
-    _read_regular_file(curated_manifest_path)
-    if not database_path.is_file() or database_path.is_symlink():
+    database_path = database_path.expanduser().absolute()
+    curated_manifest_path = curated_manifest_path.expanduser().absolute()
+    if database_path.is_symlink() or not database_path.is_file():
         raise EvaluationExecutionError(
             f"invalid curated database artifact: {database_path}"
         )
+    _read_regular_file(curated_manifest_path)
     if _sha256_file(database_path) != identity.curated_database_sha256:
         raise EvaluationExecutionError(
             "curated database bytes do not match the frozen evaluation source"
