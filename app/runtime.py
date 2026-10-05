@@ -34,6 +34,7 @@ DEFAULT_TENANT_RETENTION_SECONDS = 24 * 60 * 60
 DEFAULT_SESSION_REQUEST_LIMIT = 60
 DEFAULT_SESSION_REQUEST_WINDOW_SECONDS = 60
 DEFAULT_SESSION_CREATION_LIMIT = 10
+DEFAULT_CHALLENGE_SESSION_CREATION_LIMIT = 100
 DEFAULT_SESSION_CREATION_WINDOW_SECONDS = 60 * 60
 DEFAULT_TICKET_LIMIT_PER_SESSION = 5
 
@@ -110,6 +111,7 @@ class OperationalStore:
         session_request_limit: int = DEFAULT_SESSION_REQUEST_LIMIT,
         session_request_window_seconds: int = DEFAULT_SESSION_REQUEST_WINDOW_SECONDS,
         session_creation_limit: int = DEFAULT_SESSION_CREATION_LIMIT,
+        challenge_session_creation_limit: int = DEFAULT_CHALLENGE_SESSION_CREATION_LIMIT,
         session_creation_window_seconds: int = DEFAULT_SESSION_CREATION_WINDOW_SECONDS,
         ticket_limit_per_session: int = DEFAULT_TICKET_LIMIT_PER_SESSION,
     ) -> None:
@@ -120,6 +122,7 @@ class OperationalStore:
             "session_request_limit": session_request_limit,
             "session_request_window_seconds": session_request_window_seconds,
             "session_creation_limit": session_creation_limit,
+            "challenge_session_creation_limit": challenge_session_creation_limit,
             "session_creation_window_seconds": session_creation_window_seconds,
             "ticket_limit_per_session": ticket_limit_per_session,
         }
@@ -134,6 +137,7 @@ class OperationalStore:
         self.session_request_limit = int(session_request_limit)
         self.session_request_window_seconds = int(session_request_window_seconds)
         self.session_creation_limit = int(session_creation_limit)
+        self.challenge_session_creation_limit = int(challenge_session_creation_limit)
         self.session_creation_window_seconds = int(session_creation_window_seconds)
         self.ticket_limit_per_session = int(ticket_limit_per_session)
 
@@ -450,6 +454,15 @@ class OperationalStore:
             scope="session_create",
             subject=subject,
             limit=self.session_creation_limit,
+            window_seconds=self.session_creation_window_seconds,
+        )
+
+    def enforce_challenge_session_creation_rate(self, subject: str) -> None:
+        """Apply a separate, higher quota to judge-facing challenge sessions."""
+        self._enforce_rate_limit(
+            scope="challenge_session_create",
+            subject=subject,
+            limit=self.challenge_session_creation_limit,
             window_seconds=self.session_creation_window_seconds,
         )
 
