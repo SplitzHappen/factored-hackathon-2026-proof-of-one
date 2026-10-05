@@ -145,15 +145,24 @@ Not permitted without a new owner-authorized engineering cycle:
 - held-out evaluation;
 - architecture expansion.
 
-## 7. Remaining submission sequence
+## 7. Final submission package
 
-1. Verify the full-data public deployment.
-2. Lock the public URL/product behavior.
-3. Run the final human break-it pass against the full-data/four-stage UI.
-4. Fix only reproducible material defects.
-5. Build the final 4–6 slide deck.
-6. Finalize the <=3 minute narration/script.
-7. Run the final claims/design audit over the deployed product + deck + script.
-8. Apply only justified final copy/packaging corrections.
-9. Record the video once against the frozen deployed product.
-10. Submit only after explicit owner approval.
+The Factored submission package is submitted by email to `hackathon.admin@factored.ai` and consists of:
+
+1. the public GitHub repository;
+2. the deployed solution link: `https://proof-of-one-factored-2026.onrender.com`;
+3. the final 4–6 slide presentation;
+4. the final video pitch no longer than 3 minutes.
+
+The repository and deployment remain the technical implementation surfaces. The final slide deck and video are packaging artifacts submitted separately by email with the repository and deployment links.
+
+Final submission-facing boundaries remain unchanged:
+
+- no held-out PASS claim;
+- no fraud-detection claim;
+- no production-readiness claim;
+- no pilot-readiness claim;
+- no live-bank-core integration claim;
+- no real-customer-data claim.
+
+After this package is assembled, only factual documentation corrections and owner-approved claim-safety corrections should be made. Application behavior, route policy, interpreter behavior, data artifacts, evaluation logic, and deployment configuration remain frozen unless a concrete blocker is identified and explicitly authorized.
