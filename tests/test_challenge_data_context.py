@@ -260,7 +260,10 @@ def test_curated_mode_serves_full_challenge_judge_shell(tmp_path: Path) -> None:
         assert response.status_code == 200
         html = response.text
         assert "Proof of One" in html
+        assert 'data-brand="assert-proof-of-one"' in html
         assert "Deterministic Support Interlock" in html
+        assert ">Send message</button>" in html
+        assert "Set route · send" not in html
         assert "Customer-scoped records · LLM interpretation" in html
         assert "Challenge data" in html
         assert "Customer lookup" in html
