@@ -1,6 +1,8 @@
 # Judge-facing local UI shell
 
-This document is the public, consolidated reference for the R3F judge-facing local UI shell.
+**Status:** historical R3F local-shell record. The current hosted judge-facing candidate is the full challenge-data signal-box surface with OpenAI GPT-6 Luna interpretation and deterministic route authority. See `README.md` and `docs/FINAL_DEMO_DEPLOYMENT.md` for the current submission runtime. The local synthetic details below are preserved as implementation provenance and must not be read as the final public deployment contract.
+
+This document is the historical, consolidated reference for the R3F judge-facing local UI shell.
 
 The shell is a thin browser interface over the existing local synthetic FastAPI demo API. It is intended to support screenshot and short-video capture for the final demo package without requiring judges to interpret Swagger screens as the main product surface.
 
