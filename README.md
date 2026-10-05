@@ -2,22 +2,31 @@
 
 Proof of One is a hosted full-data prototype demo for bounded account/payment customer-support resolution in the Factored AI & Data Hackathon 2026.
 
+## Judge quick links / submission package
+
+- **Live demo:** https://proof-of-one-factored-2026.onrender.com
+- **Public repository:** this repository is the canonical public implementation surface.
+- **Submission channel:** the final package is submitted by email to `hackathon.admin@factored.ai`.
+- **Submitted materials:** public GitHub repository, deployed solution link, 4–6 slide presentation, and a video pitch no longer than 3 minutes.
+- **Current main submission commit:** `24742338d930cd89fb025667ce52026cf896fd14`.
+- **Core claim:** LLM interprets; bank data owns truth; deterministic interlock owns route authority; bounded tools act; verification proves.
+- **Boundary:** hackathon prototype over organizer-provided synthetic challenge data; not fraud detection; not connected to a live bank core; not production-ready or pilot-ready.
+
 ## Current implementation stage
 
-Finalization-stage candidate after the signal-box UI, full interpreter-to-policy replay evidence,
+Final public submission candidate after the signal-box UI, full interpreter-to-policy replay evidence,
 first-class Decision Evidence / ACT -> VERIFY, trusted-bank dependency fail-closed handling,
-live provider qualification/wiring, and full challenge-data deployment.
+live provider qualification/wiring, full challenge-data deployment, final video recording, and final judge-deck preparation.
 
 The public Render runtime uses the organizer-provided challenge dataset in `DATA_MODE=curated`
 and connects OpenAI GPT-6 Luna for bounded Spanish/Portuguese interpretation. The LLM does not
 control authenticated identity, transaction ownership, banking truth, route disposition, or
 operational action; deterministic policy remains authoritative.
 
-The current product runtime candidate is pinned at product commit
-`164c1d5c6cb86a44b1be01569c8ac9bd0ad6465e` and Render deploy
-`dep-db1e3bgjo6nc73agr5q0`. Final submission still requires final held-out access resolution,
-final claims/design assurance, video/package freeze, and explicit owner approval. The frozen
-held-out suite remains sealed; no held-out PASS or production/pilot-readiness claim is made here.
+The current public repository submission surface is pinned at main commit
+`24742338d930cd89fb025667ce52026cf896fd14`. The public deployment remains live at
+`https://proof-of-one-factored-2026.onrender.com`. The frozen held-out suite remains sealed;
+no held-out PASS, fraud-detection, production-readiness, or pilot-readiness claim is made here.
 
 The application currently contains:
 - a judge-facing full-data prototype UI over the public full-challenge-data API, with customer-scoped challenge records, provided transcript messages, fresh server-issued sessions, revocation, and bounded operational retention;
@@ -204,11 +213,6 @@ entry. The technical runtime identity has been pinned and the public deployment 
 full organizer-provided challenge artifact with OpenAI GPT-6 Luna interpretation and deterministic
 route authority.
 
-The official submission still requires the final 4–6 slide presentation, <=3 minute video,
-final claim/design assurance, exact final artifact/deployment identities, and explicit owner
-approval before submission. The frozen held-out suite remains separately owner-gated and is not
-represented as completed.
+The official Factored submission package is submitted by email to `hackathon.admin@factored.ai` and consists of the public GitHub repository, deployed solution link, final 4–6 slide presentation, and video pitch no longer than 3 minutes. The slide deck and video are maintained outside the repository and submitted separately by email with the deployed solution and repository links.
 
-Judge-facing boundaries must remain explicit: this is a hackathon prototype over organizer-provided
-synthetic challenge data, **not fraud detection**, not connected to a live bank core, and not a
-production/pilot-readiness claim.
+The frozen held-out suite remains separately owner-gated and is not represented as completed. Judge-facing boundaries must remain explicit: this is a hackathon prototype over organizer-provided synthetic challenge data, **not fraud detection**, not connected to a live bank core, and not a production/pilot-readiness claim.
