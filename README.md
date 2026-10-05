@@ -1,6 +1,6 @@
 # Proof of One — Factored AI & Data Hackathon 2026
 
-Proof of One is a bounded account/payment customer-support prototype for the Factored AI & Data Hackathon 2026.
+Proof of One is a hosted full-data prototype demo for bounded account/payment customer-support resolution in the Factored AI & Data Hackathon 2026.
 
 ## Current implementation stage
 
@@ -13,14 +13,14 @@ and connects OpenAI GPT-6 Luna for bounded Spanish/Portuguese interpretation. Th
 control authenticated identity, transaction ownership, banking truth, route disposition, or
 operational action; deterministic policy remains authoritative.
 
-The exact technical runtime candidate is pinned at product commit
-`6dff2a889f11dba85465f43b20908c4331e1ce4c`. Final submission-candidate freeze still requires
-final public-package consistency, a fresh direct public smoke after the latest UI repairs, final
-claims/design assurance, video/package freeze, and explicit owner approval. The frozen held-out
-suite remains sealed; no held-out PASS or production/pilot-readiness claim is made here.
+The current product runtime candidate is pinned at product commit
+`164c1d5c6cb86a44b1be01569c8ac9bd0ad6465e` and Render deploy
+`dep-db1e3bgjo6nc73agr5q0`. Final submission still requires final held-out access resolution,
+final claims/design assurance, video/package freeze, and explicit owner approval. The frozen
+held-out suite remains sealed; no held-out PASS or production/pilot-readiness claim is made here.
 
 The application currently contains:
-- a judge-facing signal-box web UI over the public full-challenge-data API, with customer-scoped challenge records, provided transcript messages, fresh server-issued sessions, revocation, and bounded operational retention;
+- a judge-facing full-data prototype UI over the public full-challenge-data API, with customer-scoped challenge records, provided transcript messages, fresh server-issued sessions, revocation, and bounded operational retention;
 - strict Pydantic boundary contracts;
 - Docker packaging;
 - a deterministic full challenge-data artifact builder that preserves all 13 supplied table families while materializing the minimized canonical customer/product/transaction tables used by bounded banking operations;
@@ -84,12 +84,13 @@ The full precedence rationale, Decision Evidence semantics, route-vs-execution d
 pre-LLM freeze boundary are documented in
 [docs/POLICY_PRECEDENCE_AND_DECISION_EVIDENCE.md](docs/POLICY_PRECEDENCE_AND_DECISION_EVIDENCE.md).
 
-## Judge-facing demo and API
+## Hosted full-data prototype demo and API
 
 The public Render deployment at
-`https://proof-of-one-factored-2026.onrender.com` runs in `DATA_MODE=curated` against the
-full organizer-provided challenge artifact and presents the full-data signal-box UI at `/`.
-The challenge dataset is competition/synthetic data, not a live bank core.
+`https://proof-of-one-factored-2026.onrender.com` is a hosted full-data prototype demo. It runs
+in `DATA_MODE=curated` against the full organizer-provided challenge artifact and presents the
+full-data signal-box UI at `/`. The challenge dataset is competition/synthetic data, not a live
+bank core, and the deployment is not a production or pilot banking system.
 
 Judge-facing full-data endpoints include:
 
