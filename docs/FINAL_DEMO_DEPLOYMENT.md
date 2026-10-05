@@ -1,50 +1,59 @@
 # Final Demo Deployment and Verification Contract
 
-**Status:** deployment-preparation freeze candidate for the Factored AI & Data Hackathon 2026 submission.
+**Status:** final full-data public demo contract for the Factored AI & Data Hackathon 2026 submission.
 
-This document defines the narrow deployment contract for the frozen judge-facing synthetic demo.
-It is operational guidance, not a production-readiness claim.
+This document supersedes the earlier synthetic-only/no-live-LLM deployment-preparation contract. The final judge-facing deployment is a hackathon prototype over the organizer-provided synthetic challenge dataset, not a production banking system, not a pilot-ready system, and not a fraud-detection product.
 
-The official Factored submission page requires a working deployed solution in addition to the
-public repository, 4–6 slide presentation, and video pitch. The deployed surface described here
-is therefore a hackathon demonstration surface only.
+The public deployment is intended to make the core Proof of One architecture visible: LLM interpretation, server-controlled customer scope, deterministic route authority, bounded operational action, and observable verification.
 
-## 1. Frozen judge-facing runtime
+## 1. Judge-facing runtime
 
-The deployment candidate is the same product demonstrated locally:
+The deployed judge-facing runtime is the full-data product surface:
 
 - signal-box web UI at `/` and `/demo`;
-- synthetic personas only in the public/default runtime;
-- deterministic interpretation provider;
-- deterministic policy/router;
-- ownership-scoped synthetic banking records;
+- full challenge-data mode through the derived read-only DuckDB artifact;
+- live Spanish/Portuguese interpretation through the governed provider contract;
+- deterministic policy/router with fixed `ANSWER`, `CLARIFY`, `ABSTAIN`, and `ESCALATE` outcomes;
+- server-issued customer-scoped sessions;
+- customer-owned record retrieval only through backend repositories;
 - persisted/read-back-verified support and escalation tickets;
-- Spanish and Brazilian Portuguese demonstration paths;
-- no live LLM connected to the judge-facing runtime.
+- visible Decision Evidence / ACT -> VERIFY signals;
+- no model authority over authenticated identity, ownership, banking truth, route disposition, execution, or verification.
 
-The runtime must not be described as fraud detection, a production banking system, a pilot-ready
-system, or evidence of real-world performance.
+The runtime must not be described as fraud detection, production readiness, pilot readiness, live-bank integration, or evidence of real-world banking performance.
 
-## 2. Required runtime configuration
+## 2. Required public runtime configuration
 
-Use synthetic mode for the public demo.
+Use curated full-data mode for the public demo.
 
 ```text
-DATA_MODE=synthetic
-BANK_DB_PATH=/app/runtime/synthetic-demo.duckdb
-RUNTIME_DB_PATH=/app/runtime/synthetic-runtime.sqlite
-PORT=<host assigned port, or 8000 locally>
+DATA_MODE=curated
+BANK_DB_PATH=/var/data/full-challenge.duckdb
+RUNTIME_DB_PATH=/var/data/curated-runtime.sqlite
+INTERPRETATION_PROVIDER=openai-gpt-6-luna
+PORT=<host assigned port>
 ```
 
-No live-provider credential is required for the frozen judge-facing runtime.
+The Render persistent disk must contain the derived full challenge DuckDB artifact at the configured `BANK_DB_PATH`. Raw organizer files, storage credentials, local data folders, and provider credentials must not be committed to Git.
 
-The runtime directory must be writable. A persistent volume is preferred for a public deployment
-so sessions/tickets survive container restarts during judging, but all public banking records
-remain synthetic.
+The operational runtime SQLite database is separate from the banking artifact and contains only bounded operational state: server-established session identity references, bounded structured conversation state, rate-limit events, and support/escalation tickets. It must not contain authoritative banking tables.
 
-Do not mount organizer raw data or the curated organizer-derived artifact into the public demo.
+## 3. Data-boundary contract
 
-## 3. Container contract
+The public demo uses the organizer-provided synthetic challenge dataset through a derived read-only artifact. The public repository does not commit raw organizer data or generated database artifacts.
+
+The final deployment exposes row-level synthetic challenge records through the controlled product workflow because that visibility is central to the judge-facing demonstration of customer scope, ownership, routing, and verification. The claim boundary remains explicit:
+
+- the dataset is challenge/synthetic data, not real customer banking data;
+- the application is a hackathon prototype;
+- the app is not connected to a live bank core;
+- the app is not production- or pilot-ready;
+- model output is not an authority layer;
+- deterministic backend controls remain authoritative.
+
+Retrospective fraud labels and organizer risk scores are not exposed as customer-facing fraud determinations. Customer-reported non-recognition/unauthorized activity drives safety escalation; the failed supervised fraud-risk model remains not deployed.
+
+## 4. Container and host contract
 
 The repository Dockerfile:
 
@@ -53,36 +62,19 @@ The repository Dockerfile:
 - accepts the host-assigned `PORT`;
 - checks dependency-aware readiness through `/ready`.
 
-Local smoke:
-
-```powershell
-docker compose up --build
-```
-
-Expected local surfaces:
+The public Render service is the canonical submitted deployment unless explicitly replaced by a later owner-approved deployment identity:
 
 ```text
-http://127.0.0.1:8000/
-http://127.0.0.1:8000/demo
-http://127.0.0.1:8000/health
-http://127.0.0.1:8000/ready
+https://proof-of-one-factored-2026.onrender.com
 ```
 
-## 4. Reverse-proxy / public-host constraint
+Render service configuration must preserve:
 
-The application rate-limits successful demo-session creation by the ASGI peer address.
-
-A public host normally places the container behind a reverse proxy. Before judge-accessible
-go-live, the selected platform's trusted proxy chain must therefore be known and Uvicorn proxy
-header handling must be configured so `request.client.host` represents the originating client
-rather than one shared proxy address.
-
-Do not solve this by blindly trusting arbitrary forwarded headers on a directly exposed service.
-The exact `FORWARDED_ALLOW_IPS` / proxy setting is a deployment-environment decision and remains
-blocked until the hosting platform is selected.
-
-This is the only known deployment-specific runtime configuration blocker in this freeze-prep
-record. It is not a reason to reopen product feature work.
+- one public web service;
+- full-data `DATA_MODE=curated`;
+- mounted persistent disk for the derived DuckDB artifact and operational runtime store;
+- health check path `/ready`;
+- no committed secrets.
 
 ## 5. Public verification checklist
 
@@ -93,50 +85,49 @@ After deployment, verify the exact public URL from a clean browser session.
 - `GET /health` returns HTTP 200 with `status=ok`.
 - `GET /ready` returns HTTP 200 with:
   - `status=ready`;
-  - `data_mode=synthetic`;
-  - `synthetic_data=true`;
+  - `data_mode=curated`;
+  - `synthetic_data=false`;
   - `bank_ready=true`;
   - `runtime_ready=true`;
-  - `llm_connected=false`.
-- Root `/` renders the signal-box UI.
-- `/demo` renders the same UI.
-- No organizer-derived data is present in the public container/runtime volume.
+  - `llm_connected=true`.
+- Root `/` renders the full-data signal-box UI.
+- `/demo` renders the same full-data UI.
+- The UI displays the full-data/live-LLM badge.
+- The UI preserves the four judge-facing stages: `INTERPRET`, `SCOPE`, `ROUTE`, and `VERIFY`.
 
 ### Judge-visible scenarios
 
-Start a fresh synthetic session and verify:
+Start fresh scoped sessions and verify:
 
-1. ANSWER — known owned transaction returns a record-backed answer.
-2. CLARIFY — the 54,000 COP Lucía query returns the two owned synthetic candidates.
-3. ESCALATE — the unauthorized-report preset routes to human review and returns a ticket.
-4. ABSTAIN — the out-of-scope transfer request stays outside the bounded workflow.
-5. PT — Rafael's Portuguese transaction-status path returns an owned PT synthetic record.
-6. HANDOFF — the separate endpoint creates a support ticket and shows persisted/read-back-verified evidence.
+1. `ANSWER` — a Spanish account/transaction query returns a scoped, record-backed answer.
+2. `CLARIFY` — ambiguous supported references ask for clarification rather than guessing.
+3. `ESCALATE` — a customer-reported unauthorized/non-recognized payment routes to human review.
+4. `ABSTAIN` — prohibited or unsupported banking actions remain outside the bounded workflow.
+5. Portuguese path — a Portuguese customer message is interpreted as Portuguese without granting model authority.
+6. HANDOFF — the explicit support endpoint creates a ticket and shows persisted/read-back-verified evidence.
 
 ### Boundary/claims surface
 
-The public UI must visibly retain:
+The public UI and submission materials must retain these boundaries:
 
-- `LOCAL PROTOTYPE · SYNTHETIC`;
-- no live LLM;
-- not fraud detection;
-- not production/pilot-ready;
-- deterministic-check explanation;
-- explicit HANDOFF as a separate support endpoint.
+- full-data challenge demo, not live-bank deployment;
+- synthetic challenge data, not real customer data;
+- live LLM interpretation, not LLM authority;
+- deterministic policy route authority;
+- no fraud-detection claim;
+- no production/pilot-readiness claim;
+- human review for safety escalations.
 
 ### Isolation / restart checks
 
-- Open the deployment in a second private/incognito browser and confirm a fresh server-issued
-  tenant/session rather than reuse of the first visitor's state.
+- Open the deployment in a second private/incognito browser and confirm a fresh server-issued session rather than reuse of the first visitor's state.
 - Revoke one session and confirm it no longer authenticates.
-- If the hosting plan can restart the container, perform one controlled restart and confirm
-  `/ready` returns to green. If a persistent runtime volume is configured, confirm expected
-  operational state persistence according to that platform's storage contract.
+- Confirm customer-scoped sessions do not allow cross-customer record disclosure.
+- Confirm dependency failure, if encountered, fails closed with HTTP 503 and no banking fact release rather than inventing a normal route.
 
 ## 6. Freeze rule
 
-After public verification passes, do not change application behavior before recording the final
-video unless verification exposes a concrete blocker.
+After public verification passes, do not change application behavior before recording the final video unless verification exposes a concrete blocker.
 
 Permitted after freeze:
 
@@ -150,20 +141,19 @@ Not permitted without a new owner-authorized engineering cycle:
 - route-policy changes;
 - interpreter behavior changes;
 - new intents/workflows;
-- FTP-2 activation;
-- live-provider wiring;
+- data-artifact changes;
 - held-out evaluation;
 - architecture expansion.
 
 ## 7. Remaining submission sequence
 
-1. Select/configure the public host and trusted-proxy contract.
-2. Deploy the frozen synthetic image.
-3. Run this public-verification checklist.
-4. Lock the public URL/product behavior.
+1. Verify the full-data public deployment.
+2. Lock the public URL/product behavior.
+3. Run the final human break-it pass against the full-data/four-stage UI.
+4. Fix only reproducible material defects.
 5. Build the final 4–6 slide deck.
 6. Finalize the <=3 minute narration/script.
-7. Run the final Claude claims/design audit over the deployed product + deck + script.
+7. Run the final claims/design audit over the deployed product + deck + script.
 8. Apply only justified final copy/packaging corrections.
 9. Record the video once against the frozen deployed product.
 10. Submit only after explicit owner approval.
