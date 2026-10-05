@@ -568,7 +568,7 @@ def create_app(context: AppContext | None = None) -> FastAPI:
             )
 
         try:
-            runtime_context.store.enforce_session_creation_rate(
+            runtime_context.store.enforce_challenge_session_creation_rate(
                 _peer_rate_subject(http_request)
             )
         except RateLimitExceededError as exc:
