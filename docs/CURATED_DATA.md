@@ -1,8 +1,8 @@
 # Curated banking data boundary
 
-Proof of One does **not** run directly against the complete organizer dataset.
+**Status:** historical R3B minimized-serving-layer record. The current hosted full-data build preserves all 13 supplied table families in the challenge artifact while bounded operational banking reads still use the minimized trusted canonical customer/product/transaction surface. See `docs/DATA_EVIDENCE_SPINE.md` and `docs/FINAL_DEMO_DEPLOYMENT.md` for the current judge-facing runtime.
 
-The R3B build step reads the organizer files without modifying them and creates a smaller `bank.duckdb` containing only the trusted relational core required by the approved Account / payment inquiries workflow.
+The original R3B build step read the organizer files without modifying them and created a smaller `bank.duckdb` containing only the trusted relational core required by the approved Account / payment inquiries workflow. The field and integrity rules below remain relevant to that minimized canonical banking surface.
 
 ## Included tables and fields
 
