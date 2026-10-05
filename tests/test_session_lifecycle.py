@@ -116,6 +116,24 @@ def test_unknown_persona_does_not_consume_session_creation_quota(tmp_path) -> No
     assert limited.status_code == 429
 
 
+def test_challenge_session_creation_quota_is_separate_and_higher(tmp_path) -> None:
+    store = OperationalStore(
+        tmp_path / "runtime.sqlite",
+        session_creation_limit=1,
+        challenge_session_creation_limit=3,
+    )
+    store.initialize()
+
+    store.enforce_session_creation_rate("peer-a")
+    with pytest.raises(RateLimitExceededError):
+        store.enforce_session_creation_rate("peer-a")
+
+    for _ in range(3):
+        store.enforce_challenge_session_creation_rate("peer-a")
+    with pytest.raises(RateLimitExceededError):
+        store.enforce_challenge_session_creation_rate("peer-a")
+
+
 def test_rate_limit_state_survives_store_reopen(tmp_path) -> None:
     _, context = _client(tmp_path)
     context.store.session_creation_limit = 1
