@@ -8,7 +8,6 @@ Proof of One is a hosted full-data prototype demo for bounded account/payment cu
 - **Public repository:** this repository is the canonical public implementation surface.
 - **Submission channel:** the final package is submitted by email to `hackathon.admin@factored.ai`.
 - **Submitted materials:** public GitHub repository, deployed solution link, 4–6 slide presentation, and a video pitch no longer than 3 minutes.
-- **Current main submission commit:** `24742338d930cd89fb025667ce52026cf896fd14`.
 - **Core claim:** LLM interprets; bank data owns truth; deterministic interlock owns route authority; bounded tools act; verification proves.
 - **Boundary:** hackathon prototype over organizer-provided synthetic challenge data; not fraud detection; not connected to a live bank core; not production-ready or pilot-ready.
 
@@ -23,8 +22,7 @@ and connects OpenAI GPT-6 Luna for bounded Spanish/Portuguese interpretation. Th
 control authenticated identity, transaction ownership, banking truth, route disposition, or
 operational action; deterministic policy remains authoritative.
 
-The current public repository submission surface is pinned at main commit
-`24742338d930cd89fb025667ce52026cf896fd14`. The public deployment remains live at
+The public repository submission surface is final after documentation cleanup. The public deployment remains live at
 `https://proof-of-one-factored-2026.onrender.com`. The frozen held-out suite remains sealed;
 no held-out PASS, fraud-detection, production-readiness, or pilot-readiness claim is made here.
 
